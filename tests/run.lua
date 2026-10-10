@@ -1,5 +1,8 @@
 -- Tests for Forever Combat Meter. Run with tests/run (Lua 5.1, as in WoW).
 local M = dofile("wowmock.lua")
+-- Events the client knows: registering any other name throws, as in the game.
+M.validEvents = { ADDON_LOADED = true, PLAYER_LOGIN = true, PLAYER_ENTERING_WORLD = true,
+    PLAYER_REGEN_ENABLED = true, GLOBAL_MOUSE_DOWN = true }
 local ROOT = ADDONDIR
 local ADDON = "ForeverCombatMeter"
 
@@ -139,6 +142,15 @@ check("code is never run", ns.Share.Import("FCM1:s5:os.ex"), nil)
 check("unknown keys skipped", ns.Share.Import("FCM1:ts6:bogus!b1}"), true)
 check("unknown key not stored", ns.DB().bogus, nil)
 Settings.ResetProfile()
+check("bad enum values skipped", ns.Share.Import("FCM1:ts5:styles5:WRONGs11:borderStyles3:BAD"
+    .. "s6:bgModes5:SOLIDs10:headerFlags6:Italic}"), true)
+check("bad style not stored", ns.DB().style, nil)
+check("bad borderStyle not stored", ns.DB().borderStyle, nil)
+check("bad flag not stored", ns.DB().headerFlag, nil)
+check("good enum kept", ns.Share.Import("FCM1:ts5:styles7:COMPACTs8:nameFlags7:OUTLINE}"), true)
+check("style imported", S("style"), "COMPACT")
+check("flag imported", S("nameFlag"), "OUTLINE")
+Settings.ResetProfile()
 
 section("Options window")
 ns.Window.Open()
@@ -165,8 +177,7 @@ refresh.slider:GetScript("OnValueChanged")(refresh.slider, 0.5, true)
 check("slider sets the interval", S("refresh"), 0.5)
 Settings.Set("refresh", nil)
 check("style row", rowFor("Style", "button") ~= nil, true)
-check("minimap row", rowFor("Minimap button", "check") ~= nil or rowFor("Minimap button", "box") ~= nil
-    or rowFor("Minimap button", "button") ~= nil or rowFor("Minimap button", "checkbox") ~= nil, true)
+check("minimap row", rowFor("Minimap button", "box") ~= nil, true)
 check("language dropdown in the nav", ns.Window.languageRow ~= nil or rowFor("Language", "button") ~= nil, true)
 ns.Window.ShowPage("profiles")
 check("profile row", rowFor("Active profile", "button") ~= nil, true)
@@ -206,8 +217,10 @@ check("usage", M.chat[1] ~= nil and M.chat[1]:find("/fcm", 1, true) ~= nil, true
 
 section("Events and combat")
 local fired = 0
-ns.On("SOME_UNKNOWN_EVENT", function() fired = fired + 1 end)
-M.Fire("SOME_UNKNOWN_EVENT")
+check("the client would reject the event", pcall(CreateFrame("Frame").RegisterEvent, CreateFrame("Frame"), "SOME_UNKNOWN_EVENT"), false)
+check("ns.On survives an unknown event", (pcall(ns.On, "SOME_UNKNOWN_EVENT", function() fired = fired + 1 end)), true)
+ns.On("PLAYER_ENTERING_WORLD", function() fired = fired + 1 end)
+M.Fire("PLAYER_ENTERING_WORLD")
 check("ns.On delivers", fired, 1)
 M.state.combat = true
 local ran = 0
@@ -247,7 +260,15 @@ end
 for _, f in ipairs(tocFiles()) do
     local src = io.open(ROOT .. "/" .. f):read("*a")
     for key in src:gmatch("L%.([A-Z][A-Z0-9_]+)") do check(f .. " uses known L." .. key, base[key] ~= nil, true) end
-    for key in src:gmatch('"((OPT|PAGE|STYLE|TIP|MSG)_[A-Z0-9_]+)"') do check(f .. " uses known " .. key, base[key] ~= nil, true) end
+    local found = 0
+    for key in src:gmatch('"([A-Z]+_[A-Z0-9_]+)"') do
+        local prefix = key:match("^(%u+)_")
+        if prefix == "OPT" or prefix == "PAGE" or prefix == "STYLE" or prefix == "TIP" or prefix == "MSG" then
+            found = found + 1
+            check(f .. " uses known " .. key, base[key] ~= nil, true)
+        end
+    end
+    if f == "Options/Window.lua" then check("label keys are found in " .. f, found > 10, true) end
 end
 -- The language switch.
 ns.Locale.Set("deDE")

@@ -191,9 +191,7 @@ Settings.OnChange(function(key)
     if key == nil or key == "minimapAngle" or key == "minimapShow" then MinimapButton.Place() end
 end)
 
-local events = CreateFrame("Frame")
-events:RegisterEvent("PLAYER_LOGIN")
-events:SetScript("OnEvent", function() MinimapButton.Create() end)
+ns.On("PLAYER_LOGIN", function() MinimapButton.Create() end)
 
 -- Blizzard's addon compartment (the button by the minimap that lists
 -- addons) calls these global functions named in the TOC: the same clicks

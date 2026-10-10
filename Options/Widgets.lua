@@ -524,7 +524,7 @@ local function openList(owner)
     list:SetWidth(owner.button:GetWidth())
     renderList()
     list:Show()
-    list:RegisterEvent("GLOBAL_MOUSE_DOWN")
+    pcall(list.RegisterEvent, list, "GLOBAL_MOUSE_DOWN")
     list:EnableKeyboard(true)
 end
 

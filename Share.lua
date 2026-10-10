@@ -115,6 +115,21 @@ local function sameType(value, default)
     return type(value) == type(default)
 end
 
+-- Settings that take one of a fixed set of values; anything else is skipped.
+local ENUMS = {
+    style = { FOREVER = true, COMPACT = true },
+    borderStyle = { NONE = true, FLAT = true, GOLD = true },
+    bgMode = { SOLID = true, GRADIENT = true, TEXTURE = true },
+}
+for _, name in ipairs(Settings.TEXT_STYLES) do
+    ENUMS[name .. "Flag"] = { [""] = true, OUTLINE = true, THICKOUTLINE = true, SHADOW = true }
+end
+
+local function allowed(key, value)
+    local enum = ENUMS[key]
+    return not enum or enum[value] == true
+end
+
 -- The decoded profile, checked; nil and a reason when the string is not
 -- one of ours.
 function Share.Decode(text)
@@ -127,7 +142,7 @@ function Share.Decode(text)
     local clean = {}
     for key, v in pairs(value) do
         local default = Settings.DEFAULTS[key]
-        if default ~= nil and sameType(v, default) then
+        if default ~= nil and sameType(v, default) and allowed(key, v) then
             clean[key] = v
         end
     end

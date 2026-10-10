@@ -14,9 +14,7 @@ local function Register(panel)
     if InterfaceOptions_AddCategory then pcall(InterfaceOptions_AddCategory, panel) end
 end
 
-local events = CreateFrame("Frame")
-events:RegisterEvent("PLAYER_LOGIN")
-events:SetScript("OnEvent", function()
+ns.On("PLAYER_LOGIN", function()
     local panel = CreateFrame("Frame", "ForeverCombatMeterInterfacePanel", UIParent)
     panel.name = L.ADDON_NAME
     local title = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
