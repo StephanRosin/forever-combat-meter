@@ -2,7 +2,8 @@
 local M = dofile("wowmock.lua")
 -- Events the client knows: registering any other name throws, as in the game.
 M.validEvents = { ADDON_LOADED = true, PLAYER_LOGIN = true, PLAYER_ENTERING_WORLD = true,
-    PLAYER_REGEN_ENABLED = true, GLOBAL_MOUSE_DOWN = true }
+    PLAYER_REGEN_ENABLED = true, GLOBAL_MOUSE_DOWN = true,
+    PLAYER_TARGET_CHANGED = true, GROUP_ROSTER_UPDATE = true }
 local ROOT = ADDONDIR
 local ADDON = "ForeverCombatMeter"
 
@@ -51,7 +52,7 @@ end)(), true)
 check("Interface", io.open(ROOT .. "/" .. ADDON .. ".toc"):read("*l"), "## Interface: 16001")
 for _, name in ipairs({ "L", "Locale", "On", "Print", "AfterCombat", "DB", "AccountDB", "ActiveProfile",
     "SwitchProfile", "DeleteProfile", "CopyProfileFrom", "ProfileList", "Settings", "Share", "Media",
-    "Position", "Corners", "Border", "Window", "MinimapButton", "Style", "Widgets", "Format", "Meter" }) do
+    "Position", "Corners", "Border", "Window", "MinimapButton", "Style", "Widgets", "Format", "Meter", "Threat" }) do
     check("ns." .. name, ns[name] ~= nil, true)
 end
 check("saved variables (account)", type(ForeverCombatMeterProfiles), "table")
@@ -529,6 +530,160 @@ for _, f in ipairs(tocFiles()) do
     end
     if f == "Options/Window.lua" then check("label keys are found in " .. f, found > 10, true) end
 end
+section("Threat")
+local Threat = ns.Threat
+local world = { time = 100, raid = false, members = {}, sounds = {}, target = { exists = true, attack = true, dead = false } }
+-- members: unit -> { name, class, tank, raw, value, secret, self }
+GetTime = function() return world.time end
+IsInRaid = function() return world.raid end
+GetNumGroupMembers = function()
+    local n = 0
+    for u in pairs(world.members) do if u:match("^raid%d+$") or u:match("^party%d+$") or u == "player" then n = n + 1 end end
+    return n
+end
+GetNumSubgroupMembers = function()
+    local n = 0
+    for u in pairs(world.members) do if u:match("^party%d+$") then n = n + 1 end end
+    return n
+end
+UnitExists = function(u)
+    if u == "target" then return world.target.exists end
+    return world.members[u] ~= nil
+end
+UnitCanAttack = function() return world.target.attack end
+UnitIsDead = function() return world.target.dead end
+UnitName = function(u) return world.members[u].name end
+UnitClass = function(u) return world.members[u].name, world.members[u].class end
+UnitIsUnit = function(a, b) return world.members[a] ~= nil and world.members[a].self == true and b == "player" end
+UnitDetailedThreatSituation = function(u, t)
+    local m = world.members[u]
+    if m.secret then return M.Secret(m.tank or false), M.Secret(3), M.Secret(m.raw), M.Secret(m.raw), M.Secret(m.value) end
+    if m.nothing then return nil end
+    return m.tank or false, m.tank and 3 or 1, math.min(m.raw, 100), m.raw, m.value
+end
+SOUNDKIT = { RAID_WARNING = 8959 }
+PlaySound = function(id, ch) world.sounds[#world.sounds + 1] = { id, ch } end
+local function party(spec) world.members = spec; Threat.Reset() end
+local function names(list) local t = {}; for _, r in ipairs(list.rows) do t[#t + 1] = r.name end; return table.concat(t, ",") end
+Settings.ResetProfile()
+
+party({
+    player = { name = "Me", class = "MAGE", raw = 40, value = 1000, self = true },
+    party1 = { name = "Tank", class = "WARRIOR", tank = true, raw = 100, value = 5000 },
+    party2 = { name = "Abe", class = "ROGUE", raw = 40, value = 900 },
+    pet = { name = "Kitty", class = "HUNTER", raw = 10, value = 100 },
+})
+local list = Threat.List()
+check("not unavailable", list.unavailable, false)
+check("sorted: tank, pct desc, name", names(list), "Tank,Abe,Me,Kitty")
+check("tank shows 100", list.rows[1].pct, 100)
+check("tank flag", list.rows[1].tanking, true)
+check("class file name", list.rows[1].class, "WARRIOR")
+check("own row flagged", list.rows[3].isPlayer, true)
+check("others not flagged", list.rows[2].isPlayer, false)
+check("unit token kept", list.rows[1].unit, "party1")
+Settings.Set("showPets", false)
+check("pets off", names(Threat.List()), "Tank,Abe,Me")
+Settings.Set("showPets", true)
+
+world.raid = true
+party({
+    raid1 = { name = "Zed", class = "PRIEST", raw = 20, value = 10 },
+    raid2 = { name = "Tank", class = "WARRIOR", tank = true, raw = 100, value = 99 },
+    raidpet2 = { name = "Imp", class = "WARLOCK", raw = 5, value = 1 },
+})
+check("raid units, pets included", names(Threat.List()), "Tank,Zed,Imp")
+world.raid = false
+
+party({ player = { name = "Me", raw = 10, value = 0, self = true }, party1 = { name = "Silent", nothing = true } })
+check("units without threat are skipped", names(Threat.List()), "Me")
+
+world.target.dead = true
+check("dead target: no rows", #Threat.List().rows, 0)
+world.target.dead, world.target.attack = false, false
+check("friendly target: no rows", #Threat.List().rows, 0)
+world.target.attack = true
+world.target.exists = false
+check("no target: no rows", #Threat.List().rows, 0)
+check("no target: not unavailable", Threat.List().unavailable, false)
+world.target.exists = true
+
+section("Threat per second")
+party({ player = { name = "Me", raw = 40, value = 1000, self = true } })
+world.time = 100
+check("first sample is zero", Threat.List().rows[1].perSecond, 0)
+world.members.player.value = 1500
+world.time = 102
+check("delta over time", Threat.List().rows[1].perSecond, 250)
+world.time = 102.05
+check("a too quick call keeps the rate", Threat.List().rows[1].perSecond, 250)
+world.members.player.value = 1400
+world.time = 104
+check("a falling value is zero", Threat.List().rows[1].perSecond, 0)
+world.members.player.value = 3000
+world.time = 105
+M.Fire("PLAYER_TARGET_CHANGED")
+check("target change resets", Threat.List().rows[1].perSecond, 0)
+world.members.player.value = 4000
+world.time = 106
+M.Fire("GROUP_ROSTER_UPDATE")
+check("roster change resets", Threat.List().rows[1].perSecond, 0)
+
+section("Threat warning")
+party({
+    player = { name = "Me", class = "MAGE", raw = 95, value = 1, self = true },
+    party1 = { name = "Tank", class = "WARRIOR", tank = true, raw = 100, value = 9 },
+})
+world.sounds = {}
+check("warning active at 95 %", Threat.CheckWarning(), true)
+check("sound played", #world.sounds, 1)
+check("sound id and channel", world.sounds[1][1] .. world.sounds[1][2], "8959Master")
+check("still active", Threat.CheckWarning(), true)
+check("sound only once per target", #world.sounds, 1)
+M.Fire("GROUP_ROSTER_UPDATE")
+Threat.CheckWarning()
+check("roster change does not re-arm", #world.sounds, 1)
+M.Fire("PLAYER_TARGET_CHANGED")
+check("target change re-arms", Threat.CheckWarning() and #world.sounds, 2)
+world.members.player.raw = 89
+check("below the threshold", Threat.CheckWarning(), false)
+world.members.player.raw = 90
+check("at the threshold", Threat.CheckWarning(), true)
+world.members.player.tank, world.members.player.raw = true, 100
+M.Fire("PLAYER_TARGET_CHANGED")
+world.sounds = {}
+check("tanking: no warning", Threat.CheckWarning(), false)
+check("tanking: no sound", #world.sounds, 0)
+world.members.player.tank, world.members.player.raw = nil, 95
+Settings.Set("threatSound", false)
+M.Fire("PLAYER_TARGET_CHANGED")
+check("sound off: still active", Threat.CheckWarning(), true)
+check("sound off: silent", #world.sounds, 0)
+Settings.Set("threatSound", nil)
+Settings.Set("threatWarn", false)
+check("warning off", Threat.CheckWarning(), false)
+Settings.Set("threatWarn", nil)
+Settings.Set("threatWarnPct", 98)
+check("custom threshold", Threat.CheckWarning(), false)
+Settings.Set("threatWarnPct", nil)
+world.members.pet = { name = "Kitty", raw = 99, value = 1 }
+world.members.player.raw = 10
+check("a pet's threat does not warn", Threat.CheckWarning(), false)
+
+section("Threat secret values")
+party({
+    player = { name = "Me", raw = 95, value = 1, self = true },
+    party1 = { name = "Tank", secret = true, tank = true, raw = 100, value = 9 },
+})
+local ok, sl = pcall(Threat.List)
+check("secret does not raise", ok, true)
+check("secret: unavailable", sl.unavailable, true)
+check("secret: no rows", #sl.rows, 0)
+world.sounds = {}
+check("secret: no warning", Threat.CheckWarning(), false)
+check("secret: no sound", #world.sounds, 0)
+check("secret warning does not raise", (pcall(Threat.CheckWarning)), true)
+
 -- The language switch.
 ns.Locale.Set("deDE")
 check("German", ns.L.PAGE_GENERAL, "Allgemein")
