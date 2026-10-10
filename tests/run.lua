@@ -3,7 +3,9 @@ local M = dofile("wowmock.lua")
 -- Events the client knows: registering any other name throws, as in the game.
 M.validEvents = { ADDON_LOADED = true, PLAYER_LOGIN = true, PLAYER_ENTERING_WORLD = true,
     PLAYER_REGEN_ENABLED = true, GLOBAL_MOUSE_DOWN = true,
-    PLAYER_TARGET_CHANGED = true, GROUP_ROSTER_UPDATE = true }
+    PLAYER_TARGET_CHANGED = true, GROUP_ROSTER_UPDATE = true, DAMAGE_METER_CURRENT_SESSION_UPDATED = true,
+    DAMAGE_METER_COMBAT_SESSION_UPDATED = true, DAMAGE_METER_RESET = true, ADDON_RESTRICTION_STATE_CHANGED = true,
+    PLAYER_REGEN_DISABLED = true }
 local ROOT = ADDONDIR
 local ADDON = "ForeverCombatMeter"
 
@@ -52,7 +54,8 @@ end)(), true)
 check("Interface", io.open(ROOT .. "/" .. ADDON .. ".toc"):read("*l"), "## Interface: 16001")
 for _, name in ipairs({ "L", "Locale", "On", "Print", "AfterCombat", "DB", "AccountDB", "ActiveProfile",
     "SwitchProfile", "DeleteProfile", "CopyProfileFrom", "ProfileList", "Settings", "Share", "Media",
-    "Position", "Corners", "Border", "Window", "MinimapButton", "Style", "Widgets", "Format", "Meter", "Threat" }) do
+    "Position", "Corners", "Border", "Window", "MinimapButton", "Style", "Widgets", "Format", "Meter", "Threat",
+    "Windows" }) do
     check("ns." .. name, ns[name] ~= nil, true)
 end
 check("saved variables (account)", type(ForeverCombatMeterProfiles), "table")
@@ -98,11 +101,11 @@ Settings.SetMany({ barSpacing = 3, barHeight = 22 })
 check("SetMany: one change", table.concat(seen, ","), "nil")
 check("SetMany values", S("barSpacing") + S("barHeight"), 25)
 check("text style", Settings.TextStyle("name").size, 11)
-Settings.SetLocked(false)
-check("unlock", S("locked"), false)
 Settings.SetLocked(true)
 check("lock", S("locked"), true)
-check("lock stores nothing (default)", ns.DB().locked, nil)
+Settings.SetLocked(false)
+check("unlock", S("locked"), false)
+check("unlocked stores nothing (default: windows start unlocked)", ns.DB().locked, nil)
 Settings.ResetProfile()
 
 section("Profiles")
@@ -190,9 +193,9 @@ section("Minimap button, compartment and slash command")
 local mb = M.byName["ForeverCombatMeterMinimapButton"]
 check("minimap button", mb ~= nil, true)
 mb:GetScript("OnClick")(mb, "RightButton")
-check("right-click unlocks", S("locked"), false)
-mb:GetScript("OnClick")(mb, "RightButton")
 check("right-click locks", S("locked"), true)
+mb:GetScript("OnClick")(mb, "RightButton")
+check("right-click unlocks", S("locked"), false)
 Settings.Set("minimapShow", false)
 check("minimap button hidden by the setting", mb:IsShown(), false)
 Settings.Set("minimapShow", nil)
@@ -263,6 +266,8 @@ check("amount secret result is secret", issecretvalue(Format.Amount(M.Secret(5))
 check("per second small", Format.PerSecond(5.26), "5.3")
 check("per second large", Format.PerSecond(12345), "12.3k")
 check("per second secret", revealed(Format.PerSecond, M.Secret(950)), "950")
+check("per second secret, precise", revealed(Format.PerSecond, M.Secret(0.34), true), "0.3")
+check("per second plain, precise", Format.PerSecond(0.34, true), "0.3")
 check("percent", Format.Percent(33.333), "33.3%")
 check("percent nil", Format.Percent(nil), "")
 check("percent secret", revealed(Format.Percent, M.Secret(12.5)), "12.5%")
@@ -350,6 +355,7 @@ check("sorted by total", data.rows[1].name .. "," .. data.rows[2].name .. "," ..
 check("percent", data.rows[1].percent, 50)
 check("percent 2", data.rows[3].percent, 20)
 check("total", data.total, 1000)
+check("max: the top row out of combat", data.max, 500)
 check("duration from GetSessionDurationSeconds", data.duration, 50)
 check("per second from the API", data.rows[2].perSecond, 30)
 check("per second fallback total/duration", data.rows[1].perSecond, 10)
@@ -411,6 +417,7 @@ check("secret", cdata.secret, true)
 check("API order kept", M.Reveal(cdata.rows[1] and cdata.rows[1].name), "Bob")
 check("API order kept 2", M.Reveal(cdata.rows[3] and cdata.rows[3].name), "Wolf")
 check("no percent", cdata.rows[1] and cdata.rows[1].percent, nil)
+check("max in combat: the first row without maxAmount", M.Reveal(cdata.max), 300)
 check("total is the API's", M.Reveal(cdata.rows[2] and cdata.rows[2].total), 500)
 check("per second is the API's (no fallback)", M.Reveal(cdata.rows[2] and cdata.rows[2].perSecond), 0)
 check("own row readable", cdata.rows[2] and cdata.rows[2].isPlayer, true)
@@ -479,7 +486,7 @@ check("recap in combat: no time", okR and crecap and crecap[6].time, nil)
 M.state.combat = false
 
 section("Secret-safe sources")
-for _, f in ipairs({ "Format.lua", "Meter.lua" }) do
+for _, f in ipairs({ "Format.lua", "Meter.lua", "Windows.lua" }) do
     local src = io.open(ROOT .. "/" .. f):read("*a"):gsub("%-%-[^\n]*", "")
     check("no %d format in " .. f, src:find("%%d"), nil)
 end
@@ -683,6 +690,495 @@ world.sounds = {}
 check("secret: no warning", Threat.CheckWarning(), false)
 check("secret: no sound", #world.sounds, 0)
 check("secret warning does not raise", (pcall(Threat.CheckWarning)), true)
+
+section("Windows")
+local Windows = ns.Windows
+Settings.ResetProfile()
+M.state.combat = false
+world.target.exists, world.target.attack, world.target.dead = true, true, false
+M.dm.byType[CUR] = { [T.DamageDone] = { totalAmount = 1000, maxAmount = 500, combatSources = {
+    source("Bob", "Player-2", 300, 30, { classFilename = "MAGE", specIconID = 135932 }),
+    source("Me", "Player-1-0001", 500, 25, { isLocalPlayer = true }),
+    source("Wolf", nil, 200, 4, { sourceCreatureID = 69, classFilename = "" }),
+} } }
+M.dm.byType[CUR][T.Interrupts] = { totalAmount = 3, combatSources = {
+    source("Me", "Player-1-0001", 3, 0.3, { isLocalPlayer = true }) } }
+M.dm.byType[OVR] = { [T.DamageDone] = { totalAmount = 50, combatSources = { source("Old", "Player-3", 50, 1) } } }
+M.dm.byID[4] = { [T.DamageDone] = { totalAmount = 70, combatSources = { source("Past", "Player-4", 70, 7) } } }
+M.dm.duration[CUR] = 50
+M.dm.sessions = { { sessionID = 4, name = "Hogger", durationSeconds = 42 },
+                  { sessionID = 5, name = "Boss", durationSeconds = 95, secretName = true } }
+Settings.Set("animate", false)
+local w1 = Windows.Frame(1)
+local function bar(i, k) return Windows.Frame(i).bars[k] end
+local function txt(fs) return M.Reveal(fs:GetText()) end
+local function shownBars(i)
+    local n = 0
+    for _, b in ipairs(Windows.Frame(i).bars) do if b:IsShown() then n = n + 1 end end
+    return n
+end
+check("window 1 exists after login", w1 ~= nil, true)
+check("window 1 shown", w1 and w1:IsShown(), true)
+check("only one window", Windows.Frame(2), nil)
+check("no secure template", w1._template, nil)
+check("position not saved by the client", w1._dontSave, true)
+check("default mode", Windows.Mode(1), "damage")
+check("default view", Windows.View(1), "current")
+check("default width", w1:GetWidth(), 220)
+check("default rows", Windows.Config(1).rows, 8)
+check("default anchor", w1._lastPoint[1] .. "," .. w1._lastPoint[4], "CENTER,300")
+check("nothing stored for defaults", ns.DB().windows, nil)
+Windows.Refresh(1)
+check("title", txt(w1.header.title), "Damage · Current")
+check("three bars", shownBars(1), 3)
+check("order", txt(bar(1, 1).name) .. "," .. txt(bar(1, 2).name) .. "," .. txt(bar(1, 3).name), "1. Me,2. Bob,3. Wolf")
+check("values: total (per second, percent)", txt(bar(1, 1).value), "500 (25.0, 50.0%)")
+check("bar max", bar(1, 1)._max, 500)
+check("bar value", bar(1, 2)._value, 300)
+check("class colour", bar(1, 2)._barColor[1], 0.25)
+check("no class: bar colour", bar(1, 3)._barColor[3], 0.75)
+check("spec icon", bar(1, 2).icon._texture, 135932)
+check("class icon without a spec", bar(1, 1).icon._texture, "Interface\\Glues\\CharacterCreate\\UI-CharacterCreate-Classes")
+check("class icon coords", bar(1, 1).icon._texCoord[2], 0.25)
+check("bar texture", bar(1, 1)._barTexture, "Interface\\TargetingFrame\\UI-StatusBar")
+check("bar data for the tooltip", bar(1, 2).row.name, "Bob")
+check("empty text hidden", w1.empty:IsShown(), false)
+Settings.Set("barClassColor", false)
+Windows.Refresh(1)
+check("bar colour setting", bar(1, 2)._barColor[1], 0.45)
+Settings.Set("barClassColor", nil)
+Settings.Set("showPercent", false)
+Windows.Refresh(1)
+check("columns: no percent", txt(bar(1, 1).value), "500 (25.0)")
+Settings.Set("showPerSecond", false)
+Windows.Refresh(1)
+check("columns: total only", txt(bar(1, 1).value), "500")
+Settings.Set("showTotal", false)
+Settings.Set("showPercent", nil)
+Windows.Refresh(1)
+check("columns: percent only", txt(bar(1, 1).value), "50.0%")
+Settings.Set("showTotal", nil)
+Settings.Set("showPerSecond", nil)
+Settings.Set("showRank", false)
+Windows.Refresh(1)
+check("no rank", txt(bar(1, 1).name), "Me")
+Settings.Set("showRank", nil)
+Settings.Set("showIcon", false)
+Windows.Refresh(1)
+check("icon off", bar(1, 1).icon:IsShown(), false)
+Settings.Set("showIcon", nil)
+Windows.Refresh(1)
+check("icon on", bar(1, 1).icon:IsShown(), true)
+
+section("Windows: rows, scrolling, height")
+local h8 = w1:GetHeight()
+Windows.SetConfig(1, { rows = 2 })
+Windows.Refresh(1)
+check("rows setting: two bars", shownBars(1), 2)
+check("height follows rows", h8 - w1:GetHeight(), 6 * (18 + 1))
+Windows.Scroll(1, -1)
+check("scrolled one row", txt(bar(1, 1).name), "2. Bob")
+Windows.Scroll(1, -5)
+check("scroll clamped", txt(bar(1, 1).name), "2. Bob")
+w1.body:GetScript("OnMouseWheel")(w1.body, 1)
+check("wheel over the bars scrolls", txt(bar(1, 1).name), "1. Me")
+Windows.SetConfig(1, { rows = 8 })
+check("rows stored only when not default", ns.DB().windows, nil)
+
+section("Windows: mode and session")
+Windows.SetMode(1, "healing")
+check("mode set", Windows.Mode(1), "healing")
+check("mode stored", ns.DB().windows[1].mode, "healing")
+check("healing: empty text", w1.empty:IsShown() and txt(w1.empty), "No data")
+Windows.SetMode(1, "bogus")
+check("unknown mode ignored", Windows.Mode(1), "healing")
+Windows.SetMode(1, "damage")
+check("default mode not stored", ns.DB().windows, nil)
+Windows.SetView(1, "overall")
+check("view stored", ns.DB().windows[1].view, "overall")
+check("overall title", txt(w1.header.title), "Damage · Overall")
+check("overall data", txt(bar(1, 1).name), "1. Old")
+Windows.SetView(1, 4)
+check("past fight view", Windows.View(1), 4)
+check("past fight not persisted", ns.DB().windows, nil)
+check("past fight title", txt(w1.header.title), "Damage · Hogger")
+check("past fight data", txt(bar(1, 1).name), "1. Past")
+M.Fire("DAMAGE_METER_RESET")
+check("reset: back to current", Windows.View(1), "current")
+Windows.SetView(1, "overall")
+M.Fire("DAMAGE_METER_RESET")
+check("reset keeps overall", Windows.View(1), "overall")
+Windows.SetView(1, "current")
+w1.header:GetScript("OnMouseWheel")(w1.header, -1)
+check("wheel on the header: next mode", Windows.Mode(1), "healing")
+w1.header:GetScript("OnMouseWheel")(w1.header, 1)
+w1.header:GetScript("OnMouseWheel")(w1.header, 1)
+check("wheel wraps to threat", Windows.Mode(1), "threat")
+Windows.SetMode(1, "damage")
+Windows.SetMode(1, "interrupts")
+check("interrupts per second keeps a decimal", txt(bar(1, 1).value), "3 (0.3, 100.0%)")
+Windows.SetMode(1, "damage")
+
+section("Windows: add and close")
+check("add", Windows.Add(), 2)
+check("window count", S("windowCount"), 2)
+check("window 2 shown", Windows.Frame(2):IsShown(), true)
+check("window 2 beside window 1", Windows.Frame(2)._lastPoint[4] ~= w1._lastPoint[4], true)
+Windows.SetMode(2, "healing")
+check("add 3", Windows.Add(), 3)
+Windows.SetMode(3, "interrupts")
+check("add 4", Windows.Add(), 4)
+check("no fifth", Windows.Add(), nil)
+check("window 1 cannot close", Windows.Close(1), false)
+check("close 2", Windows.Close(2), true)
+check("count after close", S("windowCount"), 3)
+check("later windows move up", Windows.Mode(2), "interrupts")
+check("frame 4 hidden", Windows.Frame(4):IsShown(), false)
+Windows.Close(3)
+Windows.Close(2)
+check("back to one", S("windowCount"), 1)
+check("nothing stored for one default window", ns.DB().windows, nil)
+Settings.Set("windowCount", 3)
+check("count setting shows windows", Windows.Frame(3):IsShown(), true)
+Settings.Set("windowCount", nil)
+check("count setting hides windows", Windows.Frame(2):IsShown(), false)
+
+section("Windows: threat")
+party({
+    player = { name = "Me", class = "MAGE", raw = 95, value = 1, self = true },
+    party1 = { name = "Tank", class = "WARRIOR", tank = true, raw = 100, value = 9 },
+    party2 = { name = "Puller", class = "ROGUE", raw = 120, value = 5 },
+})
+world.sounds = {}
+Windows.SetMode(1, "threat")
+check("threat title", txt(w1.header.title), "Threat")
+check("threat rows", shownBars(1), 3)
+check("threat order", txt(bar(1, 2).name), "2. Puller")
+check("tank marker", txt(bar(1, 1).name):find("tank", 1, true) ~= nil, true)
+check("threat max", bar(1, 1)._max, 100)
+check("threat fill clamped", bar(1, 2)._value, 100)
+check("threat text keeps the real percent", txt(bar(1, 2).value):find("120.0%", 1, true) ~= nil, true)
+check("warning glow on the own row", bar(1, 3).glow:IsShown(), true)
+check("no glow on others", bar(1, 2).glow:IsShown(), false)
+check("warning sound", #world.sounds, 1)
+world.members.player.raw = 10
+Windows.Refresh(1)
+check("glow off below the threshold", bar(1, 3).glow:IsShown(), false)
+party({ player = { name = "Me", raw = 95, value = 1, self = true },
+        party1 = { name = "Tank", secret = true, tank = true, raw = 100, value = 9 } })
+local okT = pcall(Windows.Refresh, 1)
+check("secret threat renders", okT, true)
+check("threat unavailable text", txt(w1.empty), "Threat not available")
+check("no threat bars", shownBars(1), 0)
+world.target.exists = false
+Windows.Refresh(1)
+check("no target text", txt(w1.empty), "No target")
+world.target.exists = true
+Windows.SetMode(1, "damage")
+
+section("Windows: secret values")
+M.state.combat = true
+local okC, errC = pcall(Windows.Refresh, 1)
+check("rendering in combat raises nothing", okC, true)
+if not okC then print(errC) end
+check("API order in combat", txt(bar(1, 1).name), "1. Bob")
+check("no percent column in combat", txt(bar(1, 1).value), "300 (30)")
+check("secret max", M.Reveal(bar(1, 1)._max), 500)
+check("secret value set directly", M.Reveal(bar(1, 1)._value), 300)
+Settings.Set("animate", true)
+check("animate with secrets raises nothing", (pcall(Windows.Refresh, 1)) and (pcall(Windows.Tick, 0.02)), true)
+Settings.Set("animate", false)
+Windows.SetMode(1, "interrupts")
+check("secret per second keeps a decimal", txt(bar(1, 1).value), "3 (0.3)")
+Windows.SetMode(1, "damage")
+M.state.combat = false
+Settings.Set("animate", true)
+Windows.Refresh(1)
+check("after combat: no re-grow from zero", bar(1, 1)._value, 500)
+Settings.Set("animate", false)
+M.state.combat = true
+local okV = pcall(Windows.SetView, 1, 5)
+check("secret session name renders", okV, true)
+check("secret session title", txt(w1.header.title), "Damage · Boss")
+local okM = pcall(Windows.OpenSessionMenu, 1, w1.header)
+check("session menu with a secret name", okM, true)
+check("secret name not in the menu", M.MenuFind(M.LastMenu(), "Boss"), nil)
+Windows.SetView(1, "current")
+check("nothing secret kept as a key", M.FindSecretKey(ns), nil)
+M.state.combat = false
+
+section("Windows: render loop")
+local fetches, realFetch = 0, Meter.Fetch
+Meter.Fetch = function(...) fetches = fetches + 1; return realFetch(...) end
+Windows.Tick(5) -- past any redraw burst from an earlier PLAYER_REGEN_ENABLED
+fetches = 0
+Windows.Tick(0.1)
+check("nothing dirty: no redraw", fetches, 0)
+M.Fire("DAMAGE_METER_CURRENT_SESSION_UPDATED")
+Windows.Tick(0.05)
+check("throttled", fetches, 0)
+Windows.Tick(0.05)
+check("redraw after the interval", fetches, 1)
+Windows.Tick(0.2)
+check("clean again", fetches, 1)
+Settings.Set("barHeight", 20)
+Windows.Tick(0.2)
+check("settings change redraws", fetches, 2)
+Settings.Set("barHeight", nil)
+Windows.Tick(0.2)
+fetches = 0
+M.Fire("PLAYER_REGEN_ENABLED")
+Windows.Tick(0.2); Windows.Tick(0.2); Windows.Tick(0.2)
+check("after combat: every tick", fetches, 3)
+Windows.Tick(3)
+fetches = 0
+Windows.Tick(0.2)
+check("after 3 s: idle again", fetches, 0)
+M.Fire("ADDON_RESTRICTION_STATE_CHANGED")
+Windows.Tick(0.2)
+check("restriction change redraws", fetches, 1)
+Meter.Fetch = realFetch
+local lists, realList = 0, Threat.List
+Threat.List = function(...) lists = lists + 1; return realList(...) end
+Windows.SetMode(1, "threat")
+lists = 0
+Windows.Tick(0.2); Windows.Tick(0.2)
+check("threat redraws every tick", lists, 2)
+Windows.Add()
+Windows.SetMode(2, "threat")
+lists = 0
+Windows.Tick(0.2)
+check("one threat sample per tick for all windows", lists, 1)
+Windows.Close(2)
+Threat.List = realList
+Windows.SetMode(1, "damage")
+Settings.Set("refresh", 1)
+fetches = 0
+Meter.Fetch = function(...) fetches = fetches + 1; return realFetch(...) end
+M.Fire("DAMAGE_METER_CURRENT_SESSION_UPDATED")
+Windows.Tick(0.5)
+check("refresh setting is the interval", fetches, 0)
+Windows.Tick(0.5)
+check("refresh setting: redraw", fetches, 1)
+Meter.Fetch = realFetch
+Settings.Set("refresh", nil)
+
+section("Windows: animation")
+Settings.Set("animate", true)
+Windows.SetConfig(1, { rows = 8 })
+M.dm.byType[CUR][T.DamageDone].combatSources[1].totalAmount = 400
+Windows.Refresh(1)
+local before = bar(1, 2)._value
+check("animates toward the new value", before < 400, true)
+Windows.Tick(0.02)
+check("moving", bar(1, 2)._value > before and bar(1, 2)._value < 400, true)
+Windows.Tick(1)
+check("arrives", bar(1, 2)._value, 400)
+M.dm.byType[CUR][T.DamageDone].combatSources[1].totalAmount = 300
+Settings.Set("animate", false)
+
+section("Windows: lock, move, resize")
+Windows.Refresh(1)
+check("unlocked by default", Windows.Config(1).locked, false)
+check("grips shown unlocked", w1.grips.right:IsShown() and w1.grips.left:IsShown(), true)
+w1._rect = { 800, 500, 220, w1:GetHeight() }
+w1.header:GetScript("OnMouseDown")(w1.header, "LeftButton")
+check("drag starts", w1._moving, true)
+w1._rect = { 840, 400, 220, w1:GetHeight() }
+w1.header:GetScript("OnMouseUp")(w1.header, "LeftButton")
+check("drag stops", w1._moving, false)
+check("not user placed", w1._userPlaced, false)
+local c1 = Windows.Config(1)
+check("position saved", c1.point .. "," .. c1.x .. "," .. c1.y, "TOP," .. (840 + 110 - 960) .. "," .. (400 + w1:GetHeight() - 1080))
+Windows.ToggleLock(1)
+check("locked", Windows.Config(1).locked, true)
+check("global follows: all locked", S("locked"), true)
+check("grips hidden locked", w1.grips.right:IsShown(), false)
+w1.header:GetScript("OnMouseDown")(w1.header, "LeftButton")
+check("lock blocks the drag", w1._moving, false)
+Settings.SetLocked(false)
+check("unlock all", Windows.Config(1).locked, false)
+Settings.SetLocked(true)
+check("lock all", Windows.Config(1).locked, true)
+Settings.SetLocked(false)
+local rows0 = Windows.Config(1).rows
+w1._rect = { 800, 400, 220, w1:GetHeight() }
+M.state.cursorX, M.state.cursorY = 1020, 400
+local grip = w1.grips.right
+grip:GetScript("OnMouseDown")(grip, "LeftButton")
+M.state.cursorX, M.state.cursorY = 1100, 400 - 2 * 19
+grip:GetScript("OnUpdate")(grip, 0.02)
+check("live width", w1:GetWidth(), 300)
+grip:GetScript("OnMouseUp")(grip, "LeftButton")
+check("resize: width", Windows.Config(1).width, 300)
+check("resize: rows", Windows.Config(1).rows, rows0 + 2)
+check("resize: top edge kept", Windows.Config(1).point, "TOP")
+w1._rect = { 800, 400, 300, w1:GetHeight() }
+M.state.cursorX, M.state.cursorY = 800, 400
+local gl = w1.grips.left
+gl:GetScript("OnMouseDown")(gl, "LeftButton")
+M.state.cursorX = 750
+gl:GetScript("OnUpdate")(gl, 0.02)
+gl:GetScript("OnMouseUp")(gl, "LeftButton")
+check("left grip widens to the left", Windows.Config(1).width, 350)
+gl:GetScript("OnMouseDown")(gl, "LeftButton")
+M.state.cursorX, M.state.cursorY = -5000, -5000
+gl:GetScript("OnUpdate")(gl, 0.02)
+gl:GetScript("OnMouseUp")(gl, "LeftButton")
+check("width clamped", Windows.Config(1).width, 600)
+check("rows clamped", Windows.Config(1).rows, 40)
+Windows.ToggleLock(1)
+M.state.cursorX, M.state.cursorY = 0, 0
+grip:GetScript("OnMouseDown")(grip, "LeftButton")
+M.state.cursorX = 300
+check("locked: no resize started", grip:GetScript("OnUpdate"), nil)
+grip:GetScript("OnMouseUp")(grip, "LeftButton")
+check("locked: no resize", Windows.Config(1).width, 600)
+Settings.Set("fadeAlpha", 50)
+w1._mouseOver = false
+Windows.Tick(0.02)
+check("fades when locked", w1:GetAlpha(), 0.5)
+w1._mouseOver = true
+Windows.Tick(0.02)
+check("mouse over: opaque", w1:GetAlpha(), 1)
+w1._mouseOver = false
+Settings.ResetProfile()
+Windows.Tick(0.02)
+check("reset profile: default size", w1:GetWidth(), 220)
+check("reset profile: unlocked", Windows.Config(1).locked, false)
+
+section("Windows: menus and buttons")
+M.menus = {}
+local hb = w1.header.buttons
+hb.menu:GetScript("OnClick")(hb.menu, "LeftButton")
+local menu = M.LastMenu()
+check("menu opened", menu ~= nil, true)
+for _, label in ipairs({ "Mode", "Session", "New window", "Close window", "Lock window", "Reset data", "Options" }) do
+    check("menu has " .. label, M.MenuFind(menu, label) ~= nil, true)
+end
+M.MenuClick(M.MenuFind(M.MenuFind(menu, "Mode"), "Healing"))
+check("menu: mode", Windows.Mode(1), "healing")
+check("menu: mode radio", M.MenuFind(M.MenuFind(menu, "Mode"), "Healing").isSelected(M.MenuFind(M.MenuFind(menu, "Mode"), "Healing").data), true)
+check("menu: threat in the modes", M.MenuFind(M.MenuFind(menu, "Mode"), "Threat") ~= nil, true)
+M.MenuClick(M.MenuFind(M.MenuFind(menu, "Session"), "Overall"))
+check("menu: session", Windows.View(1), "overall")
+M.MenuClick(M.MenuFind(M.MenuFind(menu, "Session"), "Hogger (0:42)"))
+check("menu: past fight", Windows.View(1), 4)
+M.MenuClick(M.MenuFind(menu, "Lock window"))
+check("menu: lock", Windows.Config(1).locked, true)
+Windows.ToggleLock(1)
+M.MenuClick(M.MenuFind(menu, "New window"))
+check("menu: new window", S("windowCount"), 2)
+Windows.OpenMenu(2, Windows.Frame(2).header)
+M.MenuClick(M.MenuFind(M.LastMenu(), "Close window"))
+check("menu: close window", S("windowCount"), 1)
+M.MenuClick(M.MenuFind(menu, "Options"))
+check("menu: options", ns.Window.IsShown(), true)
+ns.Window.Toggle()
+Windows.SetMode(1, "damage")
+hb.mode:GetScript("OnClick")(hb.mode, "LeftButton")
+check("mode button menu", M.MenuFind(M.LastMenu(), "Damage") ~= nil, true)
+hb.session:GetScript("OnClick")(hb.session, "LeftButton")
+check("session button cycles", Windows.View(1), "current")
+hb.session:GetScript("OnClick")(hb.session, "LeftButton")
+check("session button cycles back", Windows.View(1), "overall")
+hb.session:GetScript("OnClick")(hb.session, "RightButton")
+check("session right-click: past fights", M.MenuFind(M.LastMenu(), "Hogger (0:42)") ~= nil, true)
+Windows.SetView(1, "current")
+w1.header:GetScript("OnClick")(w1.header, "RightButton")
+check("right-click on the header: menu", M.MenuFind(M.LastMenu(), "New window") ~= nil, true)
+M.popups = {}
+local resets = M.dm.resets
+hb.reset:GetScript("OnClick")(hb.reset, "LeftButton")
+check("reset asks first", M.popups[1] and M.popups[1].which, "FOREVERCOMBATMETER_RESET")
+check("not yet reset", M.dm.resets, resets)
+StaticPopupDialogs.FOREVERCOMBATMETER_RESET.OnAccept()
+check("reset after confirm", M.dm.resets, resets + 1)
+M.popups = {}
+M.state.combat = true
+M.chat = {}
+hb.reset:GetScript("OnClick")(hb.reset, "LeftButton")
+check("no reset in combat", M.dm.resets, resets + 1)
+check("in combat: no popup", #M.popups, 0)
+check("in combat: message", M.chat[1] ~= nil, true)
+M.state.combat = false
+check("lock button", hb.lock:GetScript("OnClick") ~= nil, true)
+hb.lock:GetScript("OnClick")(hb.lock, "LeftButton")
+check("lock button locks", Windows.Config(1).locked, true)
+hb.lock:GetScript("OnClick")(hb.lock, "LeftButton")
+
+section("Windows: compact style")
+check("forever header", w1.header:GetHeight(), 24)
+check("forever glow", w1.header.shine:IsShown(), true)
+check("forever buttons", hb.mode:IsShown() and hb.session:IsShown() and hb.reset:IsShown(), true)
+check("forever button size", hb.menu:GetWidth(), 16)
+Windows.ApplyStylePreset("COMPACT")
+check("style set", S("style"), "COMPACT")
+check("preset bar height", S("barHeight"), 14)
+check("preset spacing", S("barSpacing"), 0)
+Windows.Refresh(1)
+check("compact header", w1.header:GetHeight(), 18)
+check("compact: no glow", w1.header.shine:IsShown(), false)
+check("compact: only menu and lock", (hb.mode:IsShown() or hb.session:IsShown() or hb.reset:IsShown()), false)
+check("compact: menu and lock shown", hb.menu:IsShown() and hb.lock:IsShown(), true)
+check("compact button size", hb.menu:GetWidth(), 12)
+check("compact title size", select(2, w1.header.title:GetFont()), 11)
+check("compact: no padding", bar(1, 1)._lastPoint[4], 0)
+check("compact: square", w1.clip.radius, 0)
+Settings.Set("cornerRadius", 6)
+Windows.Refresh(1)
+check("compact: radius when set", w1.clip.radius, 6)
+Settings.Set("barHeight", 16)
+check("preset values stay editable", S("barHeight"), 16)
+Windows.ApplyStylePreset("FOREVER")
+Windows.Refresh(1)
+check("forever again", w1.header:GetHeight(), 24)
+check("forever: default bar height", S("barHeight"), 18)
+check("forever: rounded", w1.clip.radius, 6)
+Settings.ResetProfile()
+
+section("Windows: font re-layout")
+M.timers = {}
+Settings.Set("nameFont", "Arial Narrow")
+check("re-layout queued after a font change", #M.timers > 0, true)
+M.RunTimers()
+Settings.Set("nameFont", nil)
+M.RunTimers()
+
+section("Windows: export and import")
+Settings.ResetProfile()
+Windows.Add()
+Windows.SetMode(1, "healing")
+Windows.SetMode(2, "threat")
+Windows.SetView(2, "overall")
+Windows.SetConfig(2, { width = 300, rows = 5, point = "TOP", x = 10, y = -20 })
+Windows.ToggleLock(2)
+local exported = ns.Share.Export()
+Settings.ResetProfile()
+check("reset: one window", S("windowCount"), 1)
+check("reset: window 2 hidden", Windows.Frame(2):IsShown(), false)
+check("import windows", ns.Share.Import(exported), true)
+check("count back", S("windowCount"), 2)
+check("window 2 shown again", Windows.Frame(2):IsShown(), true)
+local c2 = Windows.Config(2)
+check("mode back", Windows.Mode(1) .. "," .. c2.mode, "healing,threat")
+check("view back", c2.view, "overall")
+check("size back", c2.width .. "x" .. c2.rows, "300x5")
+check("position back", c2.point .. "," .. c2.x .. "," .. c2.y, "TOP,10,-20")
+check("lock back", c2.locked, true)
+check("frame width applied", Windows.Frame(2):GetWidth(), 300)
+Settings.ResetProfile()
+check("bad window values cleaned", ns.Share.Import(
+    "FCM1:ts7:windowstn1;ts4:modes5:boguss4:rowsn999;s6:lockeds3:yess4:views5:dummys5:points4:EVIL}n9;ts4:modes7:healing}}}"), true)
+check("bad mode dropped", ns.DB().windows[1].mode, nil)
+check("rows clamped", ns.DB().windows[1].rows, 40)
+check("bad lock dropped", ns.DB().windows[1].locked, nil)
+check("bad view dropped", ns.DB().windows[1].view, nil)
+check("bad point dropped", ns.DB().windows[1].point, nil)
+check("window 9 dropped", ns.DB().windows[9], nil)
+check("windows not a table: skipped", ns.Share.Import("FCM1:ts7:windowsn5;}"), true)
+check("skipped value", ns.DB().windows, nil)
+Settings.ResetProfile()
 
 -- The language switch.
 ns.Locale.Set("deDE")

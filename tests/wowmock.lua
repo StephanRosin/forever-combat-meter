@@ -424,5 +424,73 @@ ACTION_ENVIRONMENTAL_DAMAGE_FALLING = "Falling"
 M.state.playerGUID = "Player-1-0001"
 function UnitGUID(unit) if unit == "player" then return M.state.playerGUID end end
 
+-- Status bars, placement ----------------------------------------------------------
+local baseNew = newWidget
+newWidget = function(name, kind)
+    local w = baseNew(name, kind)
+    function w:SetStatusBarTexture(t) self._barTexture = t end
+    function w:GetStatusBarTexture() return self._barTexture end
+    function w:SetStatusBarColor(r, g, b, a) self._barColor = { r, g, b, a } end
+    function w:GetStatusBarColor() local c = self._barColor or { 1, 1, 1, 1 }; return c[1], c[2], c[3], c[4] end
+    function w:SetUserPlaced(v) self._userPlaced = v end
+    function w:IsUserPlaced() return self._userPlaced or false end
+    function w:SetDontSavePosition(v) self._dontSave = v end
+    function w:SetAllPoints(rel) self._allPoints = rel or true end
+    return w
+end
+M.newWidget = newWidget
+
+RAID_CLASS_COLORS = {
+    MAGE = { r = 0.25, g = 0.78, b = 0.92 }, WARRIOR = { r = 0.78, g = 0.61, b = 0.43 },
+    ROGUE = { r = 1, g = 0.96, b = 0.41 }, PRIEST = { r = 1, g = 1, b = 1 },
+    HUNTER = { r = 0.67, g = 0.83, b = 0.45 }, WARLOCK = { r = 0.53, g = 0.53, b = 0.93 },
+}
+CLASS_ICON_TCOORDS = { MAGE = { 0.25, 0.5, 0, 0.25 }, WARRIOR = { 0, 0.25, 0, 0.25 },
+    ROGUE = { 0.5, 0.75, 0, 0.25 }, PRIEST = { 0.5, 0.75, 0.25, 0.5 } }
+
+-- MenuUtil (modern client menus): every generated menu is recorded in
+-- M.menus as a tree of descriptions; tests find an entry by its text and
+-- call it as the client would.
+local function newMenu()
+    local d = { items = {} }
+    local function add(kind, text, isSelected, onSelect, data)
+        local c = newMenu()
+        c.kind, c.text, c.isSelected, c.onSelect, c.data = kind, text, isSelected, onSelect, data
+        d.items[#d.items + 1] = c
+        return c
+    end
+    function d:CreateTitle(t) return add("title", t) end
+    function d:CreateDivider() return add("divider") end
+    function d:CreateButton(t, fn, data) return add("button", t, nil, fn, data) end
+    function d:CreateRadio(t, isSel, setSel, data) return add("radio", t, isSel, setSel, data) end
+    function d:CreateCheckbox(t, isSel, setSel, data) return add("checkbox", t, isSel, setSel, data) end
+    function d:SetScrollMode() end
+    return d
+end
+MenuUtil = {
+    CreateContextMenu = function(owner, generator)
+        local root = newMenu()
+        root.owner = owner
+        generator(owner, root)
+        M.menus[#M.menus + 1] = root
+        return root
+    end,
+}
+function M.LastMenu() return M.menus[#M.menus] end
+-- Depth first: the first entry whose text is `text`.
+function M.MenuFind(root, text)
+    for _, item in ipairs(root and root.items or {}) do
+        if item.text == text then return item end
+        local hit = M.MenuFind(item, text)
+        if hit then return hit end
+    end
+end
+function M.MenuClick(item) return item.onSelect(item.data) end
+function M.MenuTexts(root)
+    local t = {}
+    for _, item in ipairs(root and root.items or {}) do t[#t + 1] = tostring(item.text or "-") end
+    return table.concat(t, ",")
+end
+
 
 return M

@@ -40,8 +40,12 @@ function Format.Amount(v)
 end
 
 -- Rates below 100 keep one decimal (interrupts, dispels per second).
-function Format.PerSecond(v)
-    if issecret(v) then return secretAmount(v) end
+-- precise: a secret rate keeps one decimal too (counts per second are small).
+function Format.PerSecond(v, precise)
+    if issecret(v) then
+        if precise then return format("%.1f", v) end
+        return secretAmount(v)
+    end
     if v == nil then return "0" end
     if v < 100 and v > -100 then return format("%.1f", v) end
     return plainAmount(v)

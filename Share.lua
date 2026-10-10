@@ -13,6 +13,10 @@ yields is checked again before anything is applied: only settings the
 addon knows, with the type of their default; numbers are clamped to their
 range by Settings.Set. Unknown keys are skipped, so a string from a newer
 version still imports what this one understands.
+
+Profile values that are not plain settings (the window layout, `windows`,
+owned by Windows.lua) register a cleaner with Share.RegisterTable: it gets
+the decoded value and returns what may be kept (or nil).
 -----------------------------------------------------------------------------]]
 
 local ADDON, ns = ...
@@ -125,6 +129,12 @@ for _, name in ipairs(Settings.TEXT_STYLES) do
     ENUMS[name .. "Flag"] = { [""] = true, OUTLINE = true, THICKOUTLINE = true, SHADOW = true }
 end
 
+-- key -> function(value) returning the checked value or nil.
+local tables = {}
+function Share.RegisterTable(key, clean)
+    tables[key] = clean
+end
+
 local function allowed(key, value)
     local enum = ENUMS[key]
     return not enum or enum[value] == true
@@ -142,7 +152,9 @@ function Share.Decode(text)
     local clean = {}
     for key, v in pairs(value) do
         local default = Settings.DEFAULTS[key]
-        if default ~= nil and sameType(v, default) and allowed(key, v) then
+        if tables[key] then
+            clean[key] = tables[key](v)
+        elseif default ~= nil and sameType(v, default) and allowed(key, v) then
             clean[key] = v
         end
     end
@@ -159,8 +171,12 @@ function Share.Import(text)
     local db = ns.DB()
     for k in pairs(db) do db[k] = nil end
     for key, v in pairs(clean) do
-        v = Settings.Clamp(key, v)
-        if not Settings.SameValue(v, Settings.DEFAULTS[key]) then db[key] = v end
+        if tables[key] then
+            db[key] = v
+        else
+            v = Settings.Clamp(key, v)
+            if not Settings.SameValue(v, Settings.DEFAULTS[key]) then db[key] = v end
+        end
     end
     Settings.Changed(nil)
     return true

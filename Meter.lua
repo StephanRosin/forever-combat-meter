@@ -198,14 +198,20 @@ function Meter.Fetch(modeKey, view)
         }
     end
     local total = session.totalAmount
+    -- The largest amount, for the bars' scale: the API's (secret in combat,
+    -- which StatusBar:SetMinMaxValues accepts), else the first row's.
+    local max = session.maxAmount
     if not secret then
         total = grandTotal(total, rows)
         sort(rows, byTotal)
         for _, r in ipairs(rows) do
             r.percent = total > 0 and (r.total or 0) / total * 100 or 0
         end
+        max = rows[1] and rows[1].total or 0
+    elseif not present(max) then
+        max = rows[1] and rows[1].total
     end
-    return { secret = secret, total = total, duration = duration, rows = rows }
+    return { secret = secret, total = total, duration = duration, max = max, rows = rows }
 end
 
 local function spellName(id)

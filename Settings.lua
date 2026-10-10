@@ -19,7 +19,7 @@ Settings.DEFAULTS = {
     hideBlizzard = false,
     minimapShow = true,
     minimapAngle = 200,
-    locked = true,
+    locked = false,         -- "lock all": Windows.lua copies it into every window
     windowCount = 1,
 
     -- Bars
