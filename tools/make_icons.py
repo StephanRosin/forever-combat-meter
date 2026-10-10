@@ -6,12 +6,18 @@ four times larger and scaled down, so the edges are soft. Uncompressed
 from Forever Quest Log's tools/make_icons.py; Reset, Session and Mode are
 the meter window's own header icons.
 
+Also renders Media/MinimapIcon.tga (64 x 64, colour) from
+docs/curseforge/minimap-icon.svg with rsvg-convert.
+
 Needs Pillow (python3 -m pip install pillow). Run from the repository
 root:  python3 tools/make_icons.py
 """
+import io
 import math
 import os
+import shutil
 import struct
+import subprocess
 
 from PIL import Image, ImageDraw
 
@@ -118,11 +124,6 @@ def check(draw):
     poly(draw, [(7, 17), (13, 23), (25, 10)], 3.4)
 
 
-def resize(draw):
-    poly(draw, [(27, 13), (13, 27)], 2.2)
-    poly(draw, [(27, 20), (20, 27)], 2.2)
-
-
 def arrow_corner(draw):
     # Diagonal arrow towards the top right; the addon mirrors it per corner.
     poly(draw, [(7, 25), (24, 8)], 2.6)
@@ -138,7 +139,6 @@ ICONS = {
     "IconGear": gear,
     "IconGrip": grip,
     "IconCheck": check,
-    "IconResize": resize,
     "IconArrowCorner": arrow_corner,
     "IconReset": reset,
     "IconSession": session,
@@ -162,14 +162,33 @@ def write_tga(img, path):
         f.write(b"".join(rows))
 
 
+MINIMAP_SVG = os.path.join("docs", "curseforge", "minimap-icon.svg")
+MINIMAP_SIZE = 64
+
+
+def minimap_icon(repo, media):
+    """Media/MinimapIcon.tga (minimap button and TOC IconTexture) from
+    docs/curseforge/minimap-icon.svg; needs rsvg-convert (librsvg)."""
+    if not shutil.which("rsvg-convert"):
+        print("MinimapIcon skipped: rsvg-convert not found")
+        return
+    png = subprocess.run(["rsvg-convert", "-w", str(MINIMAP_SIZE), "-h", str(MINIMAP_SIZE),
+                          os.path.join(repo, MINIMAP_SVG)], check=True, capture_output=True).stdout
+    img = Image.open(io.BytesIO(png)).convert("RGBA")
+    write_tga(img, os.path.join(media, "MinimapIcon.tga"))
+    print("MinimapIcon")
+
+
 def main():
-    root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Media")
+    repo = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+    root = os.path.join(repo, "Media")
     for name, fn in ICONS.items():
         img, draw = new()
         fn(draw)
         small = img.resize((SIZE, SIZE), Image.LANCZOS)
         write_tga(small, os.path.join(root, name + ".tga"))
         print(name)
+    minimap_icon(repo, root)
 
 
 if __name__ == "__main__":

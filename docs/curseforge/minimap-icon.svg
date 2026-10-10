@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!-- The minimap / addon-list icon: logo.svg reduced to what reads at 18 px,
+       the meter window's three falling bars, on a round gold-rimmed disc that
+       fits the round minimap button. tools/make_icons.py renders it to
+       Media/MinimapIcon.tga. -->
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="40%" r="65%">
+      <stop offset="0" stop-color="#2a3346"/>
+      <stop offset="1" stop-color="#0a0d14"/>
+    </radialGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff2b0"/>
+      <stop offset="0.4" stop-color="#e8c25a"/>
+      <stop offset="1" stop-color="#8a5f18"/>
+    </linearGradient>
+  </defs>
+  <circle cx="256" cy="256" r="236" fill="url(#bg)" stroke="url(#gold)" stroke-width="36"/>
+  <rect x="116" y="142" width="280" height="62" rx="10" fill="#3fc7eb"/>
+  <rect x="116" y="225" width="214" height="62" rx="10" fill="#c69b6d"/>
+  <rect x="116" y="308" width="148" height="62" rx="10" fill="#fff468"/>
+</svg>
