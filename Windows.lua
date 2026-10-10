@@ -30,10 +30,6 @@ local LOOKS = {
 local WIDTH_RANGE, ROWS_RANGE, POS_RANGE = { 120, 600 }, { 1, 40 }, { -4000, 4000 }
 local SNAP_GAP = 16   -- below the minimap
 local SCALE_RANGE = { 50, 200 }   -- percent
--- Resize arrows hang off the four corners and reach GRIP_IN into the window:
--- no further than the header's margin around its buttons (3 px in COMPACT).
-local GRIP_SIZE, GRIP_IN = 12, 3
-local CORNERS = { "TOPLEFT", "TOPRIGHT", "BOTTOMLEFT", "BOTTOMRIGHT" }
 -- Bar text layout: values get a fixed share of the bar on the right, the
 -- name the rest (after the icon).
 local TEXT_INSET, ICON_GAP, VALUE_SHARE = 5, 4, 0.45
@@ -195,12 +191,6 @@ local function savePosition(f)
     local x, y = ns.Position.Read(f, "TOP")
     local scale = f:GetScale()
     if x then write(f.index, { point = "TOP", x = math.floor(x / scale + 0.5), y = math.floor(y / scale + 0.5) }) end
-end
-
-local function cursor()
-    local x, y = GetCursorPosition()
-    local s = UIParent:GetEffectiveScale()
-    return x / s, y / s
 end
 
 -- Look -----------------------------------------------------------------------------
@@ -651,102 +641,18 @@ local function heightFor(rows)
     return lk.header + 2 * S("padding") + rows * barH + (rows - 1) * spacing
 end
 
--- Window anchor for a size, the corner opposite the dragged one fixed: always
--- TOP (the window's convention), so x is the centre and y the top edge, both
--- as offsets in the frame's own units. Edges in r are UIParent units.
-local function resizedPlacement(r, width, rows)
-    local s = r.scale
-    local w, h = width * s, heightFor(rows) * s
-    local fixedLeft = r.corner:find("RIGHT") ~= nil
-    local top = r.corner:find("BOTTOM") and r.top or (r.bottom + h)
-    local centre = fixedLeft and (r.left + w / 2) or (r.right - w / 2)
-    return math.floor((centre - r.screenW / 2) / s + 0.5), math.floor((top - r.screenH) / s + 0.5)
-end
-
-local function followCursor(f)
-    local r = f.resizing
-    if not r then return end
-    -- A button released outside the grip may not reach OnMouseUp.
-    if IsMouseButtonDown and not IsMouseButtonDown("LeftButton") then
-        r.grip:GetScript("OnMouseUp")(r.grip, "LeftButton")
-        return
-    end
-    local x, y = cursor()
-    local dx, dy = (x - r.cursorX) / r.scale, (y - r.cursorY) / r.scale
-    local width = clamp(r.width0 + (r.corner:find("RIGHT") and dx or -dx), WIDTH_RANGE)
-    local rows = rowsFor(r.height0 + (r.corner:find("TOP") and dy or -dy))
-    if width == r.width and rows == r.rows then return end
-    r.width, r.rows, r.moved = width, rows, true
-    r.x, r.y = resizedPlacement(r, width, rows)
-    layout(f.index)
-    render(f.index)
-end
-
-local function startResize(f, grip, button)
-    if (button ~= nil and button ~= "LeftButton") or f.cfg.locked or f.resizing then return end
-    local s = f:GetScale()
-    local left, right, top, bottom = f:GetLeft(), f:GetRight(), f:GetTop(), f:GetBottom()
-    if not (left and top) then return end
-    local x, y = cursor()
-    f.resizing = {
-        grip = grip, corner = grip.corner, scale = s, cursorX = x, cursorY = y,
-        left = left * s, right = right * s, top = top * s, bottom = bottom * s,
-        screenW = UIParent:GetWidth(), screenH = UIParent:GetHeight(),
-        width0 = f.cfg.width, height0 = f:GetHeight(), width = f.cfg.width, rows = f.cfg.rows,
-    }
-    grip:SetScript("OnUpdate", function() followCursor(f) end)
-end
-
--- The drop: written once, so a plain click changes nothing.
-local function stopResize(f, grip)
-    grip:SetScript("OnUpdate", nil)
-    local r = f.resizing
-    if not r or r.grip ~= grip then return end
-    f.resizing = nil
-    if r.moved then
+-- The corner arrows (Resize.lua): live size in layout(), one write on the drop.
+local resizeSpec = {
+    locked = function() return false end,
+    widthRange = WIDTH_RANGE, rowsRange = ROWS_RANGE,
+    rowsFor = rowsFor, heightFor = heightFor,
+    live = function(f) layout(f.index); render(f.index) end,
+    commit = function(f, r)
         write(f.index, { width = r.width, rows = r.rows, point = "TOP", x = r.x, y = r.y })
         Settings.Changed("windows")
-    end
-    layout(f.index)
-end
-
-local function paintGrip(grip, hover)
-    grip.art:SetVertexColor(ACCENT[1], ACCENT[2], ACCENT[3], hover and 1 or 0.55)
-end
-
-local function newGrip(f, corner)
-    local grip = CreateFrame("Button", nil, f)
-    grip.corner = corner
-    grip:SetSize(GRIP_SIZE, GRIP_SIZE)
-    grip:SetFrameLevel(f:GetFrameLevel() + 10)
-    grip.art = grip:CreateTexture(nil, "OVERLAY")
-    grip.art:SetAllPoints()
-    grip.art:SetTexture(Media.Icon("ArrowCorner"))
-    -- The art points to the top right; mirrored for the other corners.
-    local left, bottom = corner:find("LEFT") ~= nil, corner:find("BOTTOM") ~= nil
-    grip.art:SetTexCoord(left and 1 or 0, left and 0 or 1, bottom and 1 or 0, bottom and 0 or 1)
-    -- Mostly outside the corner; the part inside stays in the margin around
-    -- the header buttons, so it covers neither them nor their clicks.
-    local inner = (bottom and "TOP" or "BOTTOM") .. (left and "RIGHT" or "LEFT")
-    grip:SetPoint(inner, f, corner, left and GRIP_IN or -GRIP_IN, bottom and GRIP_IN or -GRIP_IN)
-    paintGrip(grip, false)
-    grip:SetScript("OnMouseDown", function(self, button) startResize(f, self, button) end)
-    grip:SetScript("OnMouseUp", function(self, button)
-        if button == nil or button == "LeftButton" then stopResize(f, self) end
-    end)
-    grip:SetScript("OnHide", function(self) stopResize(f, self) end)
-    grip:SetScript("OnEnter", function(self)
-        paintGrip(self, true)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetText(L.TIP_RESIZE, 1, 1, 1, 1, true)
-        GameTooltip:Show()
-    end)
-    grip:SetScript("OnLeave", function(self)
-        paintGrip(self, false)
-        GameTooltip:Hide()
-    end)
-    return grip
-end
+    end,
+    done = function(f) layout(f.index) end,
+}
 
 local function startMoving(f)
     if f.cfg.locked then return end
@@ -1017,8 +923,12 @@ function Windows.Create(i)
     f.empty:SetPoint("TOPLEFT", f.body, "TOPLEFT", 8, -6)
     f.empty:Hide()
     f.bars = {}
-    f.grips = {}
-    for _, corner in ipairs(CORNERS) do f.grips[corner] = newGrip(f, corner) end
+    local spec = setmetatable({
+        locked = function() return f.cfg.locked end,
+        width = function() return f.cfg.width end,
+        rows = function() return f.cfg.rows end,
+    }, { __index = resizeSpec })
+    ns.Resize.Attach(f, spec)
     frames[i] = f
     layout(i)
     return f

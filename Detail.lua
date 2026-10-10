@@ -17,8 +17,8 @@ local issecret = issecretvalue or function() return false end
 local format = string.format
 
 local TOOLTIP_SPELLS = 5
-local MAX_ROWS = 20          -- spells shown in the panel
-local PANEL_WIDTH = 300
+local MAX_ENTRIES = 100     -- spells kept for scrolling
+local QUESTION_MARK = 134400  -- INV_Misc_QuestionMark
 local VALUE_SHARE, TEXT_INSET, ICON_GAP = 0.5, 5, 4
 local TICK = 0.5             -- seconds between panel redraws
 local FONT_RETRY = 0.5       -- fonts load lazily: lay out once more
@@ -33,7 +33,9 @@ local SEP = " \226\128\148 "  -- " — "
 
 local panel
 local current   -- { window, mode, view, row } of the open panel
-local shownRows = 0
+local shownRows = 0     -- entries drawn
+local lastCount = 1     -- entries in the list (the panel is sized for them)
+local offset = 0        -- first entry shown, for scrolling
 
 local function modeLabel(key) return L["MODE_" .. key:upper()] or key end
 
@@ -135,10 +137,42 @@ end
 
 -- Panel ------------------------------------------------------------------------------
 
+-- Size and place now: the live drag while resizing, else the settings.
+local function liveSize()
+    local r = panel and panel.resizing
+    if r and r.moved then return r.width, r.rows, r.x, r.y end
+    return S("detailWidth"), S("detailRows")
+end
+
 local function place(f)
-    local point = S("detailPoint")
+    local _, _, x, y = liveSize()
     f:ClearAllPoints()
-    f:SetPoint(point, UIParent, point, S("detailX"), S("detailY"))
+    if x then
+        f:SetPoint("TOP", UIParent, "TOP", x, y)
+    else
+        local point = S("detailPoint")
+        f:SetPoint(point, UIParent, point, S("detailX"), S("detailY"))
+    end
+end
+
+-- Height in bars: the chosen rows while unlocked (what is being sized),
+-- else only as many as there are entries.
+local function visibleRows(listCount)
+    local _, rows = liveSize()
+    if not S("locked") then return rows end
+    return math.max(1, math.min(listCount, rows))
+end
+
+local function heightFor(rows)
+    local lk = Windows.Look()
+    local barH, spacing = S("barHeight"), S("barSpacing")
+    return lk.header + 2 * S("padding") + rows * barH + (rows - 1) * spacing
+end
+
+local function rowsFor(height)
+    local lk = Windows.Look()
+    local barH, spacing = S("barHeight"), S("barSpacing")
+    return math.floor((height - lk.header - 2 * S("padding") + spacing) / (barH + spacing) + 1e-6)
 end
 
 local function stopMoving(f)
@@ -157,8 +191,8 @@ local function newRow(f, k)
     row:SetValue(0)
     row.bg = row:CreateTexture(nil, "BACKGROUND")
     row.bg:SetAllPoints()
+    -- The spell's icon: a square in front of the bar, outside it.
     row.icon = row:CreateTexture(nil, "ARTWORK")
-    row.icon:SetPoint("LEFT", row, "LEFT", 1, 0)
     row.value = row:CreateFontString(nil, "OVERLAY")
     row.value:SetPoint("RIGHT", row, "RIGHT", -TEXT_INSET, 0)
     row.value:SetJustifyH("RIGHT")
@@ -171,36 +205,38 @@ local function newRow(f, k)
     return row
 end
 
-local function layoutRows(f, lk, count)
-    local barH, spacing = S("barHeight"), S("barSpacing")
-    local inner = PANEL_WIDTH - 2 * Settings.Get("padding")
+local function layoutRows(f, lk, count, width)
+    local barH, spacing, pad = S("barHeight"), S("barSpacing"), S("padding")
+    local inner = width - 2 * pad
+    local barWidth = inner - barH - ICON_GAP
     local texture = Media.Path("statusbar", S("barTexture"))
     local nameStyle, valueStyle = Settings.TextStyle("name"), Settings.TextStyle("value")
-    local iconSize = math.max(4, barH - 2)
-    local valueWidth = math.floor(inner * VALUE_SHARE)
+    local valueWidth = math.floor(barWidth * VALUE_SHARE)
     for k = 1, count do
         local row = f.rows[k] or newRow(f, k)
-        row:SetSize(inner, barH)
+        row:SetSize(barWidth, barH)
         row:ClearAllPoints()
-        row:SetPoint("TOPLEFT", f.body, "TOPLEFT", Settings.Get("padding"), -(Settings.Get("padding") + (k - 1) * (barH + spacing)))
+        row:SetPoint("TOPLEFT", f.body, "TOPLEFT", pad + barH + ICON_GAP, -(pad + (k - 1) * (barH + spacing)))
         row:SetStatusBarTexture(texture)
-        row.icon:SetSize(iconSize, iconSize)
+        row.icon:SetSize(barH, barH)
+        row.icon:ClearAllPoints()
+        row.icon:SetPoint("RIGHT", row, "LEFT", -ICON_GAP, 0)
         row.value:SetWidth(valueWidth)
         row.name:ClearAllPoints()
-        row.name:SetPoint("LEFT", row, "LEFT", 1 + iconSize + ICON_GAP, 0)
+        row.name:SetPoint("LEFT", row, "LEFT", TEXT_INSET, 0)
         row.name:SetPoint("RIGHT", row, "RIGHT", -(TEXT_INSET + valueWidth + ICON_GAP), 0)
         Media.ApplyText(row.name, nameStyle)
         Media.ApplyText(row.value, valueStyle)
     end
 end
 
--- Header, size, look. `count` rows are laid out and sized for.
-local function layout(f, count)
+-- Header, size, look, for `listCount` entries.
+local function layout(f, listCount)
     local lk = Windows.Look()
-    local barH, spacing = S("barHeight"), S("barSpacing")
-    count = math.max(1, count)
-    f:SetWidth(PANEL_WIDTH)
-    f:SetHeight(lk.header + 2 * Settings.Get("padding") + count * barH + (count - 1) * spacing)
+    local width = liveSize()
+    local count = visibleRows(listCount)
+    f:SetWidth(width)
+    f:SetHeight(heightFor(count))
     place(f)
     local h = f.header
     h:SetHeight(lk.header)
@@ -213,10 +249,17 @@ local function layout(f, count)
     f.close:SetSize(lk.button, lk.button)
     f.close:ClearAllPoints()
     f.close:SetPoint("RIGHT", h, "RIGHT", lk.glow and -4 or -2, 0)
+    f.lock:SetSize(lk.button, lk.button)
+    f.lock.icon:SetSize(lk.icon, lk.icon)
+    f.lock:ClearAllPoints()
+    f.lock:SetPoint("RIGHT", f.close, "LEFT", -1, 0)
+    f.lock.icon:SetTexture(Media.Icon(S("locked") and "Lock" or "Unlock"))
+    f.lock.icon:SetVertexColor(unpack(S("locked") and IDLE or ACCENT))
     h.title:ClearAllPoints()
     h.title:SetPoint("LEFT", h, "LEFT", lk.glow and 8 or 4, 0)
-    h.title:SetPoint("RIGHT", f.close, "LEFT", -4, 0)
-    layoutRows(f, lk, count)
+    h.title:SetPoint("RIGHT", f.lock, "LEFT", -4, 0)
+    layoutRows(f, lk, count, width)
+    for _, g in pairs(f.grips) do g:SetShown(not S("locked")) end
     Windows.ApplyLook(f, lk)
     f.laidRows = count
 end
@@ -279,6 +322,20 @@ local function createHeader(f)
         self.label:SetTextColor(IDLE[1], IDLE[2], IDLE[3])
         GameTooltip:Hide()
     end)
+
+    -- Locks or unlocks all windows (the corner arrows show while unlocked).
+    local lock = CreateFrame("Button", nil, h)
+    f.lock = lock
+    lock.icon = lock:CreateTexture(nil, "ARTWORK")
+    lock.icon:SetPoint("CENTER")
+    lock.icon:SetTexture(Media.Icon("Unlock"))
+    lock:SetScript("OnClick", function() Settings.SetLocked(not S("locked")) end)
+    lock:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+        GameTooltip:AddLine(S("locked") and L.OPT_UNLOCK_FRAME or L.OPT_LOCK_FRAME, 1, 1, 1)
+        GameTooltip:Show()
+    end)
+    lock:SetScript("OnLeave", function() GameTooltip:Hide() end)
 end
 
 local elapsedTick = 0
@@ -299,6 +356,21 @@ local function create()
     f.body = CreateFrame("Frame", nil, f)
     f.body:SetPoint("TOPLEFT", f.header, "BOTTOMLEFT", 0, 0)
     f.body:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, 0)
+    f.body:EnableMouseWheel(true)
+    f.body:SetScript("OnMouseWheel", function(_, delta) Detail.Scroll(delta) end)
+    ns.Resize.Attach(f, {
+        locked = function() return S("locked") end,
+        width = function() return S("detailWidth") end,
+        rows = function() return S("detailRows") end,
+        widthRange = Settings.RANGES.detailWidth, rowsRange = Settings.RANGES.detailRows,
+        rowsFor = rowsFor, heightFor = heightFor,
+        live = function() layout(f, lastCount); Detail.Refresh() end,
+        commit = function(_, r)
+            Settings.SetMany({ detailWidth = r.width, detailRows = r.rows, detailPoint = "TOP",
+                               detailX = r.x, detailY = r.y })
+        end,
+        done = function() layout(f, lastCount); Detail.Refresh() end,
+    })
     f:SetScript("OnUpdate", function(_, elapsed)
         elapsedTick = elapsedTick + elapsed
         if elapsedTick < TICK then return end
@@ -308,7 +380,7 @@ local function create()
     f:Hide()
     layout(f, 1)
     C_Timer.After(FONT_RETRY, function()
-        if panel and panel:IsShown() then layout(panel, shownRows) end
+        if panel and panel:IsShown() then layout(panel, lastCount) end
     end)
     return f
 end
@@ -329,9 +401,9 @@ local function entries(mode, view, row)
     if mode == "deaths" then
         local recap = Meter.Recap(row.recapID)
         if not recap then
-            list[1] = { name = L.DETAIL_NO_RECAP, value = "" }
+            list[1] = { name = L.DETAIL_NO_RECAP, value = "", noIcon = true }
         elseif recap.secret then
-            list[1] = { name = L.DETAIL_AFTER_COMBAT, value = "" }
+            list[1] = { name = L.DETAIL_AFTER_COMBAT, value = "", noIcon = true }
         else
             for k, e in ipairs(recap) do
                 list[k] = { icon = e.icon, name = recapLabel(e), value = recapValue(e) }
@@ -340,9 +412,9 @@ local function entries(mode, view, row)
         return list
     end
     local data = Meter.Spells(mode, view, row)
-    if not data then return { { name = unreadable(), value = "" } } end
-    if #data.rows == 0 then return { { name = L.DETAIL_EMPTY, value = "" } } end
-    for k = 1, math.min(MAX_ROWS, #data.rows) do
+    if not data then return { { name = unreadable(), value = "", noIcon = true } } end
+    if #data.rows == 0 then return { { name = L.DETAIL_EMPTY, value = "", noIcon = true } } end
+    for k = 1, math.min(MAX_ENTRIES, #data.rows) do
         local sp = data.rows[k]
         local value
         local ps = Format.PerSecond(sp.perSecond, PRECISE[mode])
@@ -359,12 +431,15 @@ end
 local function fillRow(row, entry, max, r, g, b)
     row.name:SetText(entry.name)
     row.value:SetText(entry.value)
-    if entry.icon then
-        row.icon:SetTexture(entry.icon)
+    if entry.noIcon then
+        row.icon:Hide()
+    else
+        -- A secret icon may be passed on as it is; no icon: the question mark.
+        local icon = entry.icon
+        if icon == nil then icon = QUESTION_MARK end
+        row.icon:SetTexture(icon)
         row.icon:SetTexCoord(SPEC_CROP[1], SPEC_CROP[2], SPEC_CROP[3], SPEC_CROP[4])
         row.icon:Show()
-    else
-        row.icon:Hide()
     end
     local m, v = Windows.FillArgs(max, entry.total)
     row:SetMinMaxValues(0, m)
@@ -387,17 +462,20 @@ function Detail.Refresh()
     local list
     if current.unknown and not InCombatLockdown() then
         panel.header.title:SetText(format("%s", modeLabel(current.mode)))
-        list = { { name = L.DETAIL_REOPEN, value = "" } }
+        list = { { name = L.DETAIL_REOPEN, value = "", noIcon = true } }
     else
         panel.header.title:SetText(format("%s%s%s", Format.Name(nil, row.name), SEP, modeLabel(current.mode)))
         list = entries(current.mode, current.view, row)
     end
-    if panel.laidRows ~= #list then layout(panel, #list) end
-    shownRows = #list
+    lastCount = #list
+    local visible = visibleRows(#list)
+    if panel.laidRows ~= visible then layout(panel, #list) end
+    offset = math.max(0, math.min(offset, #list - visible))
+    shownRows = math.min(visible, #list)
     local r, g, b = Windows.ClassColor(row.class)
     local max = list[1] and list[1].total
-    for k, entry in ipairs(list) do fillRow(panel.rows[k], entry, max, r, g, b) end
-    for k = #list + 1, #panel.rows do panel.rows[k]:Hide() end
+    for k = 1, shownRows do fillRow(panel.rows[k], list[offset + k], max, r, g, b) end
+    for k = shownRows + 1, #panel.rows do panel.rows[k]:Hide() end
 end
 
 function Detail.Open(windowIndex, row)
@@ -407,12 +485,23 @@ function Detail.Open(windowIndex, row)
     local frame = panel or create()
     frame:Show()
     elapsedTick = 0
+    offset = 0
     Detail.Refresh()
 end
 
+-- delta > 0 (wheel up) shows earlier entries.
+function Detail.Scroll(delta)
+    if not panel or not current then return end
+    local before = offset
+    offset = math.max(0, math.min(offset - delta, lastCount - visibleRows(lastCount)))
+    if offset ~= before then Detail.Refresh() end
+end
+
+function Detail.Offset() return offset end
+
 function Detail.Close()
     current = nil
-    shownRows = 0
+    shownRows, lastCount, offset = 0, 1, 0
     if panel then panel:Hide() end
 end
 
@@ -431,7 +520,7 @@ end
 
 Settings.OnChange(function()
     if panel and panel:IsShown() then
-        layout(panel, shownRows)
+        layout(panel, lastCount)
         Detail.Refresh()
     end
 end)

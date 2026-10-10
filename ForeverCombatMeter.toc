@@ -24,6 +24,7 @@ Settings.lua
 Share.lua
 Media.lua
 Position.lua
+Resize.lua
 Corners.lua
 Border.lua
 Format.lua

@@ -1569,6 +1569,107 @@ do
     Detail.Refresh()
     check("own row: spells after combat", Detail.Count(), 7)
     Detail.Close()
+
+    -- The panel: icons, scrolling, resizing while unlocked
+    Settings.ResetProfile()
+    check("detail width default", D.detailWidth, 300)
+    check("detail rows default", D.detailRows, 20)
+    local lots = {}
+    for k = 1, 30 do lots[k] = sp(2000 + k, 1000 - k, 1) end
+    lots[30] = sp(9999, 1, 1)   -- unknown to the spell database: no icon
+    for k = 1, 29 do M.spells[2000 + k] = { "Spell" .. k, 100000 + k } end
+    M.dm.byType[CUR][T.DamageDone] = { totalAmount = 1000, combatSources = {
+        source("Me", "Player-1-0001", 500, 25, { isLocalPlayer = true, spells = lots }) } }
+    Windows.SetMode(1, "damage")
+    Windows.Refresh(1)
+    Windows.BarScripts.click(wbar(1), 1, "LeftButton")
+    local p = Detail.Frame()
+    check("many spells: default rows", Detail.Count(), 20)
+    for k = 1, 20 do
+        local row = p.rows[k]
+        local ip, ir, irp = row.icon:GetPoint()
+        check("row " .. k .. " icon has a texture", row.icon._texture ~= nil, true)
+        check("row " .. k .. " icon sits left of its bar", ip .. "," .. irp, "RIGHT,LEFT")
+        check("row " .. k .. " icon is on its bar", ir, row)
+        local _, _, _, bx = row:GetPoint()
+        check("row " .. k .. " bar starts after the icon", bx >= S("padding") + row.icon:GetWidth(), true)
+        check("row " .. k .. " icon is square, row high", row.icon:GetWidth() == row:GetHeight() and row.icon:GetHeight() == row:GetHeight(), true)
+        check("row " .. k .. " icon cropped", row.icon._texCoord ~= nil and row.icon._texCoord[1], 0.08)
+    end
+    Settings.Set("detailRows", 30)
+    check("rows setting: all thirty", Detail.Count(), 30)
+    check("last spell without icon: question mark", p.rows[30].icon._texture, 134400)
+    Settings.Set("detailRows", 8)
+    check("rows setting: eight", Detail.Count(), 8)
+    check("scroll offset starts at 0", Detail.Offset(), 0)
+    local wheel = p.body:GetScript("OnMouseWheel")
+    wheel(p.body, -1)
+    check("wheel down scrolls one", Detail.Offset(), 1)
+    check("wheel: first row moved", text(p.rows[1].name:GetText()), "Spell2")
+    wheel(p.body, 1)
+    check("wheel up scrolls back", Detail.Offset(), 0)
+    wheel(p.body, 1)
+    check("wheel up stops at the top", Detail.Offset(), 0)
+    wheel(p.body, -100)
+    check("wheel down stops at the end", Detail.Offset(), 22)
+    check("wheel: last row is the last spell", text(p.rows[8].name:GetText()) ~= nil, true)
+    wheel(p.body, 100)
+
+    -- grips only while unlocked
+    Settings.SetLocked(false)
+    local n = 0
+    for _, g in pairs(p.grips) do if g:IsShown() then n = n + 1 end end
+    check("unlocked: four grips", n, 4)
+    p.lock:GetScript("OnClick")(p.lock)
+    check("panel lock button locks all", S("locked"), true)
+    n = 0
+    for _, g in pairs(p.grips) do if g:IsShown() then n = n + 1 end end
+    check("locked: no grips", n, 0)
+    p.lock:GetScript("OnClick")(p.lock)
+    check("panel lock button unlocks", S("locked"), false)
+
+    -- resize towards each corner, the opposite corner fixed
+    local H0 = p:GetHeight()
+    for _, corner in ipairs({ "TOPRIGHT", "BOTTOMLEFT", "TOPLEFT", "BOTTOMRIGHT" }) do
+        Settings.SetMany({ detailWidth = 300, detailRows = 8 })
+        H0 = p:GetHeight()
+        local left, bottom = 500, 300
+        p._rect = { left, bottom, 300, H0 }
+        local g = p.grips[corner]
+        M.state.mouseDown = true
+        M.state.cursorX, M.state.cursorY = 100, 100
+        press(g)
+        drag(g, 100 + (corner:find("RIGHT") and 60 or -60), 100 + (corner:find("TOP") and 80 or -80))
+        local step = S("barHeight") + S("barSpacing")
+        local wantRows = 8 + math.floor(80 / step)
+        check(corner .. ": live width", p:GetWidth(), 360)
+        check(corner .. ": live rows", p.laidRows, wantRows)
+        check(corner .. ": nothing stored while dragging", ns.DB().detailWidth, nil)
+        release(g)
+        check(corner .. ": width saved", S("detailWidth"), 360)
+        check(corner .. ": rows saved", S("detailRows"), wantRows)
+        check(corner .. ": TOP anchor", S("detailPoint"), "TOP")
+        local w, h = 360, p:GetHeight()
+        local cx, top = 960 + S("detailX"), 1080 + S("detailY")
+        local l, r, b, t = cx - w / 2, cx + w / 2, top - h, top
+        if corner:find("RIGHT") then near(corner .. ": left fixed", l, left) else near(corner .. ": right fixed", r, left + 300) end
+        if corner:find("TOP") then near(corner .. ": bottom fixed", b, bottom) else near(corner .. ": top fixed", t, bottom + H0) end
+    end
+    Settings.SetMany({ detailWidth = 300, detailRows = 8 })
+    p._rect = { 500, 300, 300, p:GetHeight() }
+    press(p.grips.TOPRIGHT)
+    drag(p.grips.TOPRIGHT, 100 + 5000, 100 + 5000)
+    release(p.grips.TOPRIGHT)
+    check("width clamped", S("detailWidth"), 600)
+    check("rows clamped", S("detailRows"), 40)
+    Settings.SetLocked(true)
+    M.state.cursorX, M.state.cursorY = 100, 100
+    press(p.grips.TOPRIGHT)
+    check("locked: no resize starts", p.resizing, nil)
+    Settings.SetLocked(false)
+    Detail.Close()
+    Settings.ResetProfile()
+    Windows.Refresh(1)
 end
 
 section("Report")
@@ -1890,6 +1991,18 @@ keyRow("barSpacing").set(3)
 check("layout: bar spacing", S("barSpacing"), 3)
 keyRow("fadeAlpha").set(40)
 check("layout: fade", S("fadeAlpha"), 40)
+keyRow("detailWidth").set(400)
+check("layout: panel width", S("detailWidth"), 400)
+keyRow("detailRows").set(12)
+check("layout: panel rows", S("detailRows"), 12)
+Settings.SetMany({ detailPoint = "TOP", detailX = 5, detailY = 5 })
+local resets = {}
+for _, r in ipairs(pad) do
+    for _, b in ipairs(r.buttons or {}) do if b.label == "OPT_RESET_POSITION" then resets[#resets + 1] = b end end
+end
+check("layout: two reset position buttons", #resets, 2)
+resets[2].onClick()
+check("layout: panel position reset", S("detailPoint") .. "," .. S("detailX") .. "," .. S("detailY"), "CENTER,0,150")
 Windows.ApplyStylePreset("COMPACT")
 check("compact preset: padding 0", S("padding"), 0)
 Windows.ApplyStylePreset("FOREVER")

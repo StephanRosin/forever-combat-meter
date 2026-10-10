@@ -237,6 +237,15 @@ local function layoutRows()
         num("barSpacing", "OPT_BAR_SPACING"),
         { type = "header", label = "OPT_FADE" },
         num("fadeAlpha", "OPT_FADE_ALPHA", "%"),
+        { type = "header", label = "OPT_DETAIL" },
+        num("detailWidth", "OPT_WIDTH"),
+        num("detailRows", "OPT_ROWS", ""),
+        { type = "buttons", buttons = {
+            { label = "OPT_RESET_POSITION", width = 150, onClick = function()
+                local D = Settings.DEFAULTS
+                Settings.SetMany({ detailPoint = D.detailPoint, detailX = D.detailX, detailY = D.detailY })
+            end },
+        } },
     }
 end
 

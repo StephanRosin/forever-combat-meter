@@ -79,6 +79,8 @@ Settings.DEFAULTS = {
     detailPoint = "CENTER",
     detailX = 0,
     detailY = 150,
+    detailWidth = 300,
+    detailRows = 20,        -- spell rows shown; more scroll with the wheel
 }
 
 -- Slider ranges, used by the options window and to clamp typed values.
@@ -100,6 +102,8 @@ Settings.RANGES = {
     valueSize = { 8, 20 },
     threatWarnPct = { 50, 100 },
     reportLines = { 1, 25 },
+    detailWidth = { 200, 600 },
+    detailRows = { 5, 40 },
 }
 
 -- Numbers snap to a step; the default is whole numbers.
