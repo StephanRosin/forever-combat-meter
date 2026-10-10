@@ -382,17 +382,59 @@ function Windows.IconFor(specIcon, class)
     end
 end
 
+local CLASS_SHEET = "Interface\\Glues\\CharacterCreate\\UI-CharacterCreate-Classes"
+
+local function atlasExists(name)
+    if C_Texture and C_Texture.GetAtlasInfo then return C_Texture.GetAtlasInfo(name) ~= nil end
+    return true   -- cannot ask: try it
+end
+
+-- What the icon of a row shows: "file", id | "atlas", name | "sheet", coords | nil.
+function Windows.ChooseIcon(specIcon, class)
+    local kind, what = Windows.IconFor(specIcon, class)
+    if kind == "atlas" and not atlasExists(what) then
+        local coords = CLASS_ICON_TCOORDS and CLASS_ICON_TCOORDS[class:upper()]
+        if coords then return "sheet", coords end
+        return nil
+    end
+    return kind, what
+end
+
 local function setIcon(bar, specIcon, class)
     if not S("showIcon") then return end
-    local kind, what = Windows.IconFor(specIcon, class)
+    local kind, what = Windows.ChooseIcon(specIcon, class)
     local icon = bar.icon
+    -- A reused bar may carry the crop of a spec icon.
+    icon:SetTexCoord(0, 1, 0, 1)
     if kind == "file" then
         icon:SetTexture(what)
         icon:SetTexCoord(SPEC_CROP[1], SPEC_CROP[2], SPEC_CROP[3], SPEC_CROP[4])
     elseif kind == "atlas" then
-        icon:SetAtlas(what) -- sets its own texture coordinates
+        icon:SetAtlas(what)
+    elseif kind == "sheet" then
+        icon:SetTexture(CLASS_SHEET)
+        icon:SetTexCoord(what[1], what[2], what[3], what[4])
     end
     icon:SetShown(kind ~= nil)
+end
+
+-- One line for /fcm debug icon: what the first row of window 1 would show.
+function Windows.IconDebug()
+    local data = Windows.Data(1)
+    local row = data and data.rows and data.rows[1]
+    if not row then return "no row in window 1" end
+    local function show(v)
+        if issecret(v) then return "<secret>" end
+        return tostring(v)
+    end
+    local kind, what = Windows.ChooseIcon(row.specIcon, row.class)
+    local _, name = Windows.IconFor(row.specIcon, row.class)
+    local wanted = (type(name) == "string") and name or "-"
+    local info = (C_Texture and C_Texture.GetAtlasInfo) and (C_Texture.GetAtlasInfo(wanted) ~= nil) or "n/a"
+    local shown = kind == "sheet" and "class sheet" or show(what)
+    return ("specIcon=%s class=%s -> %s %s; atlas %s exists: %s; sheet coords: %s"):format(
+        show(row.specIcon), show(row.class), tostring(kind), shown, wanted, tostring(info),
+        tostring(CLASS_ICON_TCOORDS ~= nil and not issecret(row.class) and CLASS_ICON_TCOORDS[tostring(row.class):upper()] ~= nil))
 end
 
 -- "a", "a (b)", "a (b, c)": the first column, the rest in brackets. The
@@ -904,7 +946,8 @@ function Windows.NewBar(f, k)
     bar.bg = bar:CreateTexture(nil, "BACKGROUND")
     bar.bg:SetAllPoints()
     -- Icon one pixel in from the left edge, inside the bar.
-    bar.icon = bar:CreateTexture(nil, "ARTWORK")
+    -- Above the fill: the bar's own fill texture is ARTWORK too.
+    bar.icon = bar:CreateTexture(nil, "OVERLAY", nil, 2)
     bar.icon:SetPoint("LEFT", bar, "LEFT", 1, 0)
     -- Values: a right-aligned column of fixed width (layoutBars); the name
     -- takes what is left of it.

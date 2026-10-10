@@ -2115,6 +2115,48 @@ ns.Detail.Close()
 Settings.ResetProfile()
 layoutRow("window").set(1)
 
+section("Bar icons")
+Settings.ResetProfile()
+M.state.combat = false
+M.dm.byType[CUR] = { [T.DamageDone] = { totalAmount = 900, combatSources = {
+    source("Bob", "Player-2", 500, 25, { classFilename = "MAGE", specIconID = 135932 }),
+    source("Sue", "Player-3", 300, 15, { classFilename = "ROGUE" }),
+    source("Wolf", nil, 100, 5, { sourceCreatureID = 69, classFilename = "" }) } } }
+Windows.SetMode(1, "damage")
+Windows.Refresh(1)
+local ib = Windows.Frame(1).bars
+check("icon above the fill (OVERLAY)", ib[1].icon._layer, "OVERLAY")
+check("icon not on the fill's layer", ib[1].icon._layer ~= "ARTWORK", true)
+check("spec icon: file", ib[1].icon._texture, 135932)
+check("spec icon: cropped", ib[1].icon._texCoord[1], 0.08)
+check("class without spec: atlas", ib[2].icon._atlas, "classicon-rogue")
+check("atlas: texcoord reset to full", ib[2].icon._texCoord[1] .. ib[2].icon._texCoord[2], "01")
+-- A reused bar: spec icon first, then a class atlas
+Windows.SetMode(1, "damage")
+M.dm.byType[CUR][T.DamageDone].combatSources[1] = source("Bob", "Player-2", 500, 25, { classFilename = "MAGE" })
+Windows.Refresh(1)
+check("reused bar: atlas", ib[1].icon._atlas, "classicon-mage")
+check("reused bar: crop reset", ib[1].icon._texCoord[1] .. ib[1].icon._texCoord[2] .. ib[1].icon._texCoord[3] .. ib[1].icon._texCoord[4], "0101")
+-- No such atlas on this client: the class sheet
+C_Texture = { GetAtlasInfo = function() return nil end }
+CLASS_ICON_TCOORDS = { MAGE = { 0.25, 0.5, 0, 0.25 }, ROGUE = { 0.5, 0.75, 0, 0.25 } }
+Windows.SetMode(1, "damage")
+Windows.Refresh(1)
+check("no atlas: class sheet", ib[1].icon._texture, "Interface\\Glues\\CharacterCreate\\UI-CharacterCreate-Classes")
+check("no atlas: class coords", ib[1].icon._texCoord[1] .. "," .. ib[1].icon._texCoord[2], "0.25,0.5")
+check("no atlas: shown", ib[1].icon:IsShown(), true)
+check("spec icon still a file", Windows.ChooseIcon(135932, "MAGE"), "file")
+CLASS_ICON_TCOORDS = {}
+check("neither atlas nor sheet: nothing", Windows.ChooseIcon(nil, "MAGE"), nil)
+Windows.Refresh(1)
+check("neither: hidden", ib[1].icon:IsShown(), false)
+C_Texture, CLASS_ICON_TCOORDS = nil, nil
+Windows.Refresh(1)
+M.chat = {}
+SlashCmdList["FOREVERCOMBATMETER"]("debug icon")
+check("/fcm debug icon prints", M.chat[1] ~= nil and M.chat[1]:find("specIcon", 1, true) ~= nil and M.chat[1]:find("class=MAGE", 1, true) ~= nil, true)
+Settings.ResetProfile()
+
 section("Blizzard meter switch")
 local cvars, cvarWrites = { damageMeterEnabled = "1" }, 0
 C_CVar = {

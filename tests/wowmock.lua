@@ -105,9 +105,10 @@ local function newWidget(name, kind)
     function w:AddMaskTexture(m) self._masks = (self._masks or 0) + 1 end
     function w:RemoveMaskTexture(m) self._masks = (self._masks or 1) - 1 end
     function w:CreateMaskTexture() return newWidget(nil, "MaskTexture") end
-    function w:CreateTexture()
+    function w:CreateTexture(_, layer, _, sublevel)
         local t = newWidget(nil, "Texture")
         t._parent = self
+        t._layer, t._sublevel = layer, sublevel
         return t
     end
     function w:StartMoving() self._moving = true end

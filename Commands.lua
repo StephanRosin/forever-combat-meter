@@ -40,6 +40,9 @@ local COMMANDS = {
     windows = function(args) setWindows(tonumber(args[1])) end,
     report = function(args) ns.Report.Window(1, tonumber(args[1])) end,
     reset = function() ns.Windows.AskReset() end,
+    debug = function(args)
+        if args[1] == "icon" then ns.Print(ns.Windows.IconDebug()) else ns.Print(L.MSG_USAGE) end
+    end,
     toggle = function()
         ns.Print(ns.Windows.ToggleHidden() and L.MSG_WINDOWS_SHOWN or L.MSG_WINDOWS_HIDDEN)
     end,
