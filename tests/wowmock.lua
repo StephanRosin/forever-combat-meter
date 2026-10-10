@@ -189,8 +189,11 @@ Minimap._w, Minimap._h = 260, 260
 Minimap._rect = { 1652, 767, 260, 260 }
 function Minimap:GetCenter() return 1782, 897 end
 GameTooltip = newWidget("GameTooltip")
-function GameTooltip:AddLine(t) self._lines = self._lines or {}; self._lines[#self._lines + 1] = t end
-function GameTooltip:SetOwner() self._lines = {} end
+function GameTooltip:AddLine(t) self._lines = self._lines or {}; self._lines[#self._lines + 1] = { t } end
+function GameTooltip:AddDoubleLine(l, r) self._lines = self._lines or {}; self._lines[#self._lines + 1] = { l, r } end
+function GameTooltip:SetOwner(o) self._lines = {}; self._owner = o end
+function GameTooltip:ClearLines() self._lines = {} end
+function GameTooltip:Hide() self._shown = false; self._lines = {} end
 function GameTooltip:IsOwned() return true end
 DEFAULT_CHAT_FRAME = { AddMessage = function(_, m) M.chat[#M.chat + 1] = m end }
 SlashCmdList = {}
@@ -212,6 +215,8 @@ function InCombatLockdown() return M.state.combat end
 function IsControlKeyDown() return M.state.ctrl end
 function IsModifiedClick(what) return M.state.modified[what] or false end
 function IsInGroup() return M.state.group or false end
+M.sent = {}
+function SendChatMessage(msg, channel) M.sent[#M.sent + 1] = { msg = msg, channel = channel, via = "global" } end
 function GetMoney() return M.state.money end
 function GetMoneyString(v) return v .. "c" end
 function GetRealZoneText() return M.state.zone end

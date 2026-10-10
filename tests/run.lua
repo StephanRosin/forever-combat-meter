@@ -55,7 +55,7 @@ check("Interface", io.open(ROOT .. "/" .. ADDON .. ".toc"):read("*l"), "## Inter
 for _, name in ipairs({ "L", "Locale", "On", "Print", "AfterCombat", "DB", "AccountDB", "ActiveProfile",
     "SwitchProfile", "DeleteProfile", "CopyProfileFrom", "ProfileList", "Settings", "Share", "Media",
     "Position", "Corners", "Border", "Window", "MinimapButton", "Style", "Widgets", "Format", "Meter", "Threat",
-    "Windows" }) do
+    "Windows", "Detail", "Report" }) do
     check("ns." .. name, ns[name] ~= nil, true)
 end
 check("saved variables (account)", type(ForeverCombatMeterProfiles), "table")
@@ -486,7 +486,7 @@ check("recap in combat: no time", okR and crecap and crecap[6].time, nil)
 M.state.combat = false
 
 section("Secret-safe sources")
-for _, f in ipairs({ "Format.lua", "Meter.lua", "Windows.lua" }) do
+for _, f in ipairs({ "Format.lua", "Meter.lua", "Windows.lua", "Detail.lua", "Report.lua" }) do
     local src = io.open(ROOT .. "/" .. f):read("*a"):gsub("%-%-[^\n]*", "")
     check("no %d format in " .. f, src:find("%%d"), nil)
 end
@@ -1276,6 +1276,309 @@ check("stored account wide", ForeverCombatMeterProfiles.language, "deDE")
 ns.Locale.Set("AUTO")
 check("auto follows the game", ns.L.PAGE_GENERAL, "General")
 check("auto stores nothing", ForeverCombatMeterProfiles.language, nil)
+
+section("Detail: tooltip, breakdown, recap")
+do
+    local Detail, Report = ns.Detail, ns.Report
+    check("Detail exists", Detail ~= nil, true)
+    check("Report exists", Report ~= nil, true)
+    check("bar scripts hooked", Windows.BarScripts.enter ~= nil and Windows.BarScripts.leave ~= nil and Windows.BarScripts.click ~= nil, true)
+    check("detail defaults", D.detailPoint .. "," .. D.detailX .. "," .. D.detailY, "CENTER,0,150")
+    Settings.ResetProfile()
+    M.state.combat = false
+    M.state.playerGUID = "Player-1-0001"
+    local function sp(id, total, ps, creature) return { spellID = id, totalAmount = total, amountPerSecond = ps, creatureName = creature or "" } end
+    local many = {}
+    for k = 1, 7 do many[k] = sp(1000 + k, 10 * k, k, "") end
+    M.dm.byType[CUR] = {
+        [T.DamageDone] = { totalAmount = 1000, combatSources = {
+            source("Bob", "Player-2", 300, 30, { classFilename = "MAGE", specIconID = 135932,
+                spells = { sp(133, 100, 10), sp(116, 200, 20) } }),
+            source("Me", "Player-1-0001", 500, 25, { isLocalPlayer = true, spells = many }),
+            source("Wolf", nil, 200, 4, { sourceCreatureID = 69, classFilename = "", spells = { sp(17253, 200, 4) } }) } },
+        [T.DamageTaken] = { totalAmount = 400, combatSources = {
+            source("Me", "Player-1-0001", 400, 8, { isLocalPlayer = true,
+                spells = { sp(88163, 300, 6, "Ogre"), sp(116, 100, 2, "") } }) } },
+        [T.Deaths] = { totalAmount = 1, combatSources = {
+            source("Bob", "Player-2", 1, 0, { deathRecapID = 7, deathTimeSeconds = 65 }),
+            source("Me", "Player-1-0001", 1, 0, { isLocalPlayer = true }) } },
+    }
+    M.dm.duration[CUR] = 50
+    M.spells[88163] = { "Cleave", 132338 }
+    Windows.SetMode(1, "damage")
+    Windows.Refresh(1)
+    local function wbar(k) return Windows.Frame(1).bars[k] end
+    local function text(v) return M.Reveal(v) end
+    local function find(lines, left)
+        for _, l in ipairs(lines) do if text(l.left) == left then return l end end
+    end
+
+    -- Tooltip lines
+    local bob = wbar(2).row
+    local lines = Detail.Lines("damage", "current", bob)
+    check("tooltip: title is the name", text(lines[1].left), "Bob")
+    check("tooltip: total", text(find(lines, ns.L.DETAIL_TOTAL).right), "300")
+    check("tooltip: per second", text(find(lines, ns.L.DETAIL_PER_SECOND).right), "30.0")
+    check("tooltip: share", text(find(lines, ns.L.DETAIL_SHARE).right), "30.0%")
+    check("tooltip: top spell first", find(lines, "Frostbolt") ~= nil, true)
+    check("tooltip: spell value with percent", find(lines, "Frostbolt") and text(find(lines, "Frostbolt").right), "200 (66.7%)")
+    check("tooltip: second spell", find(lines, "Fireball") ~= nil, true)
+    check("tooltip: no after-combat line", find(lines, ns.L.DETAIL_AFTER_COMBAT), nil)
+    local me = wbar(1).row
+    local mine = Detail.Lines("damage", "current", me)
+    local spellLines = 0
+    for _, l in ipairs(mine) do if text(l.left):match("^#") then spellLines = spellLines + 1 end end
+    check("tooltip: five spells at most", spellLines, 5)
+    check("tooltip: biggest first", find(mine, "#1007") ~= nil, true)
+    check("tooltip: sixth absent", find(mine, "#1002"), nil)
+    local taken = Detail.Lines("taken", "current", me)
+    check("tooltip: creature suffix", find(taken, "Cleave \194\183 Ogre") ~= nil, true)
+    check("tooltip: no suffix without creature", find(taken, "Frostbolt") ~= nil, true)
+
+    -- Hover on a real bar
+    GameTooltip:Hide()
+    wbar(2):GetScript("OnEnter")(wbar(2))
+    check("hover: tooltip owner", GameTooltip._owner, wbar(2))
+    check("hover: tooltip lines", GameTooltip._lines and #GameTooltip._lines > 3, true)
+    check("hover: title", GameTooltip._lines[1] and text(GameTooltip._lines[1][1]), "Bob")
+    wbar(2):GetScript("OnLeave")(wbar(2))
+    check("leave: tooltip hidden", GameTooltip._shown, false)
+
+    -- Deaths
+    Windows.SetMode(1, "deaths")
+    Windows.Refresh(1)
+    local dead = wbar(1).row
+    check("deaths row has a recap", dead.recapID, 7)
+    local dl = Detail.Lines("deaths", "current", dead)
+    check("deaths tooltip: time of death", find(dl, ns.L.DETAIL_DIED_AT:format("1:05")) ~= nil, true)
+    local recapLines, firstRecap, lastRecap = 0, nil, nil
+    for _, l in ipairs(dl) do
+        if l.recap then recapLines = recapLines + 1; firstRecap = firstRecap or l; lastRecap = l end
+    end
+    check("deaths tooltip: six hits", recapLines, 6)
+    check("deaths tooltip: oldest first", firstRecap and text(firstRecap.right), "100")
+    check("deaths tooltip: killing blow last", lastRecap and text(lastRecap.right), "900")
+    local nodead = Detail.Lines("deaths", "current", wbar(2).row)
+    check("deaths tooltip: no recap", find(nodead, ns.L.DETAIL_NO_RECAP) ~= nil, true)
+
+    -- Breakdown panel
+    Windows.SetMode(1, "damage")
+    Windows.Refresh(1)
+    check("panel hidden at start", Detail.Frame() == nil or not Detail.Frame():IsShown(), true)
+    wbar(2):GetScript("OnMouseUp")(wbar(2), "LeftButton")
+    local p = Detail.Frame()
+    check("click opens the panel", p ~= nil and p:IsShown(), true)
+    check("panel title", text(p.header.title:GetText()), "Bob \226\128\148 Damage")
+    check("panel spell rows", Detail.Count(), 2)
+    check("panel row 1 name", text(p.rows[1].name:GetText()), "Frostbolt")
+    check("panel row 1 value", text(p.rows[1].value:GetText()), "200 (20.0, 66.7%)")
+    check("panel row 2 name", text(p.rows[2].name:GetText()), "Fireball")
+    check("panel row 1 fill", p.rows[1]._value, 200)
+    check("panel row 1 icon", p.rows[1].icon._texture, 135846)
+    check("panel row 3 absent or hidden", p.rows[3] == nil or not p.rows[3]:IsShown(), true)
+    check("panel is movable", p:IsMovable(), true)
+    check("panel on the profile position", p._lastPoint[1] .. "," .. p._lastPoint[4] .. "," .. p._lastPoint[5], "CENTER,0,150")
+    Windows.BarScripts.click(wbar(3), 1, "RightButton")
+    check("right click on a bar keeps the panel", text(p.header.title:GetText()), "Bob \226\128\148 Damage")
+    -- drag by the header
+    p._rect = { 800, 500, 260, 200 }
+    p.header:GetScript("OnMouseDown")(p.header, "LeftButton")
+    check("header drag starts moving", p._moving, true)
+    p.header:GetScript("OnMouseUp")(p.header, "LeftButton")
+    check("header drag stops", p._moving, false)
+    check("position saved: point", ns.DB().detailPoint, "TOP")
+    check("position saved: x", ns.DB().detailX, 800 + 130 - 960)
+    check("position saved: y", ns.DB().detailY, 700 - 1080)
+    -- close
+    p.close:GetScript("OnClick")(p.close)
+    check("close button hides", p:IsShown(), false)
+    Windows.BarScripts.click(wbar(1), 1, "LeftButton")
+    check("reopens at the saved place", p._lastPoint[1], "TOP")
+    check("own title", text(p.header.title:GetText()), "Me \226\128\148 Damage")
+    check("seven spells shown (own)", Detail.Count(), 7)
+    Detail.Close()
+
+    -- Creature suffix in the panel
+    Windows.SetMode(1, "taken")
+    Windows.Refresh(1)
+    Windows.BarScripts.click(wbar(1), 1, "LeftButton")
+    check("panel: creature suffix", text(p.rows[1].name:GetText()), "Cleave \194\183 Ogre")
+    check("panel: no suffix", text(p.rows[2].name:GetText()), "Frostbolt")
+    Detail.Close()
+
+    -- Death recap panel
+    Windows.SetMode(1, "deaths")
+    Windows.Refresh(1)
+    Windows.BarScripts.click(wbar(1), 1, "LeftButton")
+    check("recap panel shown", p:IsShown(), true)
+    check("recap panel rows", Detail.Count(), 6)
+    check("recap panel: killing blow last", text(p.rows[6].value:GetText()):find("900", 1, true) ~= nil, true)
+    check("recap panel: oldest first", text(p.rows[1].value:GetText()):find("100", 1, true) ~= nil, true)
+    Detail.Close()
+    Windows.BarScripts.click(wbar(2), 1, "LeftButton")
+    check("no recap: message row", text(p.rows[1].name:GetText()), ns.L.DETAIL_NO_RECAP)
+    Detail.Close()
+
+    -- In combat
+    Windows.SetMode(1, "damage")
+    M.state.combat = true
+    Windows.Refresh(1)
+    local okE = pcall(function() Windows.BarScripts.enter(wbar(1), 1) end)
+    check("combat: tooltip raises nothing", okE, true)
+    local other, own
+    for k = 1, 3 do
+        local r = wbar(k).row
+        if r.isPlayer then own = r elseif not other and r.guid == nil and r.creatureID == nil then other = r end
+    end
+    local cl = Detail.Lines("damage", "current", other)
+    check("combat: others unreadable", find(cl, ns.L.DETAIL_AFTER_COMBAT) ~= nil, true)
+    local ol = Detail.Lines("damage", "current", own)
+    check("combat: own spells readable", find(ol, ns.L.DETAIL_AFTER_COMBAT), nil)
+    check("combat: own total", text(find(ol, ns.L.DETAIL_TOTAL).right), "500")
+    local okC = pcall(function() Detail.Open(1, other) end)
+    check("combat: panel opens without raising", okC, true)
+    check("combat: panel says after combat", text(p.rows[1].name:GetText()), ns.L.DETAIL_AFTER_COMBAT)
+    check("combat: panel title with a secret name", text(p.header.title:GetText()), "Bob \226\128\148 Damage")
+    check("combat: refresh raises nothing", (pcall(Detail.Refresh)), true)
+    Detail.Close()
+    Detail.Open(1, own)
+    check("combat: own breakdown in the panel", Detail.Count(), 7)
+    check("combat: own value is a secret display string", M.IsSecret(p.rows[1].value:GetText()), true)
+    check("combat: own refresh raises nothing", (pcall(Detail.Refresh)), true)
+    Detail.Close()
+    Windows.SetMode(1, "deaths")
+    check("combat: death lines raise nothing", (pcall(Detail.Lines, "deaths", "current", wbar(1).row)), true)
+    M.state.combat = false
+    Windows.SetMode(1, "damage")
+    Windows.Refresh(1)
+end
+
+section("Report")
+do
+    local Report, Detail = ns.Report, ns.Detail
+    Settings.ResetProfile()
+    M.state.combat = false
+    M.state.group = false
+    M.state.instance = nil
+    world.raid = false
+    local function sent()
+        local t = {}
+        for _, s in ipairs(M.sent) do t[#t + 1] = s.channel .. ":" .. s.msg end
+        return t
+    end
+    local function reset() M.sent = {}; M.chat = {} end
+    local function chat()
+        local t = {}
+        for _, m in ipairs(M.chat) do t[#t + 1] = M.Reveal(m) end
+        return table.concat(t, "\n")
+    end
+    check("channel: none", Report.Channel(), nil)
+    M.state.instance = { kind = "party", name = "Dungeon" }
+    check("channel: say inside an instance", Report.Channel(), "SAY")
+    M.state.group = true
+    check("channel: party", Report.Channel(), "PARTY")
+    world.raid = true
+    check("channel: raid", Report.Channel(), "RAID")
+    world.raid = false
+    M.state.group = false
+    M.state.instance = nil
+
+    local function sp(id, total, ps) return { spellID = id, totalAmount = total, amountPerSecond = ps, creatureName = "" } end
+    M.dm.byType[CUR] = {
+        [T.DamageDone] = { totalAmount = 2000, combatSources = {
+            source("Bob", "Player-2", 300, 30, { classFilename = "MAGE", spells = { sp(133, 100, 10), sp(116, 200, 20) } }),
+            source("Me", "Player-1-0001", 1500, 25, { isLocalPlayer = true, spells = { sp(78, 1500, 25) } }),
+            source("Wolf", nil, 200, 4, { sourceCreatureID = 69, classFilename = "" }) } } }
+    M.dm.duration[CUR] = 50
+    Windows.SetMode(1, "damage")
+    Windows.Refresh(1)
+
+    reset()
+    M.state.group = true
+    world.raid = true
+    check("window report: ok", Report.Window(1, 2), true)
+    local s = sent()
+    check("window report: header + 2 lines", #s, 3)
+    check("window report: header", s[1], "RAID:Forever Combat Meter: Damage \194\183 Current")
+    check("window report: first line", s[2], "RAID:1. Me  1.5k (75.0%)")
+    check("window report: second line", s[3], "RAID:2. Bob  300 (15.0%)")
+    check("window report: via the global sender", M.sent[1].via, "global")
+    reset()
+    Settings.Set("reportLines", 3)
+    Report.Window(1)
+    check("window report: default line count from the setting", #sent(), 4)
+    reset()
+    Report.Window(1, 99)
+    check("window report: capped at the rows", #sent(), 4)
+    Settings.Set("reportLines", nil)
+
+    reset()
+    world.raid = false
+    Report.Window(1, 1)
+    check("party channel", sent()[2], "PARTY:1. Me  1.5k (75.0%)")
+    reset()
+    M.state.group = false
+    M.state.instance = { kind = "party", name = "Dungeon" }
+    Report.Window(1, 1)
+    check("say inside an instance", sent()[2], "SAY:1. Me  1.5k (75.0%)")
+    reset()
+    M.state.instance = nil
+    check("local report: ok", Report.Window(1, 1), true)
+    check("local report: nothing sent", #sent(), 0)
+    check("local report: printed", chat():find("1. Me  1.5k (75.0%)", 1, true) ~= nil, true)
+
+    -- C_ChatInfo wins when present
+    C_ChatInfo = { SendChatMessage = function(msg, channel) M.sent[#M.sent + 1] = { msg = msg, channel = channel, via = "C_ChatInfo" } end }
+    reset()
+    M.state.group = true
+    Report.Window(1, 1)
+    check("uses C_ChatInfo.SendChatMessage", M.sent[1] and M.sent[1].via, "C_ChatInfo")
+    C_ChatInfo = nil
+
+    -- Refusal with secret values
+    reset()
+    M.state.combat = true
+    Windows.Refresh(1)
+    local okR, res = pcall(Report.Window, 1, 3)
+    check("secret: raises nothing", okR, true)
+    check("secret: refused", res, false)
+    check("secret: nothing sent", #sent(), 0)
+    check("secret: localized message", chat():find(ns.L.REPORT_SECRET, 1, true) ~= nil, true)
+    reset()
+    local own
+    for k = 1, 3 do if Windows.Frame(1).bars[k].row.isPlayer then own = Windows.Frame(1).bars[k].row end end
+    Detail.Open(1, own)
+    local okS, resS = pcall(Report.Spells, Detail.Source(), 3)
+    check("secret spells: raises nothing", okS, true)
+    check("secret spells: refused", resS, false)
+    check("secret spells: nothing sent", #sent(), 0)
+    Detail.Close()
+    M.state.combat = false
+
+    -- Spells report
+    reset()
+    M.state.group = true
+    Windows.Refresh(1)
+    local bobRow
+    for k = 1, 3 do if Windows.Frame(1).bars[k].row.guid == "Player-2" then bobRow = Windows.Frame(1).bars[k].row end end
+    Detail.Open(1, bobRow)
+    check("spells report: ok", Report.Spells(Detail.Source(), 5), true)
+    s = sent()
+    check("spells report: header + 2 lines", #s, 3)
+    check("spells report: header", s[1], "PARTY:Bob \226\128\148 Damage")
+    check("spells report: first", s[2], "PARTY:1. Frostbolt  200 (66.7%)")
+    check("spells report: second", s[3], "PARTY:2. Fireball  100 (33.3%)")
+    -- Right click on the title reports out of combat
+    reset()
+    local header = Detail.Frame().header
+    header:GetScript("OnClick")(header, "RightButton")
+    check("title right click reports", #sent(), 3)
+    Detail.Close()
+    reset()
+    check("empty window report", (function() M.dm.byType[CUR] = {}; Windows.Refresh(1); return Report.Window(1, 3) end)(), false)
+    check("empty window report: message", chat():find(ns.L.REPORT_EMPTY, 1, true) ~= nil, true)
+    M.state.group = false
+end
 
 section("No accidental globals")
 local allowed = { SLASH_FOREVERCOMBATMETER1 = true, SLASH_FOREVERCOMBATMETER2 = true, ForeverCombatMeterProfiles = true,

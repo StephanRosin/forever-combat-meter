@@ -218,6 +218,11 @@ local function applyLook(f, lk)
     })
 end
 
+-- The breakdown panel (Detail.lua) wears the windows' look.
+Windows.Look = look
+Windows.ApplyLook = applyLook
+Windows.ClassColor = classColor
+
 local function layoutHeader(f, lk)
     local h, cfg = f.header, f.cfg
     h:SetHeight(lk.header)
@@ -896,7 +901,7 @@ local function newWarningOutline(bar)
     return outline
 end
 
--- Task 5 fills these (tooltip, breakdown): function(bar, windowIndex).
+-- Detail.lua fills these (tooltip, breakdown): function(bar, windowIndex, ...).
 Windows.BarScripts = {}
 
 function Windows.NewBar(f, k)

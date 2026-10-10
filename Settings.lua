@@ -73,6 +73,11 @@ Settings.DEFAULTS = {
 
     -- Report
     reportLines = 5,
+
+    -- Breakdown panel (centre anchor and offsets from UIParent)
+    detailPoint = "CENTER",
+    detailX = 0,
+    detailY = 150,
 }
 
 -- Slider ranges, used by the options window and to clamp typed values.
