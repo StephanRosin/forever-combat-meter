@@ -35,6 +35,8 @@ InfoPanel 1.6.**
    Window/Panel, minimap button and addon compartment entry). Each meter window has the quest log's header (gold glow,
    rounded corners via `Corners.Fit`, line): left the mode and session, right small icon buttons — mode, session,
    reset, lock, menu (gear opens the options).
+2a. **Compact style as an option** (user request): a "Kompakt" style like ForeverMeter — slim header without glow,
+   fewer header buttons, no padding, slimmer bars; the quest-log look stays the default.
 3. **Bars**: class colour (or a fixed colour, setting), spec icon (class icon when the client gives none), rank and
    name, columns total / per second / percent (each switchable), bar texture (media list incl. LibSharedMedia), height,
    spacing, background; animated fill. Text styles via the quest log's text style rows (name, values).
