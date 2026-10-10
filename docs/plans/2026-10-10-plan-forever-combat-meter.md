@@ -131,6 +131,11 @@ reportLines = 5 [1, 25],
 - `/fcm`: no argument → options; `mode <key>`, `reset`, `report [n]`, `lock`, `unlock`, `toggle` (show/hide all windows), `windows <1-4>`.
 - [ ] Tests first (every DEFAULTS key has a row; no raw keys in any page in all four languages; hideBlizzard sets/restores the CVar; commands), implement, green, commit "Options pages, commands, Blizzard meter switch".
 
+### Task 6b: Corner resize arrows (user request)
+
+- While a window is unlocked, show an arrow grip in **each of the four corners** (diagonal arrow art pointing outwards, tinted like the quest log's accent, brighter on hover). Dragging a corner grows/shrinks the window towards that corner: width and rows change, the opposite corner stays fixed on screen (store the result back into the window's point/x/y so it is kept). Locked: no grips. Same for the breakdown panel if it is resizable. Works in both styles (FOREVER, COMPACT). Replaces the two bottom grips from Task 4.
+- Tests: grips shown only unlocked, four grips, each corner keeps the opposite corner fixed (position math), rows/width clamped to their ranges, saved position after the drag.
+
 ### Task 7: In-game check (controller with the user)
 
 - [ ] `./install`; the user restarts the game (new media files need a restart, /reload is not enough) and checks with ForeverMeter disabled: windows, modes, sessions, a fight (values in combat, recompute after), tooltip, breakdown, death recap, threat warning, report, options pages, languages, profiles, Blizzard meter switch, Lua errors. Fix findings with tests.
