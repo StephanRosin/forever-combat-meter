@@ -168,7 +168,7 @@ local function rowFor(label, field)
 end
 local pageIds = {}
 for _, page in ipairs(ns.Window.PAGES) do pageIds[#pageIds + 1] = page.id end
-check("pages", table.concat(pageIds, ","), "general,windows,bars,appearance,text,threat,profiles")
+check("pages", table.concat(pageIds, ","), "general,windows,layout,bars,appearance,text,threat,profiles")
 for _, page in ipairs(ns.Window.PAGES) do
     local ok, err = pcall(ns.Window.ShowPage, page.id)
     check("page " .. page.id .. " builds", ok, true)
@@ -1036,7 +1036,7 @@ for _, style in ipairs({ "FOREVER", "COMPACT" }) do
     for _, scale in ipairs({ 1, 1.5 }) do
         Settings.ResetProfile()
         Windows.ApplyStylePreset(style)
-        w1:SetScale(scale)
+        Windows.SetConfig(1, { scale = scale * 100 })
         local W, rows = Windows.Config(1).width, Windows.Config(1).rows
         local H = w1:GetHeight()
         local left, bottom = 500, 300
@@ -1063,10 +1063,12 @@ for _, style in ipairs({ "FOREVER", "COMPACT" }) do
             if corner:find("TOP") then near(tag .. ": bottom fixed", b, B0) else near(tag .. ": top fixed", t, T0) end
             Settings.ResetProfile()
             Windows.ApplyStylePreset(style)
+            Windows.SetConfig(1, { scale = scale * 100 })
+            w1._rect = { left, bottom, W, H }
         end
     end
 end
-w1:SetScale(1)
+Windows.SetConfig(1, { scale = 100 })
 Settings.ResetProfile()
 w1._rect = { 800, 400, 220, w1:GetHeight() }
 local rows0 = Windows.Config(1).rows
@@ -1786,19 +1788,6 @@ check("windows page: mode", Windows.Mode(2), "threat")
 check("windows page: mode get", winRow(2, "mode").get(), "threat")
 winRow(2, "view").set("overall")
 check("windows page: session", Windows.View(2), "overall")
-winRow(2, "width").set(300)
-check("windows page: width", Windows.Config(2).width, 300)
-winRow(3, "rows").set(5)
-check("windows page: rows", Windows.Config(3).rows, 5)
-winRow(2, "locked").set(true)
-check("windows page: lock", Windows.Config(2).locked, true)
-check("windows page: lock keeps the global flag false", S("locked"), false)
-winRow(1, "locked").set(true)
-winRow(2, "locked").set(true)
-winRow(3, "locked").set(true)
-check("windows page: all locked sets the global flag", S("locked"), true)
-winRow(3, "locked").set(false)
-check("windows page: unlocking one clears the global flag", S("locked"), false)
 local modeChoices = {}
 for _, c in ipairs(winRow(1, "mode").choices()) do modeChoices[c.value] = true end
 check("mode choices include threat and damage", modeChoices.threat and modeChoices.damage, true)
@@ -1810,6 +1799,7 @@ local function windowButtons()
     return out
 end
 local newBtn, closeBtn
+check("windows page no longer has width", winRow(2, "width"), nil)
 for _, e in ipairs(windowButtons()) do
     if e.b.label == "MENU_NEW_WINDOW" then newBtn = e.b end
     if e.row.window == 3 and e.b.label == "MENU_CLOSE_WINDOW" then closeBtn = e.b end
@@ -1822,6 +1812,97 @@ closeBtn.onClick()
 check("close window button works", S("windowCount"), 3)
 Settings.ResetProfile()
 Windows.Tick(0.02)
+
+section("Layout page")
+Settings.ResetProfile()
+Settings.Set("windowCount", 3)
+local function layoutRow(field)
+    for _, r in ipairs(specRows("layout")) do if r.field == field then return r end end
+end
+for _, field in ipairs({ "window", "locked", "x", "y", "width", "rows", "scale" }) do
+    check("layout row " .. field, layoutRow(field) ~= nil, true)
+end
+check("layout: window select is hidden with one window", (function()
+    Settings.Set("windowCount", 1)
+    local hidden = layoutRow("window").visible() == false
+    Settings.Set("windowCount", 3)
+    return hidden
+end)(), true)
+layoutRow("window").set(2)
+check("layout: picked window", layoutRow("window").get(), 2)
+layoutRow("width").set(300)
+check("layout: width of the picked window", Windows.Config(2).width, 300)
+check("layout: other window untouched", Windows.Config(1).width, 220)
+layoutRow("rows").set(5)
+check("layout: rows", Windows.Config(2).rows, 5)
+check("layout: width get", layoutRow("width").get(), 300)
+for i = 1, 3 do
+    layoutRow("window").set(i)
+    layoutRow("locked").set(true)
+    check("layout: lock " .. i, Windows.Config(i).locked, true)
+    check("layout: global flag after lock " .. i, S("locked"), i == 3)
+end
+layoutRow("locked").set(false)
+check("layout: unlocking one clears the global flag", S("locked"), false)
+layoutRow("window").set(2)
+Windows.SetConfig(2, { scale = 200 })
+local w2 = Windows.Frame(2)
+check("scale applied to the frame", w2:GetScale(), 2)
+w2._rect = { 300, 500, 220, 200 }
+check("layout: X is the real position", layoutRow("x").get(), -140)
+check("layout: Y is the real position", layoutRow("y").get(), 320)
+layoutRow("x").set(-100)
+check("layout: X stored in the window's units", Windows.Config(2).x, -50)
+check("layout: X stored as TOP", Windows.Config(2).point, "TOP")
+layoutRow("y").set(-200)
+check("layout: Y stored in the window's units", Windows.Config(2).y, -100)
+check("layout: frame placed with the unscaled offset", select(5, w2:GetPoint()), -100 / 2)
+Windows.SetConfig(2, { x = 100, y = -40 })
+w2._rect = { 470, 400, 220, 100 }
+layoutRow("scale").set(150)
+check("layout: scale set", Windows.Config(2).scale, 150)
+check("layout: scale on the frame", w2:GetScale(), 1.5)
+near("layout: scaling keeps the place (X)", Windows.Config(2).x * 1.5, 200)
+near("layout: scaling keeps the place (Y)", Windows.Config(2).y * 1.5, -80)
+layoutRow("scale").set(500)
+check("layout: scale clamped", Windows.Config(2).scale, 200)
+Windows.SetConfig(2, { scale = 200 })
+-- Below the minimap
+local function buttonNamed(label)
+    for _, r in ipairs(specRows("layout")) do
+        for _, b in ipairs(r.buttons or {}) do if b.label == label then return b end end
+    end
+end
+buttonNamed("OPT_SNAP_MINIMAP").onClick()
+near("snap: right edge in line with the minimap", (Windows.Config(2).x * 2 + 960) + Windows.Config(2).width, 1912)
+near("snap: top below the minimap", 1080 + Windows.Config(2).y * 2, 767 - 16)
+check("snap: TOP anchor", Windows.Config(2).point, "TOP")
+buttonNamed("OPT_RESET_POSITION").onClick()
+check("reset position: x", Windows.Config(2).x, Windows.Defaults(2).x)
+check("reset position: y", Windows.Config(2).y, Windows.Defaults(2).y)
+check("reset position: point", Windows.Config(2).point, Windows.Defaults(2).point)
+check("reset position keeps the scale", Windows.Config(2).scale, 200)
+local pad = specRows("layout")
+local function keyRow(key) for _, r in ipairs(pad) do if r.key == key then return r end end end
+keyRow("padding").set(2)
+check("layout: padding", S("padding"), 2)
+keyRow("barSpacing").set(3)
+check("layout: bar spacing", S("barSpacing"), 3)
+keyRow("fadeAlpha").set(40)
+check("layout: fade", S("fadeAlpha"), 40)
+Windows.ApplyStylePreset("COMPACT")
+check("compact preset: padding 0", S("padding"), 0)
+Windows.ApplyStylePreset("FOREVER")
+check("forever preset: padding back", S("padding"), 4)
+Settings.ResetProfile()
+check("window scale shared through export", (function()
+    Windows.SetConfig(1, { scale = 120 })
+    local str = ns.Share.Export()
+    Settings.ResetProfile()
+    ns.Share.Import(str)
+    return Windows.Config(1).scale
+end)(), 120)
+Settings.ResetProfile()
 
 section("Blizzard meter switch")
 local cvars, cvarWrites = { damageMeterEnabled = "1" }, 0

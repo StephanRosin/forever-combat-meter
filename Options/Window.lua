@@ -135,15 +135,6 @@ local function windowRow(i, field, row)
     return row
 end
 
-local function windowNum(i, field, label)
-    local range = ns.Windows.RANGES[field]
-    return windowRow(i, field, {
-        label = label, min = range[1], max = range[2], step = 1, unit = "",
-        get = function() return ns.Windows.Config(i)[field] end,
-        set = function(v) ns.Windows.SetConfig(i, { [field] = v }) end,
-    })
-end
-
 local function windowRows(i)
     return {
         windowRow(i, "header", { type = "header", label = function() return L.OPT_WINDOW_N:format(i) end }),
@@ -167,13 +158,6 @@ local function windowRows(i)
             get = function() return ns.Windows.Config(i).view end,
             set = function(v) ns.Windows.SetView(i, v) end,
         }),
-        windowRow(i, "locked", {
-            type = "check", label = "OPT_LOCK",
-            get = function() return ns.Windows.Config(i).locked end,
-            set = function(v) ns.Windows.SetConfig(i, { locked = v }) end,
-        }),
-        windowNum(i, "width", "OPT_WIDTH"),
-        windowNum(i, "rows", "OPT_ROWS"),
         i > 1 and windowRow(i, "close", { type = "buttons", buttons = {
             { label = "MENU_CLOSE_WINDOW", width = 150, onClick = function() ns.Windows.Close(i) end },
         } }) or nil,
@@ -193,11 +177,73 @@ local function windowsRows()
     return rows
 end
 
+-- Layout: the quest log's position-and-size page, for the window picked
+-- at the top (the pick is only the page's state, not a setting).
+local layoutWindow = 1
+local function pickedWindow()
+    local i = math.min(layoutWindow, S("windowCount"))
+    return i
+end
+
+local function windowField(row, field)
+    row.field = field
+    return row
+end
+
+local function layoutRows()
+    local function cfg() return ns.Windows.Config(pickedWindow()) end
+    local pos = ns.Position.WindowRows(pickedWindow)
+    local range = ns.Windows.RANGES
+    local function windowNum(field, label, unit)
+        return windowField({
+            label = label, min = range[field][1], max = range[field][2], step = unit == "%" and 5 or 1,
+            unit = unit or "",
+            get = function() return cfg()[field] end,
+            set = function(v) ns.Windows.SetConfig(pickedWindow(), { [field] = v }) end,
+        }, field)
+    end
+    local scale = windowNum("scale", "OPT_SCALE", "%")
+    scale.set = function(v) ns.Windows.SetScale(pickedWindow(), v) end
+    local pick = windowField(visibleIf({
+        type = "select", label = "OPT_LAYOUT_WINDOW",
+        choices = function()
+            local list = {}
+            for i = 1, S("windowCount") do list[#list + 1] = { label = L.OPT_WINDOW_N:format(i), value = i } end
+            return list
+        end,
+        get = function() return pickedWindow() end,
+        set = function(v) layoutWindow = v; Window.Refresh() end,
+    }, function() return S("windowCount") > 1 end), "window")
+    return {
+        pick,
+        { type = "header", label = "OPT_POSITION" },
+        windowField({
+            type = "check", label = "OPT_LOCK",
+            get = function() return cfg().locked end,
+            set = function(v) ns.Windows.SetConfig(pickedWindow(), { locked = v }) end,
+        }, "locked"),
+        { type = "text", label = "OPT_MOVE_HINT", height = 40 },
+        windowField(pos[1], "x"), windowField(pos[2], "y"),
+        windowNum("width", "OPT_WIDTH"),
+        windowNum("rows", "OPT_ROWS"),
+        { type = "buttons", buttons = {
+            { label = "OPT_SNAP_MINIMAP", width = 170, onClick = function() ns.Windows.SnapBelowMinimap(pickedWindow()) end },
+            { label = "OPT_RESET_POSITION", width = 150, onClick = function() ns.Windows.ResetPosition(pickedWindow()) end },
+        } },
+        { type = "header", label = "OPT_SCALE" },
+        scale,
+        { type = "header", label = "OPT_SPACING" },
+        num("padding", "OPT_PADDING"),
+        num("barSpacing", "OPT_BAR_SPACING"),
+        { type = "header", label = "OPT_FADE" },
+        num("fadeAlpha", "OPT_FADE_ALPHA", "%"),
+    }
+end
+
 local function barRows()
     return {
         { type = "header", label = "OPT_BARS" },
         num("barHeight", "OPT_BAR_HEIGHT"),
-        num("barSpacing", "OPT_BAR_SPACING"),
         media("barTexture", "OPT_BAR_TEXTURE", "statusbar"),
         check("barClassColor", "OPT_BAR_CLASS_COLOR"),
         visibleIf(colorRow("barColor", "OPT_BAR_COLOR", true), function() return not S("barClassColor") end),
@@ -230,8 +276,6 @@ local function appearanceRows()
         check("shadowEnabled", "OPT_SHADOW_SHOW"),
         visibleIf(num("shadowSize", "OPT_SHADOW_SIZE"), function() return S("shadowEnabled") end),
         visibleIf(num("shadowAlpha", "OPT_SHADOW_ALPHA", "%"), function() return S("shadowEnabled") end),
-        { type = "header", label = "OPT_FADE" },
-        num("fadeAlpha", "OPT_FADE_ALPHA", "%"),
     }
 end
 
@@ -307,6 +351,7 @@ end
 Window.PAGES = {
     { id = "general", label = "PAGE_GENERAL", rows = generalRows },
     { id = "windows", label = "PAGE_WINDOWS", rows = windowsRows },
+    { id = "layout", label = "PAGE_LAYOUT", rows = layoutRows },
     { id = "bars", label = "PAGE_BARS", rows = barRows },
     { id = "appearance", label = "PAGE_APPEARANCE", rows = appearanceRows },
     { id = "text", label = "PAGE_TEXT", rows = textRows },

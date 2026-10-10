@@ -24,10 +24,12 @@ local MAX_WINDOWS = 4
 -- The two looks. FOREVER is the quest log's header; COMPACT is a slim title
 -- bar with bars edge to edge (the user's "like ForeverMeter / Details!").
 local LOOKS = {
-    FOREVER = { header = 24, button = 16, icon = 12, pad = 4, glow = true, titleDelta = 0, allButtons = true },
-    COMPACT = { header = 18, button = 12, icon = 10, pad = 0, glow = false, titleDelta = 3, allButtons = false },
+    FOREVER = { header = 24, button = 16, icon = 12, glow = true, titleDelta = 0, allButtons = true },
+    COMPACT = { header = 18, button = 12, icon = 10, glow = false, titleDelta = 3, allButtons = false },
 }
 local WIDTH_RANGE, ROWS_RANGE, POS_RANGE = { 120, 600 }, { 1, 40 }, { -4000, 4000 }
+local SNAP_GAP = 16   -- below the minimap
+local SCALE_RANGE = { 50, 200 }   -- percent
 -- Resize arrows hang off the four corners and reach GRIP_IN into the window:
 -- no further than the header's margin around its buttons (3 px in COMPACT).
 local GRIP_SIZE, GRIP_IN = 12, 3
@@ -72,7 +74,11 @@ local function present(v) return issecret(v) or v ~= nil end
 -- New windows sit side by side to the left of the first one.
 local function windowDefaults(i)
     return { mode = "damage", view = "current", point = "CENTER", x = 300 - (i - 1) * 230, y = 0,
-             width = 220, rows = 8, locked = false }
+             width = 220, rows = 8, scale = 100, locked = false }
+end
+
+function Windows.Defaults(i)
+    return windowDefaults(i)
 end
 
 function Windows.Config(i)
@@ -118,7 +124,7 @@ end
 
 local function modeLabel(key) return L["MODE_" .. key:upper()] end
 Windows.ModeLabel = modeLabel
-Windows.RANGES = { width = WIDTH_RANGE, rows = ROWS_RANGE }
+Windows.RANGES = { width = WIDTH_RANGE, rows = ROWS_RANGE, scale = SCALE_RANGE }
 
 -- What an imported `windows` value may keep (Share.RegisterTable).
 local function number(range)
@@ -132,6 +138,7 @@ local CLEAN = {
     view = function(v) return (v == "current" or v == "overall") and v or nil end,
     point = function(v) return type(v) == "string" and POINTS[v] and v or nil end,
     x = number(POS_RANGE), y = number(POS_RANGE), width = number(WIDTH_RANGE), rows = number(ROWS_RANGE),
+    scale = number(SCALE_RANGE),
     locked = function(v) return v == true or nil end,
 }
 
@@ -178,13 +185,16 @@ end
 local function place(f)
     local c = f.cfg
     f:ClearAllPoints()
-    f:SetPoint(c.point, UIParent, c.point, c.x, c.y)
+    -- x / y are offsets in the window's own units (a scaled window).
+    local scale = f:GetScale()
+    f:SetPoint(c.point, UIParent, c.point, c.x / scale, c.y / scale)
 end
 
 -- After a drag: the top edge's centre, so a change of rows keeps the top.
 local function savePosition(f)
     local x, y = ns.Position.Read(f, "TOP")
-    if x then write(f.index, { point = "TOP", x = x, y = y }) end
+    local scale = f:GetScale()
+    if x then write(f.index, { point = "TOP", x = math.floor(x / scale + 0.5), y = math.floor(y / scale + 0.5) }) end
 end
 
 local function cursor()
@@ -265,7 +275,7 @@ end
 local function layoutBars(f, lk)
     local cfg = f.cfg
     local barH, spacing = S("barHeight"), S("barSpacing")
-    local inner = cfg.width - 2 * lk.pad
+    local inner = cfg.width - 2 * S("padding")
     local texture = Media.Path("statusbar", S("barTexture"))
     local nameStyle, valueStyle = Settings.TextStyle("name"), Settings.TextStyle("value")
     local showIcon = S("showIcon")
@@ -273,7 +283,7 @@ local function layoutBars(f, lk)
         local bar = f.bars[k] or Windows.NewBar(f, k)
         bar:SetSize(inner, barH)
         bar:ClearAllPoints()
-        bar:SetPoint("TOPLEFT", f.body, "TOPLEFT", lk.pad, -(lk.pad + (k - 1) * (barH + spacing)))
+        bar:SetPoint("TOPLEFT", f.body, "TOPLEFT", S("padding"), -(S("padding") + (k - 1) * (barH + spacing)))
         bar:SetStatusBarTexture(texture)
         local iconSize = math.max(4, barH - 2)
         bar.icon:SetSize(iconSize, iconSize)
@@ -307,8 +317,9 @@ local function layout(i)
     end
     local lk, cfg = look(), f.cfg
     local barH, spacing = S("barHeight"), S("barSpacing")
+    f:SetScale(cfg.scale / 100)
     f:SetWidth(cfg.width)
-    f:SetHeight(lk.header + 2 * lk.pad + cfg.rows * barH + (cfg.rows - 1) * spacing)
+    f:SetHeight(lk.header + 2 * S("padding") + cfg.rows * barH + (cfg.rows - 1) * spacing)
     if not f.moving then place(f) end
     layoutHeader(f, lk)
     layoutBars(f, lk)
@@ -630,14 +641,14 @@ end
 local function rowsFor(height)
     local lk = look()
     local barH, spacing = S("barHeight"), S("barSpacing")
-    local rows = math.floor((height - lk.header - 2 * lk.pad + spacing) / (barH + spacing) + 1e-6)
+    local rows = math.floor((height - lk.header - 2 * S("padding") + spacing) / (barH + spacing) + 1e-6)
     return math.max(ROWS_RANGE[1], math.min(ROWS_RANGE[2], rows))
 end
 
 local function heightFor(rows)
     local lk = look()
     local barH, spacing = S("barHeight"), S("barSpacing")
-    return lk.header + 2 * lk.pad + rows * barH + (rows - 1) * spacing
+    return lk.header + 2 * S("padding") + rows * barH + (rows - 1) * spacing
 end
 
 -- Window anchor for a size, the corner opposite the dragged one fixed: always
@@ -1146,16 +1157,47 @@ function Windows.Close(i)
     return true
 end
 
+-- A new scale in percent; the window stays where it is on screen.
+function Windows.SetScale(i, percent)
+    local f = frames[i]
+    local x, y
+    if f then x, y = ns.Position.Read(f, "TOP") end
+    Windows.SetConfig(i, { scale = percent })
+    if x then
+        local scale = f:GetScale()
+        Windows.SetConfig(i, { point = "TOP", x = x / scale, y = y / scale })
+    end
+end
+
+-- Right under the minimap, the window's right edge in line with it.
+function Windows.SnapBelowMinimap(i)
+    local f, map = frames[i], _G.Minimap
+    if not (f and map and map:GetRight()) then return false end
+    local scale = f:GetScale()
+    local ms = map:GetEffectiveScale() / UIParent:GetEffectiveScale()
+    local right, bottom = map:GetRight() * ms, map:GetBottom() * ms
+    local centre = right - f.cfg.width * scale / 2
+    local sw, sh = UIParent:GetWidth(), UIParent:GetHeight()
+    Windows.SetConfig(i, { point = "TOP", x = (centre - sw / 2) / scale, y = (bottom - SNAP_GAP - sh) / scale })
+    return true
+end
+
+function Windows.ResetPosition(i)
+    local d = windowDefaults(i)
+    Windows.SetConfig(i, { point = d.point, x = d.x, y = d.y })
+end
+
 -- Picking a style in the options: COMPACT also takes the compact bar
 -- height and spacing once (they stay editable). FOREVER deliberately resets
 -- bar height and spacing to their defaults (18 / 1), so switching back gives
 -- the quest-log look again.
 function Windows.ApplyStylePreset(style)
     if style == "COMPACT" then
-        Settings.SetMany({ style = "COMPACT", barHeight = 14, barSpacing = 0 })
+        Settings.SetMany({ style = "COMPACT", barHeight = 14, barSpacing = 0, padding = 0 })
     else
         local D = Settings.DEFAULTS
-        Settings.SetMany({ style = "FOREVER", barHeight = D.barHeight, barSpacing = D.barSpacing })
+        Settings.SetMany({ style = "FOREVER", barHeight = D.barHeight, barSpacing = D.barSpacing,
+            padding = D.padding })
     end
 end
 

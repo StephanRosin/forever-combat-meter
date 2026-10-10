@@ -25,6 +25,7 @@ Settings.DEFAULTS = {
     -- Bars
     barHeight = 18,
     barSpacing = 1,
+    padding = 4,            -- inner margin of a window (COMPACT preset: 0)
     barTexture = "Blizzard",
     barClassColor = true,
     barColor = { 0.45, 0.55, 0.75 },
@@ -86,6 +87,7 @@ Settings.RANGES = {
     windowCount = { 1, 4 },
     barHeight = { 10, 40 },
     barSpacing = { 0, 10 },
+    padding = { 0, 12 },
     barBgAlpha = { 0, 100 },
     borderSize = { 1, 8 },
     cornerRadius = { 0, 12 },

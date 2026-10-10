@@ -66,3 +66,33 @@ function Position.Rows(keys, frameOf, vertical, extra)
           end },
     }
 end
+
+-- X / Y rows for the meter window index(): the window's real place on the
+-- screen in UIParent units (what Read gives), written back as a TOP anchor
+-- in the window's own units (its stored x / y are divided by its scale).
+function Position.WindowRows(index)
+    local function current()
+        local i = index()
+        local f = ns.Windows.Frame(i)
+        local x, y = Position.Read(f, "TOP")
+        if x then return x, y end
+        local c, s = ns.Windows.Config(i), (ns.Windows.Config(i).scale or 100) / 100
+        return round(c.x * s), round(c.y * s)
+    end
+    local function write(x, y)
+        local i = index()
+        local s = ns.Windows.Config(i).scale / 100
+        ns.Windows.SetConfig(i, { point = "TOP", x = x / s, y = y / s })
+    end
+    local sw, sh = UIParent:GetWidth(), UIParent:GetHeight()
+    if sw <= 0 then sw = 1920 end
+    if sh <= 0 then sh = 1080 end
+    return {
+        { key = "x", label = "OPT_POS_X", min = -math.floor(sw / 2), max = math.floor(sw / 2), step = 1, unit = "px",
+          get = function() return (current()) end,
+          set = function(v) local _, y = current(); write(v, y) end },
+        { key = "y", label = "OPT_POS_Y", min = -math.floor(sh), max = 0, step = 1, unit = "px",
+          get = function() local _, y = current(); return y end,
+          set = function(v) local x = current(); write(x, v) end },
+    }
+end
