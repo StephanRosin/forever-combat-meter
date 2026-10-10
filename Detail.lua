@@ -37,11 +37,7 @@ local shownRows = 0
 
 local function modeLabel(key) return L["MODE_" .. key:upper()] or key end
 
--- "Spell" or "Spell · Creature" (damage taken: who hit).
-local function spellLabel(sp)
-    if sp.creature then return format("%s \194\183 %s", sp.name, sp.creature) end
-    return format("%s", sp.name)
-end
+local spellLabel = Format.SpellLabel
 
 local function recapLabel(e)
     if e.time then return format("%.0fs  %s", e.time, e.spell) end
@@ -62,50 +58,50 @@ end
 -- The tooltip as data: { left, right|nil, dim, recap, title, class }.
 function Detail.Lines(modeKey, view, row)
     local lines = {}
-    local function add(left, right, extra)
+    local function add(left, extra)
         local line = extra or {}
-        line.left, line.right = left, right
+        line.left = left
         lines[#lines + 1] = line
     end
-    add(Format.Name(nil, row.name), nil, { title = true, class = row.class })
+    -- Left and right text: a flag says so, the texts may be secret.
+    local function addPair(left, right, extra)
+        local line = extra or {}
+        line.left, line.right, line.double = left, right, true
+        lines[#lines + 1] = line
+    end
+    add(Format.Name(nil, row.name), { title = true, class = row.class })
     if modeKey == "deaths" then
-        add(L.DETAIL_DEATHS, Format.Amount(row.total))
-        if row.deathTime ~= nil then
+        addPair(L.DETAIL_DEATHS, Format.Amount(row.total))
+        if Format.Present(row.deathTime) then
             add(format(L.DETAIL_DIED_AT, Format.Duration(row.deathTime)))
         end
         local recap = Meter.Recap(row.recapID)
         if not recap then
-            add(L.DETAIL_NO_RECAP, nil, { dim = true })
+            add(L.DETAIL_NO_RECAP, { dim = true })
         elseif recap.secret then
-            add(L.DETAIL_AFTER_COMBAT, nil, { dim = true })
+            add(L.DETAIL_AFTER_COMBAT, { dim = true })
         else
             for _, e in ipairs(recap) do
-                add(recapLabel(e), Format.Amount(e.amount), { recap = true })
+                addPair(recapLabel(e), Format.Amount(e.amount), { recap = true })
             end
         end
     else
-        add(L.DETAIL_TOTAL, Format.Amount(row.total))
-        add(L.DETAIL_PER_SECOND, Format.PerSecond(row.perSecond, PRECISE[modeKey]))
-        if row.percent ~= nil then add(L.DETAIL_SHARE, Format.Percent(row.percent)) end
+        addPair(L.DETAIL_TOTAL, Format.Amount(row.total))
+        addPair(L.DETAIL_PER_SECOND, Format.PerSecond(row.perSecond, PRECISE[modeKey]))
+        if row.percent ~= nil then addPair(L.DETAIL_SHARE, Format.Percent(row.percent)) end
         local data = Meter.Spells(modeKey, view, row)
         if not data then
-            add(unreadable(), nil, { dim = true })
+            add(unreadable(), { dim = true })
         elseif #data.rows == 0 then
-            add(L.DETAIL_EMPTY, nil, { dim = true })
+            add(L.DETAIL_EMPTY, { dim = true })
         else
             for k = 1, math.min(TOOLTIP_SPELLS, #data.rows) do
                 local sp = data.rows[k]
-                local value
-                if sp.percentOfSource ~= nil then
-                    value = format("%s (%s)", Format.Amount(sp.total), Format.Percent(sp.percentOfSource))
-                else
-                    value = Format.Amount(sp.total)
-                end
-                add(spellLabel(sp), value)
+                addPair(spellLabel(sp), Format.ValueText(sp.total, sp.percentOfSource))
             end
         end
     end
-    add(L.DETAIL_HINT, nil, { dim = true })
+    add(L.DETAIL_HINT, { dim = true })
     return lines
 end
 
@@ -124,7 +120,7 @@ function Detail.ShowTooltip(bar, windowIndex)
     GameTooltip:SetOwner(bar, "ANCHOR_RIGHT")
     for _, line in ipairs(Detail.Lines(Windows.Mode(windowIndex), Windows.View(windowIndex), row)) do
         local r, g, b = lineColor(line)
-        if line.right ~= nil then
+        if line.double then
             GameTooltip:AddDoubleLine(line.left, line.right, 1, 0.82, 0.29, 1, 1, 1)
         else
             GameTooltip:AddLine(line.left, r, g, b)
@@ -333,9 +329,9 @@ local function entries(mode, view, row)
     if mode == "deaths" then
         local recap = Meter.Recap(row.recapID)
         if not recap then
-            list[1] = { name = L.DETAIL_NO_RECAP }
+            list[1] = { name = L.DETAIL_NO_RECAP, value = "" }
         elseif recap.secret then
-            list[1] = { name = L.DETAIL_AFTER_COMBAT }
+            list[1] = { name = L.DETAIL_AFTER_COMBAT, value = "" }
         else
             for k, e in ipairs(recap) do
                 list[k] = { icon = e.icon, name = recapLabel(e), value = recapValue(e) }
@@ -344,8 +340,8 @@ local function entries(mode, view, row)
         return list
     end
     local data = Meter.Spells(mode, view, row)
-    if not data then return { { name = unreadable() } } end
-    if #data.rows == 0 then return { { name = L.DETAIL_EMPTY } } end
+    if not data then return { { name = unreadable(), value = "" } } end
+    if #data.rows == 0 then return { { name = L.DETAIL_EMPTY, value = "" } } end
     for k = 1, math.min(MAX_ROWS, #data.rows) do
         local sp = data.rows[k]
         local value
@@ -362,7 +358,7 @@ end
 
 local function fillRow(row, entry, max, r, g, b)
     row.name:SetText(entry.name)
-    row.value:SetText(entry.value or "")
+    row.value:SetText(entry.value)
     if entry.icon then
         row.icon:SetTexture(entry.icon)
         row.icon:SetTexCoord(SPEC_CROP[1], SPEC_CROP[2], SPEC_CROP[3], SPEC_CROP[4])
@@ -378,8 +374,28 @@ local function fillRow(row, entry, max, r, g, b)
     row:Show()
 end
 
+-- A row opened in combat on another player has no GUID and a secret name.
+-- Once the values are plain, the same rank in the window's rows is that
+-- player (the API order in combat is the sorted order).
+local function unresolved(row)
+    if Format.IsSecret(row.name) then return true end
+    return row.guid == nil and row.creatureID == nil and not row.isPlayer
+end
+
+local function resolve()
+    if not current.stale or InCombatLockdown() then return end
+    local data = Windows.Data(current.window)
+    if not data or data.secret then return end
+    local row = data.rows[current.rank]
+    -- The class is never secret: a different one means the ranking moved.
+    if row and not unresolved(row) and row.class == current.row.class then
+        current.row, current.stale = row, false
+    end
+end
+
 function Detail.Refresh()
     if not current or not panel or not panel:IsShown() then return end
+    resolve()
     local row = current.row
     panel.header.title:SetText(format("%s%s%s", Format.Name(nil, row.name), SEP, modeLabel(current.mode)))
     local list = entries(current.mode, current.view, row)
@@ -393,9 +409,15 @@ end
 
 function Detail.Open(windowIndex, row)
     if not row then return end
-    current = { window = windowIndex, mode = Windows.Mode(windowIndex), view = Windows.View(windowIndex), row = row }
-    local f = panel or create()
-    f:Show()
+    local rank
+    local f = Windows.Frame(windowIndex)
+    for _, bar in ipairs(f and f.bars or {}) do
+        if bar.row == row then rank = bar.rank end
+    end
+    current = { window = windowIndex, mode = Windows.Mode(windowIndex), view = Windows.View(windowIndex), row = row,
+                rank = rank, stale = rank ~= nil and unresolved(row) }
+    local frame = panel or create()
+    frame:Show()
     elapsedTick = 0
     Detail.Refresh()
 end

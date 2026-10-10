@@ -1451,6 +1451,22 @@ do
     M.state.combat = false
     Windows.SetMode(1, "damage")
     Windows.Refresh(1)
+
+    -- Opened in combat on another player, resolved after combat. The mock's
+    -- API order must be the sorted order (Bob on top) for the rank to hold.
+    M.dm.byType[CUR][T.DamageDone].combatSources[1].totalAmount = 600
+    M.state.combat = true
+    Windows.Refresh(1)
+    Detail.Open(1, wbar(1).row)
+    check("stale: after combat line first", text(p.rows[1].name:GetText()), ns.L.DETAIL_AFTER_COMBAT)
+    check("stale: title is secret in combat", M.IsSecret(p.header.title:GetText()), true)
+    M.state.combat = false
+    Windows.Refresh(1)
+    Detail.Refresh()
+    check("stale: title plain and Bob", p.header.title:GetText(), "Bob \226\128\148 Damage")
+    check("stale: Bob's spells", text(p.rows[1].name:GetText()), "Frostbolt")
+    check("stale: two spells", Detail.Count(), 2)
+    Detail.Close()
 end
 
 section("Report")
@@ -1479,6 +1495,13 @@ do
     check("channel: party", Report.Channel(), "PARTY")
     world.raid = true
     check("channel: raid", Report.Channel(), "RAID")
+    M.state.group, M.state.instanceGroup = false, true
+    check("channel: finder group", Report.Channel(), "INSTANCE_CHAT")
+    world.raid = true
+    check("channel: finder raid", Report.Channel(), "INSTANCE_CHAT")
+    M.state.group = true
+    check("channel: home party wins over the finder", Report.Channel(), "RAID")
+    M.state.instanceGroup = false
     world.raid = false
     M.state.group = false
     M.state.instance = nil
@@ -1556,6 +1579,10 @@ do
     M.state.combat = false
 
     -- Spells report
+    check("creature label is shared", ns.Format.SpellLabel({ name = "Cleave", creature = "Ogre" }), "Cleave \194\183 Ogre")
+    check("value text is shared", ns.Format.ValueText(1500, 75), "1.5k (75.0%)")
+    check("Present: secret", ns.Format.Present(M.Secret(1)), true)
+    check("Present: nil", ns.Format.Present(nil), false)
     reset()
     M.state.group = true
     Windows.Refresh(1)

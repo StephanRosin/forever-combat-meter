@@ -214,7 +214,13 @@ M.state = { combat = false, money = 500, instance = nil, zone = "Stranglethorn V
 function InCombatLockdown() return M.state.combat end
 function IsControlKeyDown() return M.state.ctrl end
 function IsModifiedClick(what) return M.state.modified[what] or false end
-function IsInGroup() return M.state.group or false end
+LE_PARTY_CATEGORY_HOME, LE_PARTY_CATEGORY_INSTANCE = 1, 2
+-- state.group: a home party; state.instanceGroup: a finder group.
+function IsInGroup(category)
+    if category == LE_PARTY_CATEGORY_HOME then return M.state.group or false end
+    if category == LE_PARTY_CATEGORY_INSTANCE then return M.state.instanceGroup or false end
+    return (M.state.group or M.state.instanceGroup) and true or false
+end
 M.sent = {}
 function SendChatMessage(msg, channel) M.sent[#M.sent + 1] = { msg = msg, channel = channel, via = "global" } end
 function GetMoney() return M.state.money end

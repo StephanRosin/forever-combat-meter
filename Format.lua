@@ -75,3 +75,21 @@ function Format.Duration(sec)
     if h > 0 then return format("%.0f:%02.0f:%02.0f", h, m, s) end
     return format("%.0f:%02.0f", m, s)
 end
+
+-- A value that is there; a secret counts as present without being touched.
+function Format.Present(v)
+    return issecret(v) or v ~= nil
+end
+
+-- "Spell" or "Spell \194\183 Creature" (damage taken: who hit). The name may
+-- be secret: string.format only. creature is plain or nil (Meter.Spells).
+function Format.SpellLabel(sp)
+    if sp.creature then return format("%s \194\183 %s", sp.name, sp.creature) end
+    return format("%s", sp.name)
+end
+
+-- "total" or "total (percent)"; percent nil (in combat) leaves it out.
+function Format.ValueText(total, percent)
+    if percent ~= nil then return format("%s (%s)", Format.Amount(total), Format.Percent(percent)) end
+    return Format.Amount(total)
+end

@@ -13,7 +13,11 @@ local issecret = issecretvalue or function() return false end
 local format = string.format
 local SEP = " \226\128\148 "  -- " — "
 
+-- As the client's chat box switches: a group made by the dungeon / raid
+-- finder (instance category only) talks in INSTANCE_CHAT.
 function Report.Channel()
+    local home, instance = LE_PARTY_CATEGORY_HOME or 1, LE_PARTY_CATEGORY_INSTANCE or 2
+    if IsInGroup and IsInGroup(instance) and not IsInGroup(home) then return "INSTANCE_CHAT" end
     if IsInRaid and IsInRaid() then return "RAID" end
     if IsInGroup and IsInGroup() then return "PARTY" end
     local inInstance = IsInInstance and IsInInstance()
@@ -59,11 +63,6 @@ local function limit(n, available)
     return math.max(0, math.min(n, available))
 end
 
-local function valueText(total, percent)
-    if percent ~= nil then return format("%s (%s)", Format.Amount(total), Format.Percent(percent)) end
-    return Format.Amount(total)
-end
-
 -- The ranking of window i: header line, then the first n rows.
 function Report.Window(i, n)
     local mode, view = Windows.Mode(i), Windows.View(i)
@@ -83,7 +82,7 @@ function Report.Window(i, n)
     for k = 1, n do
         local r = data.rows[k]
         local percent = mode ~= "deaths" and r.percent or nil
-        lines[#lines + 1] = format("%s. %s  %s", k, r.name, valueText(r.total, percent))
+        lines[#lines + 1] = format("%s. %s  %s", k, r.name, Format.ValueText(r.total, percent))
     end
     return deliver(lines)
 end
@@ -98,14 +97,13 @@ function Report.Spells(source, n)
     if issecret(source.name) then return refuse(L.REPORT_SECRET) end
     for k = 1, n do
         local sp = data.rows[k]
-        if anySecret(sp.name, sp.total, sp.percentOfSource) then return refuse(L.REPORT_SECRET) end
+        if anySecret(sp.name, sp.creature, sp.total, sp.percentOfSource) then return refuse(L.REPORT_SECRET) end
     end
     local mode = L["MODE_" .. source.mode:upper()] or source.mode
     local lines = { format("%s%s%s", source.name, SEP, mode) }
     for k = 1, n do
         local sp = data.rows[k]
-        local label = sp.creature and format("%s \194\183 %s", sp.name, sp.creature) or sp.name
-        lines[#lines + 1] = format("%s. %s  %s", k, label, valueText(sp.total, sp.percentOfSource))
+        lines[#lines + 1] = format("%s. %s  %s", k, Format.SpellLabel(sp), Format.ValueText(sp.total, sp.percentOfSource))
     end
     return deliver(lines)
 end
