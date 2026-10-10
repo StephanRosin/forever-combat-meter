@@ -13,7 +13,7 @@
 ## SavedVariables: ForeverCombatMeterProfiles
 ## SavedVariablesPerCharacter: ForeverCombatMeterChar
 
-# Format, Meter, Threat, Windows, Detail and Report join here in Tasks 2-5.
+# Threat, Windows, Detail and Report join here in Tasks 3-5.
 Locales\enUS.lua
 Locales\deDE.lua
 Locales\esES.lua
@@ -27,6 +27,8 @@ Media.lua
 Position.lua
 Corners.lua
 Border.lua
+Format.lua
+Meter.lua
 Options\Style.lua
 Options\Widgets.lua
 Options\Window.lua

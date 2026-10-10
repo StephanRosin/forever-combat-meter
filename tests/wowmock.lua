@@ -223,4 +223,206 @@ end
 function GetInstanceInfo() return M.state.instance and M.state.instance.name or "" end
 
 
+-- Secret values ---------------------------------------------------------------
+-- In combat the client hands addons "secret" names, GUIDs and amounts. Tainted
+-- code may display them (SetText, string.format %s/%.Nf, AbbreviateLargeNumbers)
+-- but must not compare, compute with, concatenate, index or %d-format them.
+-- A secret here is a userdata (newproxy) sharing one metatable whose every
+-- operator raises; the wrapped value lives in a weak side table. Mixed-type
+-- comparisons (secret < 5) and arithmetic raise natively in Lua 5.1; the
+-- metamethods catch secret-vs-secret and the rest.
+local secretRaw = setmetatable({}, { __mode = "k" })
+local secretProto = newproxy(true)
+local secretMeta = getmetatable(secretProto)
+local function forbid(what) return function() error("secret value: " .. what .. " is not allowed", 2) end end
+for _, op in ipairs({ "lt", "le", "eq", "add", "sub", "mul", "div", "mod", "pow", "unm", "concat", "len",
+    "index", "newindex", "call" }) do
+    secretMeta["__" .. op] = forbid(op)
+end
+secretMeta.__tostring = function(u) return "<secret " .. tostring(secretRaw[u]) .. ">" end
+
+function M.Secret(v)
+    local u = newproxy(secretProto)
+    secretRaw[u] = { v }
+    return u
+end
+function M.IsSecret(v) return type(v) == "userdata" and secretRaw[v] ~= nil end
+-- The plain value behind a secret (tests only; the addon never can).
+function M.Reveal(v)
+    if M.IsSecret(v) then return secretRaw[v][1] end
+    return v
+end
+issecretvalue = M.IsSecret
+
+-- Secrets may never become table keys (the client raises). Lua cannot trap a
+-- key assignment, so tests walk everything the addon keeps and returns.
+function M.FindSecretKey(root)
+    local seen = {}
+    local function walk(t, path)
+        if seen[t] then return nil end
+        seen[t] = true
+        for k, v in pairs(t) do
+            if M.IsSecret(k) then return path .. "[<secret>]" end
+            if type(v) == "table" then
+                local hit = walk(v, path .. "." .. tostring(k))
+                if hit then return hit end
+            end
+        end
+    end
+    return walk(root, "root")
+end
+
+-- string.format as the client does it: a secret argument is fine for %s and
+-- %f (with a precision), anything else raises; the result is itself secret.
+local plainFormat = string.format
+string.format = function(fmt, ...)
+    local args, n, anySecret = { ... }, select("#", ...), false
+    for i = 1, n do if M.IsSecret(args[i]) then anySecret = true end end
+    if not anySecret then return plainFormat(fmt, ...) end
+    if M.IsSecret(fmt) then error("secret value used as a format string", 2) end
+    local i, pos = 0, 1
+    while true do
+        local s, e, spec, conv = fmt:find("%%([-+ #0]*%d*%.?%d*)(%a)", pos)
+        local pct = fmt:find("%%%%", pos)
+        if pct and (not s or pct < s) then
+            pos = pct + 2
+        elseif not s then
+            break
+        else
+            i = i + 1
+            if M.IsSecret(args[i]) then
+                local ok = conv == "s" or (conv == "f" and spec:find("%.%d") ~= nil)
+                if not ok then error("secret value with %" .. spec .. conv .. " in string.format", 2) end
+                args[i] = secretRaw[args[i]][1]
+            end
+            pos = e + 1
+        end
+    end
+    return M.Secret(plainFormat(fmt, unpack(args, 1, n)))
+end
+
+-- Simplified client abbreviation; accepts secrets and then returns a secret.
+function AbbreviateLargeNumbers(v)
+    if M.IsSecret(v) then return M.Secret(AbbreviateLargeNumbers(secretRaw[v][1])) end
+    if v >= 1e6 then return plainFormat("%.1fM", v / 1e6) end
+    if v >= 1e4 then return plainFormat("%.0fK", v / 1e3) end
+    return plainFormat("%.0f", v)
+end
+
+-- C_DamageMeter -----------------------------------------------------------------
+Enum.DamageMeterType = { DamageDone = 0, Dps = 1, HealingDone = 2, Hps = 3, Absorbs = 4, Interrupts = 5,
+    Dispels = 6, DamageTaken = 7, AvoidableDamageTaken = 8, Deaths = 9, EnemyDamageTaken = 10 }
+Enum.DamageMeterSessionType = { Overall = 0, Current = 1, Expired = 2 }
+
+-- Tests fill M.dm: byType[sessionType][meterType] and byID[sessionID][meterType]
+-- hold sessions { combatSources = { {..., spells = {...}} }, totalAmount, durationSeconds };
+-- sessions is GetAvailableCombatSessions(); duration[sessionType] GetSessionDurationSeconds.
+M.dm = { available = true, reason = "", byType = {}, byID = {}, sessions = {}, duration = {}, resets = 0 }
+-- Fields SecretWhenInCombat makes secret (NeverSecret ones stay plain).
+local SECRET_FIELDS = { sourceGUID = true, sourceCreatureID = true, name = true, totalAmount = true,
+    amountPerSecond = true, deathTimeSeconds = true, maxAmount = true, durationSeconds = true, spellID = true,
+    creatureName = true }
+
+local function copy(t, secret)
+    local out = {}
+    for k, v in pairs(t) do
+        if type(v) == "table" then
+            out[k] = copy(v, secret)
+        elseif secret and SECRET_FIELDS[k] then
+            out[k] = M.Secret(v)
+        else
+            out[k] = v
+        end
+    end
+    return out
+end
+
+local function noSecretArgs(...)
+    for i = 1, select("#", ...) do
+        if M.IsSecret((select(i, ...))) then error("secret value passed to a C_DamageMeter function", 3) end
+    end
+end
+
+local function sessionOf(store, key, meterType)
+    local s = store[key] and store[key][meterType]
+    if not s then return { combatSources = {}, maxAmount = 0, totalAmount = 0 } end
+    local out = copy(s, M.state.combat)
+    for _, src in ipairs(out.combatSources or {}) do src.spells = nil end
+    return out
+end
+
+local function sourceOf(store, key, meterType, guid, creatureID)
+    local s = store[key] and store[key][meterType]
+    for _, src in ipairs(s and s.combatSources or {}) do
+        if (guid ~= nil and src.sourceGUID == guid) or (guid == nil and creatureID ~= nil and src.sourceCreatureID == creatureID) then
+            return copy({ combatSpells = src.spells or {}, totalAmount = src.totalAmount, maxAmount = 0 }, M.state.combat)
+        end
+    end
+    return { combatSpells = {}, maxAmount = 0, totalAmount = 0 }
+end
+
+C_DamageMeter = {
+    IsDamageMeterAvailable = function() return M.dm.available, M.dm.reason end,
+    GetAvailableCombatSessions = function()
+        local out = {}
+        for i, s in ipairs(M.dm.sessions) do
+            out[i] = { sessionID = s.sessionID, durationSeconds = s.durationSeconds,
+                       name = (M.state.combat and s.secretName) and M.Secret(s.name) or s.name }
+        end
+        return out
+    end,
+    GetCombatSessionFromType = function(st, t) noSecretArgs(st, t); return sessionOf(M.dm.byType, st, t) end,
+    GetCombatSessionFromID = function(id, t) noSecretArgs(id, t); return sessionOf(M.dm.byID, id, t) end,
+    GetCombatSessionSourceFromType = function(st, t, guid, cid)
+        noSecretArgs(st, t, guid, cid)
+        return sourceOf(M.dm.byType, st, t, guid, cid)
+    end,
+    GetCombatSessionSourceFromID = function(id, t, guid, cid)
+        noSecretArgs(id, t, guid, cid)
+        return sourceOf(M.dm.byID, id, t, guid, cid)
+    end,
+    GetSessionDurationSeconds = function(st) return M.dm.duration[st] end,
+    ResetAllCombatSessions = function() M.dm.resets = M.dm.resets + 1 end,
+}
+
+-- C_DeathRecap: M.recaps[id] = events, newest (the killing blow) first, as the
+-- client returns them. In combat amounts, health, names and times are secret.
+M.recaps = {}
+local RECAP_SECRET = { amount = true, currentHP = true, sourceName = true, timestamp = true }
+C_DeathRecap = {
+    HasRecapEvents = function(id) return M.recaps[id] ~= nil and #M.recaps[id] > 0 end,
+    GetRecapEvents = function(id)
+        local out = {}
+        for i, e in ipairs(M.recaps[id] or {}) do
+            out[i] = {}
+            for k, v in pairs(e) do out[i][k] = (M.state.combat and RECAP_SECRET[k]) and M.Secret(v) or v end
+        end
+        return out
+    end,
+}
+
+-- C_Spell accepts secret IDs (AllowedWhenTainted) and then answers in secret.
+M.spells = { [88163] = { "Attack", 132223 } }
+C_Spell = {
+    GetSpellName = function(id)
+        if M.IsSecret(id) then
+            local s = M.spells[secretRaw[id][1]]
+            return s and M.Secret(s[1])
+        end
+        return M.spells[id] and M.spells[id][1]
+    end,
+    GetSpellTexture = function(id)
+        if M.IsSecret(id) then
+            local s = M.spells[secretRaw[id][1]]
+            return s and M.Secret(s[2])
+        end
+        return M.spells[id] and M.spells[id][2]
+    end,
+}
+ACTION_SWING = "Melee"
+ACTION_ENVIRONMENTAL_DAMAGE_FALLING = "Falling"
+M.state.playerGUID = "Player-1-0001"
+function UnitGUID(unit) if unit == "player" then return M.state.playerGUID end end
+
+
 return M

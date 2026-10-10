@@ -51,7 +51,7 @@ end)(), true)
 check("Interface", io.open(ROOT .. "/" .. ADDON .. ".toc"):read("*l"), "## Interface: 16001")
 for _, name in ipairs({ "L", "Locale", "On", "Print", "AfterCombat", "DB", "AccountDB", "ActiveProfile",
     "SwitchProfile", "DeleteProfile", "CopyProfileFrom", "ProfileList", "Settings", "Share", "Media",
-    "Position", "Corners", "Border", "Window", "MinimapButton", "Style", "Widgets" }) do
+    "Position", "Corners", "Border", "Window", "MinimapButton", "Style", "Widgets", "Format", "Meter" }) do
     check("ns." .. name, ns[name] ~= nil, true)
 end
 check("saved variables (account)", type(ForeverCombatMeterProfiles), "table")
@@ -229,6 +229,265 @@ check("deferred in combat", ran, 0)
 M.state.combat = false
 M.Fire("PLAYER_REGEN_ENABLED")
 check("runs after combat", ran, 1)
+
+section("Mock secrets")
+local sv = M.Secret(5)
+check("issecretvalue", issecretvalue(sv), true)
+check("plain is not secret", issecretvalue(5), false)
+check("compare raises", pcall(function() return sv < 3 end), false)
+check("secret vs secret raises", pcall(function() return sv == M.Secret(5) end), false)
+check("arithmetic raises", pcall(function() return sv + 1 end), false)
+check("concatenation raises", pcall(function() return "x" .. sv end), false)
+check("%d raises", pcall(string.format, "%d", sv), false)
+check("%.0f is allowed", M.Reveal(string.format("%.0f", sv)), "5")
+check("%s is allowed", M.Reveal(("<%s>"):format(M.Secret("Bob"))), "<Bob>")
+check("a formatted secret stays secret", issecretvalue(string.format("%s", M.Secret("Bob"))), true)
+check("secret key found", M.FindSecretKey({ a = { [sv] = 1 } }) ~= nil, true)
+
+local Format, Meter = ns.Format, ns.Meter
+local function revealed(fn, ...)
+    local ok, v = pcall(fn, ...)
+    if not ok then return "ERROR: " .. tostring(v) end
+    return M.Reveal(v)
+end
+
+section("Format")
+check("amount small", Format.Amount(950), "950")
+check("amount k", Format.Amount(1234), "1.2k")
+check("amount M", Format.Amount(1234567), "1.23M")
+check("amount B", Format.Amount(2500000000), "2.50B")
+check("amount nil", Format.Amount(nil), "0")
+check("amount secret", revealed(Format.Amount, M.Secret(123456)), "123K")
+check("amount secret result is secret", issecretvalue(Format.Amount(M.Secret(5))), true)
+check("per second small", Format.PerSecond(5.26), "5.3")
+check("per second large", Format.PerSecond(12345), "12.3k")
+check("per second secret", revealed(Format.PerSecond, M.Secret(950)), "950")
+check("percent", Format.Percent(33.333), "33.3%")
+check("percent nil", Format.Percent(nil), "")
+check("percent secret", revealed(Format.Percent, M.Secret(12.5)), "12.5%")
+check("name with rank", Format.Name(3, "Bob"), "3. Bob")
+check("name without rank", Format.Name(nil, "Bob"), "Bob")
+check("name nil", Format.Name(1, nil), "1. ?")
+check("name secret", revealed(Format.Name, 2, M.Secret("Bob")), "2. Bob")
+check("duration seconds", Format.Duration(9), "0:09")
+check("duration minutes", Format.Duration(65.7), "1:05")
+check("duration hours", Format.Duration(3725), "1:02:05")
+check("duration nil", Format.Duration(nil), "")
+check("duration secret", revealed(Format.Duration, M.Secret(65)), "65s")
+check("IsSecret", Format.IsSecret(M.Secret(1)), true)
+check("IsSecret plain", Format.IsSecret("x"), false)
+
+section("Meter: modes")
+local T = Enum.DamageMeterType
+local wantModes = { damage = T.DamageDone, healing = T.HealingDone, absorbs = T.Absorbs, taken = T.DamageTaken,
+    enemytaken = T.EnemyDamageTaken, avoidable = T.AvoidableDamageTaken, interrupts = T.Interrupts,
+    dispels = T.Dispels, deaths = T.Deaths }
+local order = {}
+for i, m in ipairs(Meter.MODES) do
+    order[i] = m.key
+    check("mode " .. m.key .. " type", m.type, wantModes[m.key])
+end
+check("mode order", table.concat(order, ","), "damage,healing,absorbs,taken,enemytaken,avoidable,interrupts,dispels,deaths")
+local reduced = {}
+for k, v in pairs(T) do reduced[k] = v end
+reduced.EnemyDamageTaken, reduced.AvoidableDamageTaken = nil, nil
+local short = {}
+for i, m in ipairs(Meter.BuildModes(reduced)) do short[i] = m.key end
+check("older client: no enemytaken/avoidable", table.concat(short, ","), "damage,healing,absorbs,taken,interrupts,dispels,deaths")
+check("no enum: no modes", #Meter.BuildModes(nil), 0)
+check("type of", Meter.ModeType("healing"), T.HealingDone)
+check("type of unknown", Meter.ModeType("threat"), nil)
+
+section("Meter: availability, sessions, reset")
+check("available", Meter.Available(), true)
+M.dm.available, M.dm.reason = false, "Not in this zone"
+local okA, why = Meter.Available()
+check("unavailable", okA, false)
+check("reason", why, "Not in this zone")
+M.dm.available, M.dm.reason = true, ""
+local savedDM = C_DamageMeter
+C_DamageMeter = nil
+check("no API: unavailable", (Meter.Available()), false)
+check("no API: no sessions", #Meter.Sessions(), 0)
+check("no API: Fetch empty", #Meter.Fetch("damage", "current").rows, 0)
+C_DamageMeter = savedDM
+M.dm.sessions = { { sessionID = 4, name = "Hogger", durationSeconds = 42 },
+                  { sessionID = 5, name = "Boss", durationSeconds = 95, secretName = true } }
+local sess = Meter.Sessions()
+check("sessions", #sess, 2)
+check("session fields", sess[1].id .. "|" .. sess[1].name .. "|" .. sess[1].duration, "4|Hogger|42")
+Meter.Reset()
+check("reset", M.dm.resets, 1)
+
+section("Meter: Fetch out of combat")
+local CUR, OVR = Enum.DamageMeterSessionType.Current, Enum.DamageMeterSessionType.Overall
+local function source(name, guid, total, ps, extra)
+    local s = { name = name, sourceGUID = guid, totalAmount = total, amountPerSecond = ps, classFilename = "WARRIOR",
+                specIconID = 0, isLocalPlayer = false, deathRecapID = 0, deathTimeSeconds = -1 }
+    for k, v in pairs(extra or {}) do s[k] = v end
+    return s
+end
+M.dm.byType[CUR] = { [T.DamageDone] = { totalAmount = 1000, combatSources = {
+    source("Bob", "Player-2", 300, 30, { classFilename = "MAGE", specIconID = 135932,
+        spells = { { spellID = 133, totalAmount = 100, amountPerSecond = 10, creatureName = "" },
+                   { spellID = 116, totalAmount = 200, amountPerSecond = 0, creatureName = "" } } }),
+    source("Me", "Player-1-0001", 500, 0, { isLocalPlayer = true,
+        spells = { { spellID = 78, totalAmount = 500, amountPerSecond = 10, creatureName = "" } } }),
+    source("Wolf", nil, 200, 4, { sourceCreatureID = 69, classFilename = "",
+        spells = { { spellID = 17253, totalAmount = 200, amountPerSecond = 4, creatureName = "" } } }),
+} } }
+M.dm.byType[CUR][T.DamageTaken] = { totalAmount = 400, combatSources = {
+    source("Me", "Player-1-0001", 400, 8, { isLocalPlayer = true,
+        spells = { { spellID = 88163, totalAmount = 400, amountPerSecond = 8, creatureName = "Ogre" },
+                   { spellID = 999, totalAmount = 0, amountPerSecond = 0, creatureName = "" } } }) } }
+M.dm.duration[CUR] = 50
+M.spells[133], M.spells[116], M.spells[78] = { "Fireball", 135812 }, { "Frostbolt", 135846 }, { "Heroic Strike", 132282 }
+local data = Meter.Fetch("damage", "current")
+check("not secret", data.secret, false)
+check("rows", #data.rows, 3)
+check("sorted by total", data.rows[1].name .. "," .. data.rows[2].name .. "," .. data.rows[3].name, "Me,Bob,Wolf")
+check("percent", data.rows[1].percent, 50)
+check("percent 2", data.rows[3].percent, 20)
+check("total", data.total, 1000)
+check("duration from GetSessionDurationSeconds", data.duration, 50)
+check("per second from the API", data.rows[2].perSecond, 30)
+check("per second fallback total/duration", data.rows[1].perSecond, 10)
+check("class", data.rows[2].class, "MAGE")
+check("spec icon", data.rows[2].specIcon, 135932)
+check("own row", data.rows[1].isPlayer, true)
+check("guid", data.rows[2].guid, "Player-2")
+check("creature id", data.rows[3].creatureID, 69)
+check("no recap", data.rows[1].recapID, nil)
+check("no death time", data.rows[1].deathTime, nil)
+check("unknown mode", Meter.Fetch("threat", "current"), nil)
+check("empty session", #Meter.Fetch("healing", "current").rows, 0)
+M.dm.byType[OVR] = { [T.DamageDone] = { totalAmount = 0, durationSeconds = 20, combatSources = {
+    source("Bob", "Player-2", 60, 0), source("Me", "Player-1-0001", 140, 0, { isLocalPlayer = true }) } } }
+local ov = Meter.Fetch("damage", "overall")
+check("overall: total from the rows when the API says 0", ov.total, 200)
+check("overall: percent", ov.rows[1].percent, 70)
+check("overall: duration from the session", ov.rows[2].perSecond, 3)
+M.dm.byID[5] = { [T.DamageDone] = { totalAmount = 90, combatSources = { source("Me", "Player-1-0001", 90, 0, { isLocalPlayer = true }) } } }
+local past = Meter.Fetch("damage", 5)
+check("past session by id", past.rows[1].total, 90)
+check("past session duration from the session list", past.duration, 95)
+check("past session per second", past.rows[1].perSecond, 90 / 95)
+M.dm.byType[CUR][T.Deaths] = { totalAmount = 2, combatSources = {
+    source("Bob", "Player-2", 1, 0, { deathRecapID = 7, deathTimeSeconds = 31 }),
+    source("Me", "Player-1-0001", 1, 0, { isLocalPlayer = true, deathRecapID = -1, deathTimeSeconds = -1 }) } }
+local deaths = Meter.Fetch("deaths", "current")
+check("deaths: recap id", deaths.rows[1].recapID, 7)
+check("deaths: death time", deaths.rows[1].deathTime, 31)
+check("deaths: -1 means none", deaths.rows[2].recapID, nil)
+
+section("Meter: Spells out of combat")
+local sp = Meter.Spells("damage", "current", data.rows[2])
+check("spells of another player", sp ~= nil and #sp.rows, 2)
+check("spells sorted", sp.rows[1].name, "Frostbolt")
+check("spell icon", sp.rows[1].icon, 135846)
+check("spell id", sp.rows[1].spellID, 116)
+check("percent of source", sp.rows[1].percentOfSource, 200 / 300 * 100)
+check("spell per second fallback", sp.rows[1].perSecond, 4)
+check("not secret", sp.secret, false)
+local creature = Meter.Spells("damage", "current", data.rows[3])
+check("creature by id", creature ~= nil and creature.rows[1].total, 200)
+local takenRow = Meter.Fetch("taken", "current").rows[1]
+local taken = Meter.Spells("taken", "current", takenRow)
+check("taken: creature", taken.rows[1].creature, "Ogre")
+check("taken: empty creature is nil", taken.rows[2].creature, nil)
+check("taken: melee name", taken.rows[1].name, "Attack")
+check("unknown spell name", taken.rows[2].name, "#999")
+check("unknown spell icon", taken.rows[2].icon, 134400)
+check("no guid, no creature: nil", Meter.Spells("damage", "current", { name = "X" }), nil)
+
+section("Meter: in combat (secret values)")
+M.state.combat = true
+local okF, cdata = pcall(Meter.Fetch, "damage", "current")
+check("Fetch raises nothing", okF, true)
+if not okF then print(cdata) end
+cdata = okF and cdata or { rows = {} }
+check("secret", cdata.secret, true)
+check("API order kept", M.Reveal(cdata.rows[1] and cdata.rows[1].name), "Bob")
+check("API order kept 2", M.Reveal(cdata.rows[3] and cdata.rows[3].name), "Wolf")
+check("no percent", cdata.rows[1] and cdata.rows[1].percent, nil)
+check("total is the API's", M.Reveal(cdata.rows[2] and cdata.rows[2].total), 500)
+check("per second is the API's (no fallback)", M.Reveal(cdata.rows[2] and cdata.rows[2].perSecond), 0)
+check("own row readable", cdata.rows[2] and cdata.rows[2].isPlayer, true)
+check("secret guid dropped", cdata.rows[1] and cdata.rows[1].guid, nil)
+check("secret creature id dropped", cdata.rows[3] and cdata.rows[3].creatureID, nil)
+check("class stays plain", cdata.rows[1] and cdata.rows[1].class, "MAGE")
+check("nothing secret used as a key (result)", M.FindSecretKey(cdata), nil)
+check("formats in combat", revealed(function() return Format.Name(1, cdata.rows[1].name) end), "1. Bob")
+check("amount formats in combat", revealed(function() return Format.Amount(cdata.rows[2].total) end), "500")
+local okS, own = pcall(Meter.Spells, "damage", "current", cdata.rows[2] or {})
+check("own spells in combat raise nothing", okS, true)
+if not okS then print(own) end
+check("own spells via UnitGUID", okS and own and #own.rows, 1)
+check("own spells secret", okS and own and own.secret, true)
+check("own spell name (secret id)", okS and own and M.Reveal(own.rows[1].name), "Heroic Strike")
+check("own spell no percent", okS and own and own.rows[1].percentOfSource, nil)
+check("others not readable in combat", select(2, pcall(Meter.Spells, "damage", "current", cdata.rows[1] or {})), nil)
+check("creatures not readable in combat", select(2, pcall(Meter.Spells, "damage", "current", cdata.rows[3] or {})), nil)
+local okT, ctaken = pcall(Meter.Spells, "taken", "current", (Meter.Fetch("taken", "current").rows[1]))
+check("taken in combat raises nothing", okT, true)
+check("taken in combat: creature omitted", okT and ctaken and ctaken.rows[1].creature, nil)
+local okD, cdeaths = pcall(Meter.Fetch, "deaths", "current")
+check("deaths in combat raise nothing", okD, true)
+check("deaths: recap id readable in combat", okD and cdeaths.rows[1].recapID, 7)
+local okP, cpast = pcall(Meter.Fetch, "damage", 5)
+check("past session in combat raises nothing", okP, true)
+if not okP then print(cpast) end
+local okSe, csess = pcall(Meter.Sessions)
+check("sessions in combat raise nothing", okSe, true)
+check("secret session name passed through", okSe and M.Reveal(csess[2].name), "Boss")
+check("formatted session name", okSe and revealed(Format.Name, nil, csess[2].name), "Boss")
+check("nothing secret kept as a key (ns)", M.FindSecretKey(ns), nil)
+M.state.combat = false
+
+section("Meter: death recap")
+local function hit(ts, extra)
+    local e = { timestamp = ts, event = "SPELL_DAMAGE", spellId = 133, amount = 100, currentHP = 1000, sourceName = "Ogre" }
+    for k, v in pairs(extra or {}) do e[k] = v end
+    return e
+end
+M.recaps[7] = { hit(110, { amount = 900, currentHP = 0 }), hit(109, { event = "SWING_DAMAGE", spellId = nil }),
+    hit(108, { event = "ENVIRONMENTAL_DAMAGE", spellId = nil, environmentalType = "Falling" }),
+    hit(107), hit(106), hit(105), hit(104, { amount = 1 }), hit(103, { amount = 2 }) }
+local recap = Meter.Recap(7)
+check("recap: six events", recap and #recap, 6)
+check("recap: oldest first", recap and recap[1].time, -5)
+check("recap: killing blow last", recap and recap[6].amount, 900)
+check("recap: killing blow time", recap and recap[6].time, 0)
+check("recap: hp", recap and recap[6].hp, 0)
+check("recap: spell", recap and recap[6].spell, "Fireball")
+check("recap: icon", recap and recap[6].icon, 135812)
+check("recap: source", recap and recap[6].source, "Ogre")
+check("recap: melee", recap and recap[5].spell, "Melee")
+check("recap: environment", recap and recap[4].spell, "Falling")
+check("recap: not secret", recap and recap.secret, false)
+check("recap: none for 0", Meter.Recap(0), nil)
+check("recap: none for nil", Meter.Recap(nil), nil)
+check("recap: none without events", Meter.Recap(8), nil)
+M.state.combat = true
+local okR, crecap = pcall(Meter.Recap, 7)
+check("recap in combat raises nothing", okR, true)
+if not okR then print(crecap) end
+check("recap in combat: secret", okR and crecap and crecap.secret, true)
+check("recap in combat: order from the API", okR and crecap and M.Reveal(crecap[6].amount), 900)
+check("recap in combat: no time", okR and crecap and crecap[6].time, nil)
+M.state.combat = false
+
+section("Secret-safe sources")
+for _, f in ipairs({ "Format.lua", "Meter.lua" }) do
+    local src = io.open(ROOT .. "/" .. f):read("*a"):gsub("%-%-[^\n]*", "")
+    check("no %d format in " .. f, src:find("%%d"), nil)
+end
+for _, f in ipairs(tocFiles()) do
+    if f ~= "Meter.lua" then
+        local code = io.open(ROOT .. "/" .. f):read("*a"):gsub("%-%-[^\n]*", "")
+        check("only Meter.lua reads C_DamageMeter (" .. f .. ")", code:find("C_DamageMeter", 1, true), nil)
+    end
+end
 
 section("Languages")
 local base = ns.Locales.enUS
