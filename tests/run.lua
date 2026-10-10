@@ -166,8 +166,9 @@ local function rowFor(label, field)
         end
     end
 end
-check("two pages", #ns.Window.PAGES, 2)
-check("pages", ns.Window.PAGES[1].id .. "," .. ns.Window.PAGES[2].id, "general,profiles")
+local pageIds = {}
+for _, page in ipairs(ns.Window.PAGES) do pageIds[#pageIds + 1] = page.id end
+check("pages", table.concat(pageIds, ","), "general,windows,bars,appearance,text,threat,profiles")
 for _, page in ipairs(ns.Window.PAGES) do
     local ok, err = pcall(ns.Window.ShowPage, page.id)
     check("page " .. page.id .. " builds", ok, true)
@@ -1625,6 +1626,198 @@ do
     M.state.group = false
 end
 
+section("Options pages")
+Settings.ResetProfile()
+local INTERNAL = { minimapAngle = true, detailPoint = true, detailX = true, detailY = true }
+local covered = {}
+for _, page in ipairs(ns.Window.PAGES) do
+    if page.rows then
+        for _, r in ipairs(page.rows()) do
+            if r.key then covered[r.key] = true end
+        end
+    end
+end
+for key in pairs(Settings.DEFAULTS) do
+    if not INTERNAL[key] then check("row for setting " .. key, covered[key], true) end
+end
+check("windowCount row", covered.windowCount, true)
+
+local RAW = "^[A-Z][A-Z0-9]*_[A-Z0-9_]+$"
+for code, strings in pairs(ns.Locales) do
+    ns.Locale.Set(code)
+    ns.Window.Open("general")
+    for _, page in ipairs(ns.Window.PAGES) do
+        check(code .. ": page label " .. page.id, strings[page.label] ~= nil, true)
+        ns.Window.ShowPage(page.id)
+        local raw
+        for _, fs in ipairs(M.fontStrings) do
+            if fs._text and type(fs._text) == "string" and fs._text:match(RAW) and fs:IsVisible() then raw = fs._text end
+        end
+        check(code .. ": no raw key shown on " .. page.id, raw, nil)
+        if page.rows then
+            for _, r in ipairs(page.rows()) do
+                if type(r.label) == "string" then check(code .. ": label " .. r.label, strings[r.label] ~= nil, true) end
+                for _, b in ipairs(r.buttons or {}) do check(code .. ": button " .. b.label, strings[b.label] ~= nil, true) end
+                if r.choices then
+                    for _, c in ipairs(r.choices()) do
+                        check(code .. ": choice " .. tostring(c.label), type(c.label) == "string" and not c.label:match(RAW), true)
+                    end
+                end
+            end
+        end
+    end
+    ns.Window.Toggle()
+end
+ns.Locale.Set("AUTO")
+
+local function specRows(id)
+    for _, page in ipairs(ns.Window.PAGES) do if page.id == id then return page.rows() end end
+end
+local function rowByKey(id, key)
+    for _, r in ipairs(specRows(id)) do if r.key == key then return r end end
+end
+local rowStyle = rowByKey("general", "style")
+rowStyle.set("COMPACT")
+check("style select: style", S("style"), "COMPACT")
+check("style select: preset bar height", S("barHeight"), 14)
+check("style select: preset spacing", S("barSpacing"), 0)
+rowStyle.set("FOREVER")
+check("style back: bar height", S("barHeight"), 18)
+Settings.ResetProfile()
+
+local function visibleWindows()
+    local seen, n = {}, 0
+    for _, r in ipairs(specRows("windows")) do
+        if r.window and (not r.visible or r.visible()) and not seen[r.window] then seen[r.window] = true; n = n + 1 end
+    end
+    return n
+end
+check("windows page: one window block", visibleWindows(), 1)
+Settings.Set("windowCount", 3)
+check("windows page: three blocks", visibleWindows(), 3)
+local function winRow(i, field)
+    for _, r in ipairs(specRows("windows")) do
+        if r.window == i and r.field == field then return r end
+    end
+end
+winRow(2, "mode").set("threat")
+check("windows page: mode", Windows.Mode(2), "threat")
+check("windows page: mode get", winRow(2, "mode").get(), "threat")
+winRow(2, "view").set("overall")
+check("windows page: session", Windows.View(2), "overall")
+winRow(2, "width").set(300)
+check("windows page: width", Windows.Config(2).width, 300)
+winRow(3, "rows").set(5)
+check("windows page: rows", Windows.Config(3).rows, 5)
+winRow(2, "locked").set(true)
+check("windows page: lock", Windows.Config(2).locked, true)
+local modeChoices = {}
+for _, c in ipairs(winRow(1, "mode").choices()) do modeChoices[c.value] = true end
+check("mode choices include threat and damage", modeChoices.threat and modeChoices.damage, true)
+local function windowButtons()
+    local out = {}
+    for _, r in ipairs(specRows("windows")) do
+        for _, b in ipairs(r.buttons or {}) do out[#out + 1] = { row = r, b = b } end
+    end
+    return out
+end
+local newBtn, closeBtn
+for _, e in ipairs(windowButtons()) do
+    if e.b.label == "MENU_NEW_WINDOW" then newBtn = e.b end
+    if e.row.window == 3 and e.b.label == "MENU_CLOSE_WINDOW" then closeBtn = e.b end
+end
+check("new window button", newBtn ~= nil, true)
+check("close window button on window 3", closeBtn ~= nil, true)
+newBtn.onClick()
+check("new window button works", S("windowCount"), 4)
+closeBtn.onClick()
+check("close window button works", S("windowCount"), 3)
+Settings.ResetProfile()
+Windows.Tick(0.02)
+
+section("Blizzard meter switch")
+local cvars, cvarWrites = { damageMeterEnabled = "1" }, 0
+C_CVar = {
+    GetCVar = function(name) return cvars[name] end,
+    SetCVar = function(name, v) cvarWrites = cvarWrites + 1; cvars[name] = v; return true end,
+}
+Settings.Set("hideBlizzard", true)
+check("on: CVar 0", cvars.damageMeterEnabled, "0")
+check("on: previous value remembered", ns.AccountDB().blizzardMeterBackup, "1")
+Settings.Set("hideBlizzard", false)
+check("off: CVar restored", cvars.damageMeterEnabled, "1")
+check("off: backup cleared", ns.AccountDB().blizzardMeterBackup, nil)
+cvars.damageMeterEnabled = "0"
+Settings.Set("hideBlizzard", true)
+Settings.Set("hideBlizzard", false)
+check("user had it off: stays off", cvars.damageMeterEnabled, "0")
+cvars.damageMeterEnabled = "1"
+Settings.Set("hideBlizzard", true)
+Settings.Set("refresh", 0.5)
+cvars.damageMeterEnabled = "1"
+M.Fire("PLAYER_LOGIN")
+check("login re-applies", cvars.damageMeterEnabled, "0")
+check("login keeps the first backup", ns.AccountDB().blizzardMeterBackup, "1")
+Settings.ResetProfile()
+check("profile reset restores", cvars.damageMeterEnabled, "1")
+ns.SwitchProfile("Default")
+cvarWrites = 0
+cvars.damageMeterEnabled = nil
+Settings.Set("hideBlizzard", true)
+check("no such CVar: no write", cvarWrites, 0)
+check("no such CVar: no backup", ns.AccountDB().blizzardMeterBackup, nil)
+Settings.Set("hideBlizzard", false)
+check("no such CVar: off writes nothing", cvarWrites, 0)
+local savedCVar = C_CVar
+C_CVar = nil
+check("no C_CVar: no error", pcall(Settings.Set, "hideBlizzard", true), true)
+C_CVar = savedCVar
+Settings.ResetProfile()
+check("Blizzard frame never created by us", rawget(_G, "DamageMeter"), nil)
+
+section("Gear menu report, slash commands")
+local calls = {}
+local realReport = ns.Report.Window
+ns.Report.Window = function(i, n) calls[#calls + 1] = { i, n } end
+Windows.OpenMenu(1, Windows.Frame(1).header)
+M.MenuClick(M.MenuFind(M.LastMenu(), "Report"))
+check("menu: report", calls[1] and (calls[1][1] .. "," .. calls[1][2]) or "none", "1,5")
+local function slash(msg) M.chat = {}; SlashCmdList["FOREVERCOMBATMETER"](msg) end
+slash("report")
+check("/fcm report", calls[2] and (calls[2][1] .. "," .. tostring(calls[2][2])) or "none", "1,nil")
+slash("report 3")
+check("/fcm report 3", calls[3] and (calls[3][1] .. "," .. calls[3][2]) or "none", "1,3")
+ns.Report.Window = realReport
+slash("mode threat")
+check("/fcm mode threat", Windows.Mode(1), "threat")
+slash("mode Healing")
+check("/fcm mode is case blind", Windows.Mode(1), "healing")
+slash("windows 3")
+check("/fcm windows 3", S("windowCount"), 3)
+slash("mode 2 deaths")
+check("/fcm mode 2 deaths", Windows.Mode(2), "deaths")
+slash("mode nonsense")
+check("/fcm mode nonsense: unchanged", Windows.Mode(1), "healing")
+check("/fcm mode nonsense: usage", M.chat[1] ~= nil and M.chat[1]:find("/fcm", 1, true) ~= nil, true)
+slash("windows 2")
+check("/fcm windows 2", S("windowCount"), 2)
+slash("windows 9")
+check("/fcm windows 9 refused", S("windowCount"), 2)
+slash("windows 0")
+check("/fcm windows 0 refused", S("windowCount"), 2)
+slash("windows")
+check("/fcm windows without number refused", S("windowCount"), 2)
+slash("toggle")
+check("/fcm toggle hides", Windows.Frame(1):IsShown() or Windows.Frame(2):IsShown(), false)
+Windows.Tick(0.3)
+check("/fcm toggle: stays hidden through a tick", Windows.Frame(1):IsShown(), false)
+slash("toggle")
+check("/fcm toggle shows", Windows.Frame(1):IsShown() and Windows.Frame(2):IsShown(), true)
+M.popups = {}
+slash("reset")
+check("/fcm reset asks", M.popups[#M.popups] and M.popups[#M.popups].which, "FOREVERCOMBATMETER_RESET")
+Settings.ResetProfile()
+
 section("No accidental globals")
 local allowed = { SLASH_FOREVERCOMBATMETER1 = true, SLASH_FOREVERCOMBATMETER2 = true, ForeverCombatMeterProfiles = true,
     ForeverCombatMeterChar = true, ForeverCombatMeter_OnAddonCompartmentClick = true,
@@ -1639,7 +1832,8 @@ end
 section("Nothing private, no CVars, no forbidden calls")
 for _, f in ipairs(tocFiles()) do
     local src = io.open(ROOT .. "/" .. f):read("*a")
-    check("no CVar storage in " .. f, src:find("SetCVar", 1, true), nil)
+    -- Settings never live in CVars; only Blizzard.lua flips the damage meter's own switch.
+    if f ~= "Blizzard.lua" then check("no CVar write in " .. f, src:find("SetCVar", 1, true), nil) end
     check("no combat log event in " .. f, src:find("COMBAT_LOG_EVENT_UNFILTERED", 1, true), nil)
     check("no hooksecurefunc call in " .. f, src:gsub("%-%-[^\n]*", ""):find("hooksecurefunc%("), nil)
 end

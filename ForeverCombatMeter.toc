@@ -32,6 +32,7 @@ Threat.lua
 Windows.lua
 Detail.lua
 Report.lua
+Blizzard.lua
 Options\Style.lua
 Options\Widgets.lua
 Options\Window.lua

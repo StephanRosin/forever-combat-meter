@@ -6,19 +6,52 @@ function ns.ToggleLock()
     ns.Print(Settings.Get("locked") and L.MSG_LOCKED or L.MSG_UNLOCKED)
 end
 
+-- /fcm mode [window] <key>: a mode by its key (damage, healing, ..., threat).
+local function setMode(args)
+    local first, second = args[1], args[2]
+    local index, key = 1, first
+    if second then index, key = tonumber(first), second end
+    key = key and key:lower()
+    local known = false
+    for _, k in ipairs(ns.Windows.ModeKeys()) do if k == key then known = true end end
+    if not known or not index or index < 1 or index > Settings.Get("windowCount") then
+        ns.Print(L.MSG_USAGE)
+        return
+    end
+    ns.Windows.SetMode(index, key)
+end
+
+-- Opens or closes windows until there are n.
+local function setWindows(n)
+    local range = Settings.RANGES.windowCount
+    if not n or n ~= math.floor(n) or n < range[1] or n > range[2] then
+        ns.Print(L.MSG_USAGE)
+        return
+    end
+    while Settings.Get("windowCount") < n do ns.Windows.Add() end
+    while Settings.Get("windowCount") > n do ns.Windows.Close(Settings.Get("windowCount")) end
+end
+
+local COMMANDS = {
+    [""] = function() ns.Window.Toggle() end,
+    lock = function() Settings.SetLocked(true); ns.Print(L.MSG_LOCKED) end,
+    unlock = function() Settings.SetLocked(false); ns.Print(L.MSG_UNLOCKED) end,
+    mode = setMode,
+    windows = function(args) setWindows(tonumber(args[1])) end,
+    report = function(args) ns.Report.Window(1, tonumber(args[1])) end,
+    reset = function() ns.Windows.AskReset() end,
+    toggle = function() ns.Windows.ToggleHidden() end,
+}
+
 SLASH_FOREVERCOMBATMETER1 = "/fcm"
 SLASH_FOREVERCOMBATMETER2 = "/forevercombatmeter"
 SlashCmdList["FOREVERCOMBATMETER"] = function(msg)
-    local cmd = ((msg or ""):match("^%s*(%S*)") or ""):lower()
-    if cmd == "" then
-        ns.Window.Toggle()
-    elseif cmd == "lock" then
-        Settings.SetLocked(true)
-        ns.Print(L.MSG_LOCKED)
-    elseif cmd == "unlock" then
-        Settings.SetLocked(false)
-        ns.Print(L.MSG_UNLOCKED)
-    else
+    local words = {}
+    for word in (msg or ""):gmatch("%S+") do words[#words + 1] = word end
+    local run = COMMANDS[(words[1] or ""):lower()]
+    if not run then
         ns.Print(L.MSG_USAGE)
+        return
     end
+    run({ unpack(words, 2) })
 end

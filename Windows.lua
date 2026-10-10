@@ -53,6 +53,7 @@ local POINTS = { CENTER = true, TOP = true, BOTTOM = true, LEFT = true, RIGHT = 
 
 local frames, state = {}, {}
 local ready = false
+local hiddenAll = false   -- /fcm toggle; for this session only
 local tickWait, burstLeft = 0, 0
 local fontKey
 
@@ -107,11 +108,15 @@ local function modeKeys()
     return keys
 end
 
+Windows.ModeKeys = modeKeys
+
 local function validMode(key)
     return key == "threat" or (type(key) == "string" and Meter.ModeType(key) ~= nil)
 end
 
 local function modeLabel(key) return L["MODE_" .. key:upper()] end
+Windows.ModeLabel = modeLabel
+Windows.RANGES = { width = WIDTH_RANGE, rows = ROWS_RANGE }
 
 -- What an imported `windows` value may keep (Share.RegisterTable).
 local function number(range)
@@ -766,6 +771,7 @@ function Windows.OpenMenu(i, owner)
         root:CreateDivider()
         local new = root:CreateButton(L.MENU_NEW_WINDOW, function() Windows.Add() end)
         if S("windowCount") >= MAX_WINDOWS and new.SetEnabled then new:SetEnabled(false) end
+        root:CreateButton(L.MENU_REPORT, function() ns.Report.Window(i, S("reportLines")) end)
         local close = root:CreateButton(L.MENU_CLOSE_WINDOW, function() Windows.Close(i) end)
         if i == 1 and close.SetEnabled then close:SetEnabled(false) end
         root:CreateButton(Windows.Config(i).locked and L.MENU_UNLOCK or L.MENU_LOCK,
@@ -977,12 +983,19 @@ local function sync()
     for i = 1, MAX_WINDOWS do
         if i <= count then
             Windows.Create(i)
-            frames[i]:Show()
+            frames[i]:SetShown(not hiddenAll)
         elseif frames[i] then
             frames[i]:Hide()
         end
     end
     layoutAll()
+end
+
+-- Hides or shows all windows (/fcm toggle); returns whether they are shown now.
+function Windows.ToggleHidden()
+    hiddenAll = not hiddenAll
+    sync()
+    return not hiddenAll
 end
 
 -- Public actions --------------------------------------------------------------------

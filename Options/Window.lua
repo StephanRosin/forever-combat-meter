@@ -15,7 +15,7 @@ local Style, Widgets = ns.Style, ns.Widgets
 local function num(key, label, unit, step)
     local range = Settings.RANGES[key]
     return {
-        label = label, min = range[1], max = range[2], step = step or 1, unit = unit or "px",
+        key = key, label = label, min = range[1], max = range[2], step = step or 1, unit = unit or "px",
         get = function() return S(key) end,
         set = function(v) Settings.Set(key, v) end,
     }
@@ -23,7 +23,7 @@ end
 
 local function check(key, label)
     return {
-        type = "check", label = label,
+        key = key, type = "check", label = label,
         get = function() return S(key) end,
         set = function(v) Settings.Set(key, v) end,
     }
@@ -32,7 +32,7 @@ end
 -- A dropdown over fixed values, labelled prefix .. value.
 local function choice(key, label, values, prefix)
     return {
-        type = "select", label = label,
+        key = key, type = "select", label = label,
         choices = function()
             local list = {}
             for _, v in ipairs(values) do list[#list + 1] = { label = L[prefix .. v], value = v } end
@@ -43,14 +43,211 @@ local function choice(key, label, values, prefix)
     }
 end
 
--- General: update rate, style, minimap button.
+-- A dropdown over the media of a kind (Blizzard's and LibSharedMedia's).
+local function media(key, label, kind)
+    return {
+        key = key, type = "select", label = label,
+        choices = function()
+            local list = {}
+            for _, name in ipairs(ns.Media.Names(kind)) do
+                list[#list + 1] = { label = name, value = name, font = kind == "font" and name or nil }
+            end
+            return list
+        end,
+        get = function() return S(key) end,
+        set = function(v) Settings.Set(key, v) end,
+    }
+end
+
+local function colorRow(key, label, noOpacity)
+    return {
+        key = key, type = "color", label = label, noOpacity = noOpacity,
+        get = function()
+            local c = S(key)
+            return { c[1], c[2], c[3], c[4] or 1 }
+        end,
+        set = function(c)
+            Settings.Set(key, noOpacity and { c[1], c[2], c[3] } or { c[1], c[2], c[3], c[4] })
+        end,
+    }
+end
+
+-- Shows the row only while cond() holds (the page closes up around it).
+local function visibleIf(row, cond)
+    row.visible = cond
+    return row
+end
+
+local function append(rows, more)
+    for _, r in ipairs(more) do rows[#rows + 1] = r end
+    return rows
+end
+
+-- Font, size, outline and colour of the text style `key` under a header.
+local function textStyleRows(key, header)
+    return {
+        { type = "header", label = header },
+        media(key .. "Font", "OPT_FONT", "font"),
+        num(key .. "Size", "OPT_FONT_SIZE"),
+        {
+            key = key .. "Flag", type = "select", label = "OPT_OUTLINE",
+            choices = function()
+                return {
+                    { label = L.OUTLINE_NONE, value = "" },
+                    { label = L.OUTLINE_SHADOW, value = "SHADOW" },
+                    { label = L.OUTLINE_NORMAL, value = "OUTLINE" },
+                    { label = L.OUTLINE_THICK, value = "THICKOUTLINE" },
+                }
+            end,
+            get = function() return S(key .. "Flag") end,
+            set = function(v) Settings.Set(key .. "Flag", v) end,
+        },
+        colorRow(key .. "Color", "OPT_COLOR", true),
+    }
+end
+
+-- General: style, update rate, Blizzard's meter, minimap, report.
 local function generalRows()
+    local style = choice("style", "OPT_STYLE", { "FOREVER", "COMPACT" }, "STYLE_")
+    -- Picking a style also takes its bar preset once (they stay editable).
+    style.set = function(v)
+        ns.Windows.ApplyStylePreset(v)
+        Settings.Set("style", v)
+    end
     return {
         { type = "header", label = "OPT_GENERAL" },
+        style,
         num("refresh", "OPT_REFRESH", "s", Settings.STEPS.refresh),
-        choice("style", "OPT_STYLE", { "FOREVER", "COMPACT" }, "STYLE_"),
+        { type = "header", label = "OPT_BLIZZARD" },
+        { type = "text", label = "OPT_BLIZZARD_HINT", height = 40 },
+        check("hideBlizzard", "OPT_HIDE_BLIZZARD"),
+        { type = "header", label = "OPT_REPORT" },
+        num("reportLines", "OPT_REPORT_LINES", ""),
         { type = "header", label = "OPT_MINIMAP" },
         check("minimapShow", "OPT_MINIMAP_SHOW"),
+    }
+end
+
+-- One window's setting as a row; the get/set go through Windows.
+local function windowRow(i, field, row)
+    row.window, row.field = i, field
+    row.visible = function() return S("windowCount") >= i end
+    return row
+end
+
+local function windowNum(i, field, label)
+    local range = ns.Windows.RANGES[field]
+    return windowRow(i, field, {
+        label = label, min = range[1], max = range[2], step = 1, unit = "",
+        get = function() return ns.Windows.Config(i)[field] end,
+        set = function(v) ns.Windows.SetConfig(i, { [field] = v }) end,
+    })
+end
+
+local function windowRows(i)
+    return {
+        windowRow(i, "header", { type = "header", label = function() return L.OPT_WINDOW_N:format(i) end }),
+        windowRow(i, "mode", {
+            type = "select", label = "OPT_MODE",
+            choices = function()
+                local list = {}
+                for _, key in ipairs(ns.Windows.ModeKeys()) do
+                    list[#list + 1] = { label = ns.Windows.ModeLabel(key), value = key }
+                end
+                return list
+            end,
+            get = function() return ns.Windows.Mode(i) end,
+            set = function(v) ns.Windows.SetMode(i, v) end,
+        }),
+        windowRow(i, "view", {
+            type = "select", label = "OPT_SESSION",
+            choices = function()
+                return { { label = L.SESSION_CURRENT, value = "current" }, { label = L.SESSION_OVERALL, value = "overall" } }
+            end,
+            get = function() return ns.Windows.Config(i).view end,
+            set = function(v) ns.Windows.SetView(i, v) end,
+        }),
+        windowRow(i, "locked", {
+            type = "check", label = "OPT_LOCK",
+            get = function() return ns.Windows.Config(i).locked end,
+            set = function(v) ns.Windows.SetConfig(i, { locked = v }) end,
+        }),
+        windowNum(i, "width", "OPT_WIDTH"),
+        windowNum(i, "rows", "OPT_ROWS"),
+        i > 1 and windowRow(i, "close", { type = "buttons", buttons = {
+            { label = "MENU_CLOSE_WINDOW", width = 150, onClick = function() ns.Windows.Close(i) end },
+        } }) or nil,
+    }
+end
+
+local function windowsRows()
+    local rows = {
+        { type = "header", label = "OPT_WINDOWS" },
+        num("windowCount", "OPT_WINDOW_COUNT", ""),
+        check("locked", "OPT_LOCK"),
+        { type = "buttons", buttons = {
+            { label = "MENU_NEW_WINDOW", width = 150, onClick = function() ns.Windows.Add() end },
+        } },
+    }
+    for i = 1, Settings.RANGES.windowCount[2] do append(rows, windowRows(i)) end
+    return rows
+end
+
+local function barRows()
+    return {
+        { type = "header", label = "OPT_BARS" },
+        num("barHeight", "OPT_BAR_HEIGHT"),
+        num("barSpacing", "OPT_BAR_SPACING"),
+        media("barTexture", "OPT_BAR_TEXTURE", "statusbar"),
+        check("barClassColor", "OPT_BAR_CLASS_COLOR"),
+        visibleIf(colorRow("barColor", "OPT_BAR_COLOR", true), function() return not S("barClassColor") end),
+        num("barBgAlpha", "OPT_BAR_BG_ALPHA", "%"),
+        check("showIcon", "OPT_SHOW_ICON"),
+        check("showRank", "OPT_SHOW_RANK"),
+        check("animate", "OPT_ANIMATE"),
+        { type = "header", label = "OPT_COLUMNS" },
+        check("showTotal", "OPT_SHOW_TOTAL"),
+        check("showPerSecond", "OPT_SHOW_PERSEC"),
+        check("showPercent", "OPT_SHOW_PERCENT"),
+    }
+end
+
+-- Appearance: background, border, corners, shadow, fading.
+local function appearanceRows()
+    return {
+        { type = "header", label = "OPT_BACKGROUND" },
+        choice("bgMode", "OPT_BG_MODE", { "SOLID", "GRADIENT", "TEXTURE" }, "BG_"),
+        visibleIf(colorRow("bgColor", "OPT_BG_COLOR", true), function() return S("bgMode") ~= "TEXTURE" end),
+        visibleIf(media("bgTexture", "OPT_BG_TEXTURE", "background"), function() return S("bgMode") == "TEXTURE" end),
+        num("bgAlpha", "OPT_BG_ALPHA", "%"),
+        check("headerLine", "OPT_HEADER_LINE"),
+        { type = "header", label = "OPT_BORDER" },
+        choice("borderStyle", "OPT_BORDER_STYLE", { "GOLD", "FLAT", "NONE" }, "BORDER_"),
+        visibleIf(num("borderSize", "OPT_BORDER_SIZE"), function() return S("borderStyle") ~= "NONE" end),
+        visibleIf(colorRow("borderColor", "OPT_BORDER_COLOR"), function() return S("borderStyle") == "FLAT" end),
+        num("cornerRadius", "OPT_CORNER_RADIUS"),
+        { type = "header", label = "OPT_SHADOW" },
+        check("shadowEnabled", "OPT_SHADOW_SHOW"),
+        visibleIf(num("shadowSize", "OPT_SHADOW_SIZE"), function() return S("shadowEnabled") end),
+        visibleIf(num("shadowAlpha", "OPT_SHADOW_ALPHA", "%"), function() return S("shadowEnabled") end),
+        { type = "header", label = "OPT_FADE" },
+        num("fadeAlpha", "OPT_FADE_ALPHA", "%"),
+    }
+end
+
+local function textRows()
+    local rows = {}
+    for _, name in ipairs(Settings.TEXT_STYLES) do append(rows, textStyleRows(name, "STYLE_" .. name:upper())) end
+    return rows
+end
+
+local function threatRows()
+    return {
+        { type = "header", label = "OPT_THREAT" },
+        check("threatWarn", "OPT_THREAT_WARN"),
+        visibleIf(num("threatWarnPct", "OPT_THREAT_PCT", "%"), function() return S("threatWarn") end),
+        visibleIf(check("threatSound", "OPT_THREAT_SOUND"), function() return S("threatWarn") end),
+        check("showPets", "OPT_SHOW_PETS"),
     }
 end
 
@@ -109,6 +306,11 @@ end
 
 Window.PAGES = {
     { id = "general", label = "PAGE_GENERAL", rows = generalRows },
+    { id = "windows", label = "PAGE_WINDOWS", rows = windowsRows },
+    { id = "bars", label = "PAGE_BARS", rows = barRows },
+    { id = "appearance", label = "PAGE_APPEARANCE", rows = appearanceRows },
+    { id = "text", label = "PAGE_TEXT", rows = textRows },
+    { id = "threat", label = "PAGE_THREAT", rows = threatRows },
     { id = "profiles", label = "PAGE_PROFILES", rows = profileRows },
 }
 
