@@ -738,8 +738,22 @@ check("bar value", bar(1, 2)._value, 300)
 check("class colour", bar(1, 2)._barColor[1], 0.25)
 check("no class: bar colour", bar(1, 3)._barColor[3], 0.75)
 check("spec icon", bar(1, 2).icon._texture, 135932)
-check("class icon without a spec", bar(1, 1).icon._texture, "Interface\\Glues\\CharacterCreate\\UI-CharacterCreate-Classes")
-check("class icon coords", bar(1, 1).icon._texCoord[2], 0.25)
+check("class atlas without a spec", bar(1, 1).icon._atlas, "classicon-warrior")
+check("spec icon cropped", bar(1, 2).icon._texCoord[1], 0.08)
+check("no icon for a creature", bar(1, 3).icon:IsShown(), false)
+check("IconFor: spec", select(2, Windows.IconFor(135932, "MAGE")), 135932)
+check("IconFor: spec 0 -> class atlas", select(2, Windows.IconFor(0, "MAGE")), "classicon-mage")
+check("IconFor: secret spec -> class atlas", select(2, Windows.IconFor(M.Secret(5), "ROGUE")), "classicon-rogue")
+check("IconFor: nothing", Windows.IconFor(nil, ""), nil)
+check("IconFor: secret class", Windows.IconFor(nil, M.Secret("MAGE")), nil)
+local sMax, sVal = M.Secret(9), M.Secret(4)
+local fm, fv = Windows.FillArgs(sMax, sVal)
+check("FillArgs passes secrets untouched", rawequal(fm, sMax) and rawequal(fv, sVal), true)
+check("FillArgs nil", table.concat({ Windows.FillArgs(nil, nil) }, ","), "1,0")
+check("FillArgs non-positive scale", table.concat({ Windows.FillArgs(0, 2) }, ","), "1,2")
+check("FillArgs negative scale", (Windows.FillArgs(-3, 2)), 1)
+check("FillArgs plain", table.concat({ Windows.FillArgs(50, 20) }, ","), "50,20")
+check("value column width", bar(1, 1).value:GetWidth(), math.floor((220 - 8) * 0.45))
 check("bar texture", bar(1, 1)._barTexture, "Interface\\TargetingFrame\\UI-StatusBar")
 check("bar data for the tooltip", bar(1, 2).row.name, "Bob")
 check("empty text hidden", w1.empty:IsShown(), false)
@@ -1009,8 +1023,10 @@ grip:GetScript("OnMouseDown")(grip, "LeftButton")
 M.state.cursorX, M.state.cursorY = 1100, 400 - 2 * 19
 grip:GetScript("OnUpdate")(grip, 0.02)
 check("live width", w1:GetWidth(), 300)
+check("anchor kept while resizing", w1._lastPoint[1], "TOP")
 grip:GetScript("OnMouseUp")(grip, "LeftButton")
 check("resize: width", Windows.Config(1).width, 300)
+check("resize right: centre moves half the change right", Windows.Config(1).x, -10 + 40)
 check("resize: rows", Windows.Config(1).rows, rows0 + 2)
 check("resize: top edge kept", Windows.Config(1).point, "TOP")
 w1._rect = { 800, 400, 300, w1:GetHeight() }
@@ -1021,12 +1037,14 @@ M.state.cursorX = 750
 gl:GetScript("OnUpdate")(gl, 0.02)
 gl:GetScript("OnMouseUp")(gl, "LeftButton")
 check("left grip widens to the left", Windows.Config(1).width, 350)
+check("resize left: centre moves half the change left", Windows.Config(1).x, 30 - 25)
 gl:GetScript("OnMouseDown")(gl, "LeftButton")
 M.state.cursorX, M.state.cursorY = -5000, -5000
 gl:GetScript("OnUpdate")(gl, 0.02)
 gl:GetScript("OnMouseUp")(gl, "LeftButton")
 check("width clamped", Windows.Config(1).width, 600)
 check("rows clamped", Windows.Config(1).rows, 40)
+check("clamped width: centre from the clamped change", Windows.Config(1).x, 5 - 125)
 Windows.ToggleLock(1)
 M.state.cursorX, M.state.cursorY = 0, 0
 grip:GetScript("OnMouseDown")(grip, "LeftButton")
@@ -1136,6 +1154,77 @@ check("forever again", w1.header:GetHeight(), 24)
 check("forever: default bar height", S("barHeight"), 18)
 check("forever: rounded", w1.clip.radius, 6)
 Settings.ResetProfile()
+
+section("Windows: resize from the default anchor")
+Settings.ResetProfile()
+w1._rect = { 800, 400, 220, w1:GetHeight() }
+M.state.cursorX, M.state.cursorY = 1020, 400
+grip:GetScript("OnMouseDown")(grip, "LeftButton")
+check("CENTER default turns into TOP", Windows.Config(1).point, "TOP")
+check("TOP centre from the frame", Windows.Config(1).x, 800 + 110 - 960)
+M.state.cursorX = 1040
+grip:GetScript("OnUpdate")(grip, 0.02)
+grip:GetScript("OnMouseUp")(grip, "LeftButton")
+check("then grows", Windows.Config(1).width .. "," .. Windows.Config(1).x, "240," .. (800 + 110 - 960 + 10))
+Settings.ResetProfile()
+
+section("Windows: add keeps the global lock true only while all are locked")
+Windows.ToggleLock(1)
+check("one window locked: all locked", S("locked"), true)
+Windows.Add()
+check("a new unlocked window: not all locked", S("locked"), false)
+Settings.ResetProfile()
+
+section("Windows: threat warning flash")
+party({
+    player = { name = "Me", class = "MAGE", raw = 95, value = 1, self = true },
+    party1 = { name = "Tank", class = "WARRIOR", tank = true, raw = 100, value = 9 },
+})
+local samples, listReal = 0, Threat.List
+Threat.List = function(...) samples = samples + 1; return listReal(...) end
+M.state.combat = true
+Windows.Tick(5)
+check("warning checked without a threat window", samples, 1)
+local fl = Windows.FlashFrame()
+check("flash shown", fl ~= nil and fl:IsShown(), true)
+check("flash text", fl and txt(fl.text), "Threat: 95%")
+check("flash centred on the screen", fl and fl._lastPoint[2] == UIParent, true)
+Windows.Tick(1)
+check("flash fading", fl:GetAlpha() > 0 and fl:GetAlpha() < 1, true)
+Windows.Tick(2)
+check("flash gone after ~2.5 s", fl:IsShown(), false)
+Windows.Tick(0.2)
+check("no second flash while still above", fl:IsShown(), false)
+Windows.SetMode(1, "threat")
+samples = 0
+Windows.Tick(0.2)
+check("one sample shared with a threat window", samples, 1)
+Windows.SetMode(1, "damage")
+world.members.player.raw = 10
+Windows.Tick(0.2)
+world.members.player.raw = 95
+Windows.Tick(0.2)
+check("flashes again after dropping below", fl:IsShown(), true)
+Windows.Tick(5)
+M.Fire("PLAYER_TARGET_CHANGED")
+Windows.Tick(0.2)
+check("new target flashes again", fl:IsShown(), true)
+Settings.Set("threatWarn", false)
+samples = 0
+Windows.Tick(0.2)
+check("warning off: no sampling", samples, 0)
+Settings.Set("threatWarn", nil)
+world.target.attack = false
+samples = 0
+Windows.Tick(0.2)
+check("friendly target: no sampling", samples, 0)
+world.target.attack = true
+M.state.combat = false
+samples = 0
+Windows.Tick(0.2)
+check("out of combat: no sampling", samples, 0)
+Threat.List = listReal
+Windows.Tick(5)
 
 section("Windows: font re-layout")
 M.timers = {}

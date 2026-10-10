@@ -445,8 +445,6 @@ RAID_CLASS_COLORS = {
     ROGUE = { r = 1, g = 0.96, b = 0.41 }, PRIEST = { r = 1, g = 1, b = 1 },
     HUNTER = { r = 0.67, g = 0.83, b = 0.45 }, WARLOCK = { r = 0.53, g = 0.53, b = 0.93 },
 }
-CLASS_ICON_TCOORDS = { MAGE = { 0.25, 0.5, 0, 0.25 }, WARRIOR = { 0, 0.25, 0, 0.25 },
-    ROGUE = { 0.5, 0.75, 0, 0.25 }, PRIEST = { 0.5, 0.75, 0.25, 0.5 } }
 
 -- MenuUtil (modern client menus): every generated menu is recorded in
 -- M.menus as a tree of descriptions; tests find an entry by its text and

@@ -28,17 +28,26 @@ local LOOKS = {
     COMPACT = { header = 18, button = 12, icon = 10, pad = 0, glow = false, titleDelta = 3, allButtons = false },
 }
 local WIDTH_RANGE, ROWS_RANGE, POS_RANGE = { 120, 600 }, { 1, 40 }, { -4000, 4000 }
-local GRIP = 12
+-- Resize grips: our own resize art, a little in from the corners.
+local GRIP_SIZE, GRIP_INSET = 14, 2
+-- Bar text layout: values get a fixed share of the bar on the right, the
+-- name the rest (after the icon).
+local TEXT_INSET, ICON_GAP, VALUE_SHARE = 5, 4, 0.45
+local WARN_EDGE = 2
+local WARN_COLOR = { 1, 0.2, 0.15, 0.9 }
+-- The threat warning's flash text: seconds shown in full, then fading.
+local FLASH_HOLD, FLASH_FADE = 0.5, 2
 local AFTER_COMBAT = 3   -- seconds of redraws after combat (amounts turn readable)
 local FONT_RETRY = 0.5   -- the client loads a font file lazily: lay out again
 local ANIM_RATE = 10     -- share of the remaining distance per second
-local CLASS_ICONS = "Interface\\Glues\\CharacterCreate\\UI-CharacterCreate-Classes"
+-- Spec icons are square ability icons: cut off their baked-in border.
+local SPEC_CROP = { 0.08, 0.92, 0.08, 0.92 }
 local ACCENT = { 0.31, 0.76, 0.97 }
 local IDLE = { 0.73, 0.64, 0.48 }
 local HOVER = { 1, 0.88, 0.54 }
 local GREY = { 0.6, 0.6, 0.6 }
 -- Per second of counts keeps a decimal even when secret.
-local PRECISE = { interrupts = true, dispels = true, deaths = true }
+local PRECISE = { interrupts = true, dispels = true }
 local POINTS = { CENTER = true, TOP = true, BOTTOM = true, LEFT = true, RIGHT = true,
                  TOPLEFT = true, TOPRIGHT = true, BOTTOMLEFT = true, BOTTOMRIGHT = true }
 
@@ -254,15 +263,18 @@ local function layoutBars(f, lk)
         bar:ClearAllPoints()
         bar:SetPoint("TOPLEFT", f.body, "TOPLEFT", lk.pad, -(lk.pad + (k - 1) * (barH + spacing)))
         bar:SetStatusBarTexture(texture)
-        bar.icon:SetSize(barH, barH)
+        local iconSize = math.max(4, barH - 2)
+        bar.icon:SetSize(iconSize, iconSize)
         bar.icon:SetShown(showIcon and true or false)
+        local valueWidth = math.floor(inner * VALUE_SHARE)
+        bar.value:SetWidth(valueWidth)
         bar.name:ClearAllPoints()
         if showIcon then
-            bar.name:SetPoint("LEFT", bar.icon, "RIGHT", 3, 0)
+            bar.name:SetPoint("LEFT", bar, "LEFT", 1 + iconSize + ICON_GAP, 0)
         else
-            bar.name:SetPoint("LEFT", bar, "LEFT", 4, 0)
+            bar.name:SetPoint("LEFT", bar, "LEFT", TEXT_INSET, 0)
         end
-        bar.name:SetPoint("RIGHT", bar.value, "LEFT", -4, 0)
+        bar.name:SetPoint("RIGHT", bar, "RIGHT", -(TEXT_INSET + valueWidth + ICON_GAP), 0)
         Media.ApplyText(bar.name, nameStyle)
         Media.ApplyText(bar.value, valueStyle)
         -- A font string redraws only for a different text: the next render
@@ -281,7 +293,7 @@ local function layout(i)
     local barH, spacing = S("barHeight"), S("barSpacing")
     f:SetWidth(cfg.width)
     f:SetHeight(lk.header + 2 * lk.pad + cfg.rows * barH + (cfg.rows - 1) * spacing)
-    if not (f.moving or f.resizing) then place(f) end
+    if not f.moving then place(f) end
     layoutHeader(f, lk)
     layoutBars(f, lk)
     f.grips.left:SetShown(not cfg.locked)
@@ -311,23 +323,27 @@ end
 
 -- Rows ------------------------------------------------------------------------------
 
+-- What a row's icon shows: "file", the spec icon's file ID (NeverSecret,
+-- 0 when the client has none), or "atlas", the class atlas the client's own
+-- meter uses (GetClassAtlas: "classicon-<class>"); nil for creatures.
+function Windows.IconFor(specIcon, class)
+    if not issecret(specIcon) and type(specIcon) == "number" and specIcon > 0 then return "file", specIcon end
+    if not issecret(class) and type(class) == "string" and class ~= "" then
+        return "atlas", "classicon-" .. class:lower()
+    end
+end
+
 local function setIcon(bar, specIcon, class)
     if not S("showIcon") then return end
+    local kind, what = Windows.IconFor(specIcon, class)
     local icon = bar.icon
-    if not issecret(specIcon) and type(specIcon) == "number" and specIcon > 0 then
-        icon:SetTexture(specIcon)
-        icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-        icon:Show()
-        return
+    if kind == "file" then
+        icon:SetTexture(what)
+        icon:SetTexCoord(SPEC_CROP[1], SPEC_CROP[2], SPEC_CROP[3], SPEC_CROP[4])
+    elseif kind == "atlas" then
+        icon:SetAtlas(what) -- sets its own texture coordinates
     end
-    local coords = not issecret(class) and type(class) == "string" and CLASS_ICON_TCOORDS and CLASS_ICON_TCOORDS[class]
-    if coords then
-        icon:SetTexture(CLASS_ICONS)
-        icon:SetTexCoord(coords[1], coords[2], coords[3], coords[4])
-        icon:Show()
-    else
-        icon:Hide()
-    end
+    icon:SetShown(kind ~= nil)
 end
 
 -- "a", "a (b)", "a (b, c)": the first column, the rest in brackets. The
@@ -353,15 +369,36 @@ end
 
 -- The fill: secret values go to the bar as they are; plain ones may move
 -- toward their value (Tick).
+-- The scale and value for a bar. A secret is passed on untouched (no
+-- truthiness, no comparison); a missing or non-positive scale is 1, a
+-- missing value 0.
+function Windows.FillArgs(max, value)
+    local m, v
+    if issecret(max) then
+        m = max
+    elseif type(max) == "number" and max > 0 then
+        m = max
+    else
+        m = 1
+    end
+    if issecret(value) then
+        v = value
+    elseif type(value) == "number" then
+        v = value
+    else
+        v = 0
+    end
+    return m, v
+end
+
 local function setFill(bar, max, value)
+    max, value = Windows.FillArgs(max, value)
     if issecret(max) or issecret(value) then
         bar.target, bar.current, bar.wasSecret = nil, nil, true
-        bar:SetMinMaxValues(0, max or 1)
-        bar:SetValue(value or 0)
+        bar:SetMinMaxValues(0, max)
+        bar:SetValue(value)
         return
     end
-    max = (type(max) == "number" and max > 0) and max or 1
-    value = type(value) == "number" and value or 0
     bar.maxValue = max
     bar:SetMinMaxValues(0, max)
     -- Out of combat a bar that showed a secret value starts where it is.
@@ -441,10 +478,69 @@ local function renderMeter(f, s, mode, view)
     end
 end
 
--- One threat sample (and warning check) per tick for every threat window.
+-- Threat warning flash ------------------------------------------------------------
+
+-- A big red line in the middle of the screen when the warning starts; it
+-- stays briefly, then fades. Ours, on UIParent (Blizzard's raid warning
+-- frame is left alone).
+local flash, flashLeft, warned = nil, 0, false
+
+local function flashFrame()
+    if flash then return flash end
+    flash = CreateFrame("Frame", "ForeverCombatMeterThreatFlash", UIParent)
+    flash:SetFrameStrata("HIGH")
+    flash:SetSize(640, 40)
+    flash:SetPoint("CENTER", UIParent, "CENTER", 0, 220)
+    flash.text = flash:CreateFontString(nil, "OVERLAY")
+    flash.text:SetPoint("CENTER")
+    flash.text:SetFont(Media.FontPath("Friz Quadrata"), 26, "OUTLINE")
+    flash.text:SetTextColor(1, 0.25, 0.2)
+    flash:Hide()
+    return flash
+end
+
+function Windows.FlashFrame() return flash end
+
+function Windows.Flash(text)
+    local f = flashFrame()
+    f.text:SetText(text)
+    f:SetAlpha(1)
+    f:Show()
+    flashLeft = FLASH_HOLD + FLASH_FADE
+end
+
+local function fadeFlash(elapsed)
+    if not (flash and flash:IsShown()) then return end
+    flashLeft = flashLeft - elapsed
+    if flashLeft <= 0 then
+        flash:Hide()
+    else
+        flash:SetAlpha(math.min(1, flashLeft / FLASH_FADE))
+    end
+end
+
+local function ownPct(list)
+    for _, row in ipairs(list.rows) do
+        if row.isPlayer and not tostring(row.unit):find("pet", 1, true) then return row.pct end
+    end
+end
+
+-- One threat sample per tick, shared by every threat window and the
+-- warning; the flash shows when the warning starts (not on every sample).
 local function sampleThreat()
     local list = Threat.List()
-    return { list = list, warning = Threat.CheckWarning(list) }
+    local warning = Threat.CheckWarning(list) and true or false
+    if warning and not warned then
+        Windows.Flash(L.THREAT_FLASH:format(string.format("%.0f", ownPct(list) or 0)))
+    end
+    warned = warning
+    return { list = list, warning = warning }
+end
+
+-- The warning runs without a threat window too: in combat with an
+-- attackable target.
+local function wantsWarning()
+    return S("threatWarn") and InCombatLockdown() and UnitExists("target") and UnitCanAttack("player", "target")
 end
 
 local function threatValues(row)
@@ -521,36 +617,37 @@ local function rowsFor(height)
     return clamp((height - lk.header - 2 * lk.pad + spacing) / (barH + spacing), ROWS_RANGE)
 end
 
+-- Resizing keeps the window's own anchor: the top edge's centre (TOP, x, y).
+-- The width grows around that centre, so x moves by half the change toward
+-- the dragged side and the opposite edge stays put; rows grow downward from
+-- the fixed top. Done by hand from the cursor (StartSizing fires no
+-- OnSizeChanged on this client).
 local function followCursor(f)
     local r = f.resizing
     if not r then return end
     local x, y = cursor()
-    local dx, dy = x - r.x0, y - r.y0
-    local width = clamp(r.w0 + (r.fromLeft and -dx or dx), WIDTH_RANGE)
-    local rows = rowsFor(r.h0 - dy)
-    if width ~= r.width or rows ~= r.rows then
-        r.width, r.rows = width, rows
-        write(f.index, { width = width, rows = rows })
-        layout(f.index)
-        render(f.index)
-    end
+    local side = r.fromLeft and -1 or 1
+    local width = clamp(r.width0 + side * (x - r.cursorX), WIDTH_RANGE)
+    local rows = rowsFor(r.height0 - (y - r.cursorY))
+    if width == r.width and rows == r.rows then return end
+    r.width, r.rows = width, rows
+    local centre = r.centre0 + side * (width - r.width0) / 2
+    write(f.index, { width = width, rows = rows, x = math.floor(centre + 0.5) })
+    layout(f.index)
+    render(f.index)
 end
 
--- By hand: StartSizing fires no OnSizeChanged on this client. The top
--- corner opposite the grip stays where it is.
 local function startResize(f, grip, fromLeft)
     if f.cfg.locked then return end
-    local left, right, top = f:GetLeft(), f:GetRight(), f:GetTop()
-    if not left then return end
-    local x, y = cursor()
-    f.resizing = { fromLeft = fromLeft, x0 = x, y0 = y, w0 = f:GetWidth(), h0 = f:GetHeight(),
-                   width = f.cfg.width, rows = f.cfg.rows }
-    f:ClearAllPoints()
-    if fromLeft then
-        f:SetPoint("TOPRIGHT", UIParent, "BOTTOMLEFT", right, top)
-    else
-        f:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
+    -- A window still on another anchor (the CENTER default) moves to TOP first.
+    if f.cfg.point ~= "TOP" then
+        savePosition(f)
+        if f.cfg.point ~= "TOP" then return end
+        place(f)
     end
+    local x, y = cursor()
+    f.resizing = { fromLeft = fromLeft, cursorX = x, cursorY = y, width0 = f.cfg.width, height0 = f:GetHeight(),
+                   centre0 = f.cfg.x, width = f.cfg.width, rows = f.cfg.rows }
     grip:SetScript("OnUpdate", function() followCursor(f) end)
 end
 
@@ -558,30 +655,39 @@ local function stopResize(f, grip)
     grip:SetScript("OnUpdate", nil)
     if not f.resizing then return end
     f.resizing = nil
-    savePosition(f)
     Settings.Changed("windows")
     layout(f.index)
 end
 
+local function paintGrip(grip, hover)
+    grip.art:SetVertexColor(ACCENT[1], ACCENT[2], ACCENT[3], hover and 1 or 0.55)
+end
+
 local function newGrip(f, fromLeft)
     local grip = CreateFrame("Button", nil, f)
-    grip:SetSize(GRIP, GRIP)
-    grip:SetFrameLevel(f:GetFrameLevel() + 20)
-    grip:SetPoint(fromLeft and "BOTTOMLEFT" or "BOTTOMRIGHT", f, fromLeft and "BOTTOMLEFT" or "BOTTOMRIGHT", 0, 0)
-    grip.icon = grip:CreateTexture(nil, "OVERLAY")
-    grip.icon:SetAllPoints()
-    grip.icon:SetTexture(Media.Icon("Resize"))
-    grip.icon:SetVertexColor(ACCENT[1], ACCENT[2], ACCENT[3])
-    if fromLeft then grip.icon:SetTexCoord(1, 0, 0, 1) end
+    grip:SetSize(GRIP_SIZE, GRIP_SIZE)
+    grip:SetFrameLevel(f:GetFrameLevel() + 10)
+    local corner = fromLeft and "BOTTOMLEFT" or "BOTTOMRIGHT"
+    grip:SetPoint(corner, f, corner, fromLeft and GRIP_INSET or -GRIP_INSET, GRIP_INSET)
+    grip.art = grip:CreateTexture(nil, "OVERLAY")
+    grip.art:SetAllPoints()
+    grip.art:SetTexture(Media.Icon("Resize"))
+    -- The art points to the bottom right; mirrored for the left corner.
+    if fromLeft then grip.art:SetTexCoord(1, 0, 0, 1) end
+    paintGrip(grip, false)
     grip:SetScript("OnMouseDown", function() startResize(f, grip, fromLeft) end)
     grip:SetScript("OnMouseUp", function() stopResize(f, grip) end)
     grip:SetScript("OnHide", function() stopResize(f, grip) end)
     grip:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+        paintGrip(self, true)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:SetText(L.TIP_RESIZE, 1, 1, 1, 1, true)
         GameTooltip:Show()
     end)
-    grip:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    grip:SetScript("OnLeave", function(self)
+        paintGrip(self, false)
+        GameTooltip:Hide()
+    end)
     return grip
 end
 
@@ -769,6 +875,27 @@ local function createHeader(f)
     h:SetScript("OnMouseWheel", function(_, delta) Windows.CycleMode(i, delta < 0 and 1 or -1) end)
 end
 
+-- The threat warning on a bar: a red outline just inside its edges.
+local function newWarningOutline(bar)
+    local outline = CreateFrame("Frame", nil, bar)
+    outline:SetAllPoints(bar)
+    outline:SetFrameLevel(bar:GetFrameLevel() + 2)
+    local c = WARN_COLOR
+    local edges = {
+        { "TOPLEFT", "TOPRIGHT", nil, WARN_EDGE }, { "BOTTOMLEFT", "BOTTOMRIGHT", nil, WARN_EDGE },
+        { "TOPLEFT", "BOTTOMLEFT", WARN_EDGE, nil }, { "TOPRIGHT", "BOTTOMRIGHT", WARN_EDGE, nil },
+    }
+    for _, e in ipairs(edges) do
+        local t = outline:CreateTexture(nil, "OVERLAY")
+        t:SetColorTexture(c[1], c[2], c[3], c[4])
+        t:SetPoint(e[1])
+        t:SetPoint(e[2])
+        if e[3] then t:SetWidth(e[3]) else t:SetHeight(e[4]) end
+    end
+    outline:Hide()
+    return outline
+end
+
 -- Task 5 fills these (tooltip, breakdown): function(bar, windowIndex).
 Windows.BarScripts = {}
 
@@ -779,19 +906,19 @@ function Windows.NewBar(f, k)
     bar:SetValue(0)
     bar.bg = bar:CreateTexture(nil, "BACKGROUND")
     bar.bg:SetAllPoints()
+    -- Icon one pixel in from the left edge, inside the bar.
     bar.icon = bar:CreateTexture(nil, "ARTWORK")
-    bar.icon:SetPoint("LEFT", bar, "LEFT", 0, 0)
+    bar.icon:SetPoint("LEFT", bar, "LEFT", 1, 0)
+    -- Values: a right-aligned column of fixed width (layoutBars); the name
+    -- takes what is left of it.
     bar.value = bar:CreateFontString(nil, "OVERLAY")
-    bar.value:SetPoint("RIGHT", bar, "RIGHT", -3, 0)
+    bar.value:SetPoint("RIGHT", bar, "RIGHT", -TEXT_INSET, 0)
     bar.value:SetJustifyH("RIGHT")
     bar.value:SetWordWrap(false)
     bar.name = bar:CreateFontString(nil, "OVERLAY")
     bar.name:SetJustifyH("LEFT")
     bar.name:SetWordWrap(false)
-    bar.glow = bar:CreateTexture(nil, "OVERLAY")
-    bar.glow:SetAllPoints()
-    bar.glow:SetColorTexture(1, 0.1, 0.1, 0.35)
-    bar.glow:Hide()
+    bar.glow = newWarningOutline(bar)
     bar:EnableMouse(true)
     bar:EnableMouseWheel(true)
     bar:SetScript("OnMouseWheel", function(_, delta) Windows.Scroll(f.index, delta) end)
@@ -937,6 +1064,8 @@ function Windows.Add()
     end
     state[n + 1] = nil
     Settings.Set("windowCount", n + 1)
+    -- The new window is unlocked: "all locked" may no longer be true.
+    syncGlobalLock()
     return n + 1
 end
 
@@ -962,7 +1091,9 @@ function Windows.Close(i)
 end
 
 -- Picking a style in the options: COMPACT also takes the compact bar
--- height and spacing once (they stay editable); FOREVER the defaults.
+-- height and spacing once (they stay editable). FOREVER deliberately resets
+-- bar height and spacing to their defaults (18 / 1), so switching back gives
+-- the quest-log look again.
 function Windows.ApplyStylePreset(style)
     if style == "COMPACT" then
         Settings.SetMany({ style = "COMPACT", barHeight = 14, barSpacing = 0 })
@@ -1013,11 +1144,13 @@ function Windows.Tick(elapsed)
             fade(f)
         end
     end
+    fadeFlash(elapsed)
     burstLeft = burstLeft - elapsed
     tickWait = tickWait + elapsed
     if tickWait + 1e-9 < S("refresh") then return end
     tickWait = 0
     local burst, sample = burstLeft > 0, nil
+    if wantsWarning() then sample = sampleThreat() end
     for i = 1, count do
         local f = frames[i]
         if f and f:IsShown() then
@@ -1046,6 +1179,8 @@ for _, event in ipairs({ "DAMAGE_METER_CURRENT_SESSION_UPDATED", "DAMAGE_METER_C
     "ADDON_RESTRICTION_STATE_CHANGED", "PLAYER_REGEN_DISABLED", "PLAYER_TARGET_CHANGED" }) do
     ns.On(event, markAll)
 end
+-- A new target may warn (and flash) again.
+ns.On("PLAYER_TARGET_CHANGED", function() warned = false end)
 -- Amounts can stay secret for a moment after combat: redraw for a while.
 ns.On("PLAYER_REGEN_ENABLED", function()
     burstLeft = AFTER_COMBAT
