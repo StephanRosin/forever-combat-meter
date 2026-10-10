@@ -124,6 +124,8 @@ local ENUMS = {
     style = { FOREVER = true, COMPACT = true },
     borderStyle = { NONE = true, FLAT = true, GOLD = true },
     bgMode = { SOLID = true, GRADIENT = true, TEXTURE = true },
+    reportChannel = { AUTO = true, SAY = true, PARTY = true, RAID = true, INSTANCE_CHAT = true, GUILD = true,
+                      WHISPER = true },
 }
 for _, name in ipairs(Settings.TEXT_STYLES) do
     ENUMS[name .. "Flag"] = { [""] = true, OUTLINE = true, THICKOUTLINE = true, SHADOW = true }

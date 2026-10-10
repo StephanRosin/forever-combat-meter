@@ -31,13 +31,31 @@ local function setWindows(n)
     ns.Windows.SetCount(n)
 end
 
+-- /fcm report [n] [channel] [name]: a given channel is stored as the last
+-- chosen one; without one the stored channel is used.
+local function report(args)
+    local n, k = tonumber(args[1]), 1
+    if n then k = 2 end
+    local channel, target
+    if args[k] then
+        channel = ns.Report.ParseChannel(args[k])
+        if not channel then
+            ns.Print(L.MSG_USAGE)
+            return
+        end
+        target = args[k + 1]
+        ns.Report.Choose(channel, target)
+    end
+    ns.Report.Window(1, n, channel, target)
+end
+
 local COMMANDS = {
     [""] = function() ns.Window.Toggle() end,
     lock = function() Settings.SetLocked(true); ns.Print(L.MSG_LOCKED) end,
     unlock = function() Settings.SetLocked(false); ns.Print(L.MSG_UNLOCKED) end,
     mode = setMode,
     windows = function(args) setWindows(tonumber(args[1])) end,
-    report = function(args) ns.Report.Window(1, tonumber(args[1])) end,
+    report = report,
     reset = function() ns.Windows.AskReset() end,
     debug = function(args)
         if args[1] == "icon" then ns.Print(ns.Windows.IconDebug()) else ns.Print(L.MSG_USAGE) end

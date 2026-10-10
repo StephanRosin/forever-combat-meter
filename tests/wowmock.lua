@@ -476,6 +476,8 @@ local function newMenu()
     function d:CreateRadio(t, isSel, setSel, data) return add("radio", t, isSel, setSel, data) end
     function d:CreateCheckbox(t, isSel, setSel, data) return add("checkbox", t, isSel, setSel, data) end
     function d:SetScrollMode() end
+    function d:SetEnabled(v) self.enabled = v end
+    function d:SetTooltip(fn) self.tooltip = fn end
     return d
 end
 MenuUtil = {

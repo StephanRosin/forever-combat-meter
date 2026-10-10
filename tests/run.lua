@@ -2361,10 +2361,10 @@ Settings.ResetProfile()
 section("Gear menu report, slash commands")
 local calls = {}
 local realReport = ns.Report.Window
-ns.Report.Window = function(i, n) calls[#calls + 1] = { i, n } end
+ns.Report.Window = function(i, n, ch, t) calls[#calls + 1] = { i, n, ch, t } end
 Windows.OpenMenu(1, Windows.Frame(1).header)
-M.MenuClick(M.MenuFind(M.LastMenu(), "Report"))
-check("menu: report", calls[1] and (calls[1][1] .. "," .. calls[1][2]) or "none", "1,5")
+M.MenuClick(M.MenuFind(M.MenuFind(M.LastMenu(), "Report"), "Automatic"))
+check("menu: report", calls[1] and (calls[1][1] .. "," .. calls[1][2] .. "," .. calls[1][3]) or "none", "1,5,AUTO")
 local function slash(msg) M.chat = {}; SlashCmdList["FOREVERCOMBATMETER"](msg) end
 slash("report")
 check("/fcm report", calls[2] and (calls[2][1] .. "," .. tostring(calls[2][2])) or "none", "1,nil")
@@ -2404,6 +2404,217 @@ M.popups = {}
 slash("reset")
 check("/fcm reset asks", M.popups[#M.popups] and M.popups[#M.popups].which, "FOREVERCOMBATMETER_RESET")
 Settings.ResetProfile()
+
+section("Report channels")
+do
+    local Report, Detail = ns.Report, ns.Detail
+    Settings.ResetProfile()
+    M.state.combat, M.state.group, M.state.instanceGroup, M.state.instance = false, false, false, nil
+    world.raid = false
+    local guild = false
+    IsInGuild = function() return guild end
+    local tgt = nil   -- { name, realm, player, friend }
+    local realUnitExists, realUnitName = UnitExists, UnitName
+    UnitExists = function(u) if u == "target" then return tgt ~= nil end return realUnitExists(u) end
+    UnitName = function(u) if u == "target" then return tgt.name, tgt.realm end return realUnitName(u) end
+    UnitIsPlayer = function(u) return u == "target" and tgt ~= nil and tgt.player end
+    UnitIsFriend = function(_, u) return u == "target" and tgt ~= nil and tgt.friend end
+    local out = {}
+    C_ChatInfo = { SendChatMessage = function(msg, chatType, lang, target)
+        out[#out + 1] = { msg = msg, chatType = chatType, lang = lang, target = target } end }
+    local function drain() for _ = 1, 50 do if Report.Pending() == 0 and #M.timers == 0 then return end M.RunTimers() end end
+    local function reset() drain(); out = {}; M.sent = {}; M.chat = {}; M.popups = {} end
+
+    local function sp(id, total) return { spellID = id, totalAmount = total, amountPerSecond = 1, creatureName = "" } end
+    M.dm.byType[CUR] = { [T.DamageDone] = { totalAmount = 2000, combatSources = {
+        source("Bob", "Player-2", 300, 30, { classFilename = "MAGE", spells = { sp(133, 100), sp(116, 200) } }),
+        source("Me", "Player-1-0001", 1500, 25, { isLocalPlayer = true, spells = { sp(78, 1500) } }) } } }
+    Windows.SetMode(1, "damage")
+    Windows.Refresh(1)
+
+    check("default channel", S("reportChannel"), "AUTO")
+    check("stored channel falls back to AUTO", (function() ns.DB().reportChannel = "BOGUS"; local c = Report.StoredChannel(); ns.DB().reportChannel = nil; return c end)(), "AUTO")
+
+    local function reportMenu()
+        Windows.OpenMenu(1, Windows.Frame(1).header)
+        return M.MenuFind(M.LastMenu(), "Report")
+    end
+    local function entry(text) return M.MenuFind(reportMenu(), text) end
+    local function enabled(text) local e = entry(text); return e ~= nil and e.enabled ~= false end
+    local function hint(text)
+        local e, got = entry(text), nil
+        if e and e.tooltip then e.tooltip({ AddLine = function(_, t) got = t end }) end
+        return got
+    end
+
+    -- Entries and their states
+    check("menu entries", M.MenuTexts(reportMenu()), "Automatic,Say,Party,Raid,Instance,Guild,Whisper\226\128\166")
+    check("solo: automatic enabled", enabled("Automatic"), true)
+    check("solo: say disabled outside an instance", enabled("Say"), false)
+    check("solo: say hint", hint("Say"), ns.L.REPORT_HINT_SAY)
+    check("solo: party disabled", enabled("Party"), false)
+    check("solo: party hint", hint("Party"), ns.L.REPORT_HINT_GROUP)
+    check("solo: raid disabled", enabled("Raid"), false)
+    check("solo: instance disabled", enabled("Instance"), false)
+    check("solo: guild disabled", enabled("Guild"), false)
+    check("solo: guild hint", hint("Guild"), ns.L.REPORT_HINT_GUILD)
+    check("solo: whisper enabled", enabled("Whisper\226\128\166"), true)
+    M.state.instance = { kind = "party", name = "Dungeon" }
+    check("instance: say enabled", enabled("Say"), true)
+    M.state.instance = nil
+    M.state.group = true
+    check("party: party enabled", enabled("Party"), true)
+    check("party: raid still disabled", enabled("Raid"), false)
+    world.raid = true
+    check("raid: raid enabled", enabled("Raid"), true)
+    world.raid, M.state.group = false, false
+    M.state.instanceGroup = true
+    check("finder group: instance enabled", enabled("Instance"), true)
+    check("finder group: party disabled", enabled("Party"), false)
+    M.state.instanceGroup = false
+    guild = true
+    check("guild: enabled", enabled("Guild"), true)
+
+    -- Picking a channel stores it and sends there
+    reset()
+    M.MenuClick(entry("Guild"))
+    drain()
+    check("guild: stored", S("reportChannel"), "GUILD")
+    check("guild: sent (header + both rows)", #out, 3)
+    check("guild: chat type", out[1] and out[1].chatType, "GUILD")
+    check("guild: header", out[1] and out[1].msg, "Forever Combat Meter: Damage \194\183 Current")
+    check("menu: stored entry checked", entry("Guild").isSelected("GUILD"), true)
+    check("menu: other entries not checked", entry("Automatic").isSelected("AUTO"), false)
+    -- The stored channel is used by /fcm report and the panel's right click
+    reset()
+    SlashCmdList["FOREVERCOMBATMETER"]("report 2")
+    drain()
+    check("/fcm report: stored channel", out[1] and out[1].chatType, "GUILD")
+    check("/fcm report 2: lines", #out, 3)
+    reset()
+    local bob
+    for k = 1, 2 do if Windows.Frame(1).bars[k].row.guid == "Player-2" then bob = Windows.Frame(1).bars[k].row end end
+    Detail.Open(1, bob)
+    local header = Detail.Frame().header
+    header:GetScript("OnClick")(header, "RightButton")
+    drain()
+    check("panel right click: stored channel", out[1] and out[1].chatType, "GUILD")
+    Detail.Close()
+    -- A stored channel that does not work now is refused with a reason
+    guild = false
+    reset()
+    check("unusable stored channel: refused", Report.Window(1, 2), false)
+    check("unusable stored channel: nothing sent", #out, 0)
+    check("unusable stored channel: says why", (M.Reveal(M.chat[1] or "")):find("Guild", 1, true) ~= nil, true)
+
+    -- Whisper: a friendly player target is whispered directly
+    reset()
+    tgt = { name = "Ann", realm = nil, player = true, friend = true }
+    check("whisper entry names the target", entry("Whisper Ann") ~= nil, true)
+    M.MenuClick(entry("Whisper Ann"))
+    drain()
+    check("whisper target: stored channel", S("reportChannel"), "WHISPER")
+    check("whisper target: stored name", S("reportTarget"), "Ann")
+    check("whisper target: chat type", out[1] and out[1].chatType, "WHISPER")
+    check("whisper target: to the target", out[1] and out[1].target, "Ann")
+    check("whisper target: no popup", #M.popups, 0)
+    tgt = { name = "Ann", realm = "Other", player = true, friend = true }
+    check("whisper entry with realm", entry("Whisper Ann-Other") ~= nil, true)
+    tgt = { name = "Ogre", player = false, friend = false }
+    check("hostile npc: popup entry", entry("Whisper\226\128\166") ~= nil, true)
+    tgt = { name = M.Secret("Ann"), player = true, friend = true }
+    check("secret target name: popup entry, no error", (pcall(reportMenu)) and entry("Whisper\226\128\166") ~= nil, true)
+    tgt = nil
+    -- Otherwise a popup asks for the name
+    reset()
+    M.MenuClick(entry("Whisper\226\128\166"))
+    check("whisper: popup", M.popups[1] and M.popups[1].which, "FOREVERCOMBATMETER_WHISPER")
+    check("whisper: nothing sent yet", #out, 0)
+    local dialog = StaticPopupDialogs.FOREVERCOMBATMETER_WHISPER
+    check("whisper popup: edit box", dialog.hasEditBox, true)
+    check("whisper popup: maxLetters", dialog.maxLetters, 48)
+    local box = { text = "", max = 255 }
+    function box:SetMaxLetters(n) self.max = n end
+    function box:SetText(t) self.text = t end
+    function box:GetText() return self.text end
+    function box:HighlightText() end
+    function box:SetFocus() end
+    local popup = { editBox = box }
+    dialog.OnShow(popup)
+    check("whisper popup: limit set explicitly on show", box.max, 48)
+    check("whisper popup: prefilled with the last name", box.text, "Ann")
+    box.text = "  Cid-Realm  "
+    dialog.OnAccept(popup)
+    drain()
+    check("whisper popup: sent to the typed name", out[1] and out[1].target, "Cid-Realm")
+    check("whisper popup: name stored", S("reportTarget"), "Cid-Realm")
+    dialog.OnHide(popup)
+    check("whisper popup: shared box limit given back", box.max, 0)
+    -- The stored name is used without asking
+    reset()
+    SlashCmdList["FOREVERCOMBATMETER"]("report 1")
+    drain()
+    check("stored whisper: no popup", #M.popups, 0)
+    check("stored whisper: to the stored name", out[1] and out[1].target, "Cid-Realm")
+    -- Whisper without any stored name: the popup
+    reset()
+    Settings.Set("reportTarget", "")
+    SlashCmdList["FOREVERCOMBATMETER"]("report 1")
+    check("whisper without a name: popup", M.popups[1] and M.popups[1].which, "FOREVERCOMBATMETER_WHISPER")
+    dialog.OnHide(popup)
+    -- /fcm report [n] [channel] [name]
+    reset()
+    SlashCmdList["FOREVERCOMBATMETER"]("report 1 whisper Dee")
+    drain()
+    check("/fcm report 1 whisper Dee", out[1] and (out[1].chatType .. ":" .. tostring(out[1].target)), "WHISPER:Dee")
+    check("/fcm report: channel stored", S("reportTarget"), "Dee")
+    reset()
+    SlashCmdList["FOREVERCOMBATMETER"]("report auto")
+    drain()
+    check("/fcm report auto: stored", S("reportChannel"), "AUTO")
+    check("/fcm report auto: printed locally when solo", #out, 0)
+    reset()
+    SlashCmdList["FOREVERCOMBATMETER"]("report 2 nowhere")
+    check("/fcm report bad channel: usage", M.chat[1] ~= nil and M.chat[1]:find("/fcm", 1, true) ~= nil, true)
+    check("/fcm report bad channel: nothing stored", S("reportChannel"), "AUTO")
+    -- Same secret refusal on every channel
+    Settings.Set("reportChannel", "WHISPER")
+    Settings.Set("reportTarget", "Dee")
+    M.state.combat = true
+    Windows.Refresh(1)
+    reset()
+    local okW, resW = pcall(Report.Window, 1, 2)
+    check("secret whisper: raises nothing", okW, true)
+    check("secret whisper: refused", resW, false)
+    check("secret whisper: nothing sent", #out, 0)
+    check("secret whisper: no popup", #M.popups, 0)
+    M.state.combat = false
+    Windows.Refresh(1)
+    -- Options: channel select and whisper name on the General page
+    local rows = {}
+    for _, page in ipairs(ns.Window.PAGES) do
+        for _, r in ipairs(page.rows and page.rows() or {}) do if r.key then rows[r.key] = r end end
+    end
+    check("options: channel select", rows.reportChannel and rows.reportChannel.type, "select")
+    check("options: channel choices", rows.reportChannel and #rows.reportChannel.choices(), 7)
+    rows.reportChannel.set("PARTY")
+    check("options: channel set", S("reportChannel"), "PARTY")
+    check("options: whisper name hidden unless whisper", rows.reportTarget.visible(), false)
+    rows.reportChannel.set("WHISPER")
+    check("options: whisper name shown for whisper", rows.reportTarget.visible(), true)
+    rows.reportTarget.set("  Eve ")
+    check("options: whisper name trimmed", S("reportTarget"), "Eve")
+    -- Import keeps only known channels
+    Settings.ResetProfile()
+    check("import: bad channel skipped", ns.Share.Import("FCM1:ts13:reportChannels5:SHOUT}"), true)
+    check("import: bad channel not stored", ns.DB().reportChannel, nil)
+    ns.Share.Import("FCM1:ts13:reportChannels5:GUILDs12:reportTargets3:Eve}")
+    check("import: good channel kept", S("reportChannel"), "GUILD")
+    check("import: whisper name kept", S("reportTarget"), "Eve")
+    Settings.ResetProfile()
+    UnitExists, UnitName, UnitIsPlayer, UnitIsFriend, IsInGuild, C_ChatInfo = realUnitExists, realUnitName, nil, nil, nil, nil
+    reset()
+end
 
 section("Secret lint")
 -- A cheap static check, because the mock cannot catch it: on the client even
