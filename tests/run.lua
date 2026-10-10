@@ -5,7 +5,8 @@ M.validEvents = { ADDON_LOADED = true, PLAYER_LOGIN = true, PLAYER_ENTERING_WORL
     PLAYER_REGEN_ENABLED = true, GLOBAL_MOUSE_DOWN = true,
     PLAYER_TARGET_CHANGED = true, GROUP_ROSTER_UPDATE = true, DAMAGE_METER_CURRENT_SESSION_UPDATED = true,
     DAMAGE_METER_COMBAT_SESSION_UPDATED = true, DAMAGE_METER_RESET = true, ADDON_RESTRICTION_STATE_CHANGED = true,
-    PLAYER_REGEN_DISABLED = true, CVAR_UPDATE = true }
+    PLAYER_REGEN_DISABLED = true, CVAR_UPDATE = true,
+    UNIT_THREAT_LIST_UPDATE = true, UNIT_THREAT_SITUATION_UPDATE = true }
 local ROOT = ADDONDIR
 local ADDON = "ForeverCombatMeter"
 
@@ -567,6 +568,11 @@ UnitIsDead = function() return world.target.dead end
 UnitName = function(u) return world.members[u].name end
 UnitClass = function(u) return world.members[u].name, world.members[u].class end
 UnitIsUnit = function(a, b) return world.members[a] ~= nil and world.members[a].self == true and b == "player" end
+UnitGroupRolesAssigned = function(u)
+    local m = world.members[u]
+    if m and m.roleSecret then return M.Secret("TANK") end
+    return m and m.role or "NONE"
+end
 UnitDetailedThreatSituation = function(u, t)
     local m = world.members[u]
     if m.secret then return M.Secret(m.tank or false), M.Secret(3), M.Secret(m.raw), M.Secret(m.raw), M.Secret(m.value) end
@@ -631,7 +637,7 @@ local okSort, sorted = pcall(Threat.List)
 check("secret names: sorting raises nothing", okSort, true)
 local units = {}
 for _, r in ipairs(okSort and sorted.rows or {}) do units[#units + 1] = r.unit end
-check("holder first, ties by unit token", table.concat(units, ","), "party3,party1,party2,player")
+check("by raw percent (holder not pinned), ties by unit token", table.concat(units, ","), "party1,party2,player,party3")
 
 section("Threat per second")
 party({ player = { name = "Me", raw = 40, value = 1000, self = true } })
@@ -885,18 +891,71 @@ section("Windows: threat")
 Settings.Set("threatWarn", true)
 party({
     player = { name = "Me", class = "MAGE", raw = 95, value = 1, self = true },
-    party1 = { name = "Tank", class = "WARRIOR", tank = true, raw = 100, value = 9 },
+    party1 = { name = "Tank", class = "WARRIOR", role = "TANK", tank = true, raw = 100, value = 9 },
     party2 = { name = "Puller", class = "ROGUE", raw = 120, value = 5 },
 })
 world.sounds = {}
 Windows.SetMode(1, "threat")
 check("threat title", txt(w1.header.title), "Threat")
 check("threat rows", shownBars(1), 3)
-check("threat order", txt(bar(1, 2).name), "2. Puller")
-check("tank marker", txt(bar(1, 1).name):find("tank", 1, true) ~= nil, true)
+check("threat order: over 100 % above the holder", txt(bar(1, 1).name), "1. Puller")
+check("tank marker", txt(bar(1, 2).name):find("tank", 1, true) ~= nil, true)
+check("threat bars: not animated", bar(1, 2).target == nil and bar(1, 2).current == nil, true)
+check("threat fill set directly", bar(1, 3)._value, 95)
+-- the label is the group role; the aggro holder gets its own small marker
+party({
+    player = { name = "Me", class = "MAGE", raw = 100, tank = true, value = 1, self = true },
+    party1 = { name = "Tank", class = "WARRIOR", role = "TANK", raw = 60, value = 9 },
+    party2 = { name = "Odd", class = "ROGUE", role = "TANK", roleSecret = true, raw = 20, value = 5 },
+})
+Windows.Refresh(1)
+check("aggro holder without tank role: on top by percent", txt(bar(1, 1).name):find("Me", 1, true) ~= nil, true)
+check("aggro holder without tank role: aggro marker", txt(bar(1, 1).name):find("(" .. ns.L.THREAT_AGGRO .. ")", 1, true) ~= nil, true)
+check("aggro holder without tank role: no tank label", txt(bar(1, 1).name):find("(" .. ns.L.THREAT_TANK .. ")", 1, true), nil)
+check("tank role without aggro: tank label", txt(bar(1, 2).name):find("(" .. ns.L.THREAT_TANK .. ")", 1, true) ~= nil, true)
+check("tank role without aggro: no aggro marker", txt(bar(1, 2).name):find(ns.L.THREAT_AGGRO, 1, true), nil)
+check("secret role: no label", txt(bar(1, 3).name):find("(", 1, true), nil)
+party({ player = { name = "Me", class = "MAGE", raw = 50, value = 1, self = true } })
+Windows.Refresh(1)
+check("solo: no label", txt(bar(1, 1).name):find("(", 1, true), nil)
+party({
+    player = { name = "Me", class = "MAGE", raw = 100, tank = true, value = 1, self = true },
+    party1 = { name = "Ann", class = "ROGUE", raw = 118, value = 9 },
+})
+Windows.Refresh(1)
+check("holder not pinned: higher raw percent first", txt(bar(1, 1).name), "1. Ann")
+check("holder not pinned: real percent shown", txt(bar(1, 1).value):find("118", 1, true) ~= nil, true)
+check("holder not pinned: keeps the aggro marker", txt(bar(1, 2).name):find("(" .. ns.L.THREAT_AGGRO .. ")", 1, true) ~= nil, true)
+party({ player = { name = "Me", class = "MAGE", raw = 50, value = 1, self = true } })
+Windows.Refresh(1)
+-- threat events redraw on the next frame, not on the refresh tick
+world.members.player.raw = 40
+Windows.Tick(0.01)
+check("no event: waits for the tick", txt(bar(1, 1).value):find("40", 1, true), nil)
+M.Fire("UNIT_THREAT_LIST_UPDATE")
+Windows.Tick(0.01)
+check("threat list event: redrawn next frame", txt(bar(1, 1).value):find("40", 1, true) ~= nil, true)
+world.members.player.raw = 30
+M.Fire("UNIT_THREAT_SITUATION_UPDATE")
+Windows.Tick(0.01)
+check("threat situation event: redrawn next frame", txt(bar(1, 1).value):find("30", 1, true) ~= nil, true)
+-- the percent is never held back by the rate reuse
+world.members.player.raw = 31
+check("percent follows at once", Threat.List().rows[1].pct, 31)
+world.members.player.raw = 32
+check("percent follows again within the interval", Threat.List().rows[1].pct, 32)
+party({
+    player = { name = "Me", class = "MAGE", raw = 95, value = 1, self = true },
+    party1 = { name = "Tank", class = "WARRIOR", role = "TANK", tank = true, raw = 100, value = 9 },
+    party2 = { name = "Puller", class = "ROGUE", raw = 120, value = 5 },
+})
+Windows.Refresh(1)
+world.sounds = {}
+Threat.Reset()
+Windows.Refresh(1)
 check("threat max", bar(1, 1)._max, 100)
-check("threat fill clamped", bar(1, 2)._value, 100)
-check("threat text keeps the real percent", txt(bar(1, 2).value):find("120.0%", 1, true) ~= nil, true)
+check("threat fill clamped", bar(1, 1)._value, 100)
+check("threat text keeps the real percent", txt(bar(1, 1).value):find("120.0%", 1, true) ~= nil, true)
 check("warning glow on the own row", bar(1, 3).glow:IsShown(), true)
 check("no glow on others", bar(1, 2).glow:IsShown(), false)
 check("warning sound", #world.sounds, 1)

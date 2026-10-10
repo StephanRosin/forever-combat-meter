@@ -482,7 +482,8 @@ function Windows.FillArgs(max, value)
     return m, v
 end
 
-local function setFill(bar, max, value)
+-- instant: no easing (threat), the value is set as it is.
+local function setFill(bar, max, value, instant)
     max, value = Windows.FillArgs(max, value)
     if issecret(max) or issecret(value) then
         bar.target, bar.current, bar.wasSecret = nil, nil, true
@@ -495,7 +496,7 @@ local function setFill(bar, max, value)
     -- Out of combat a bar that showed a secret value starts where it is.
     local from = bar.current or (bar.wasSecret and value or 0)   -- plain: secrets returned above
     bar.wasSecret = nil
-    if S("animate") then
+    if S("animate") and not instant then
         bar.target = value
         bar.current = from
         bar:SetValue(bar.current)
@@ -676,11 +677,16 @@ local function renderThreat(f, s, sample)
             paintBar(bar, row.class, f.cfg)
             setIcon(bar, nil, row.class)
             local name = Format.Name(rank and n or nil, row.name)
-            if row.tanking then name = string.format("%s (%s)", name, L.THREAT_TANK) end
+            -- "tank" is the group role; the unit holding the target is marked apart.
+            if row.tankRole then
+                name = string.format("%s (%s)", name, L.THREAT_TANK)
+            elseif row.tanking then
+                name = string.format("%s (%s)", name, L.THREAT_AGGRO)
+            end
             bar.name:SetText(name)
             bar.value:SetText(threatValues(row))
             -- rawPct passes 100 before the pull (110 % melee, 130 % ranged).
-            setFill(bar, 100, math.min(row.pct or 0, 100))   -- plain: Threat drops secret lists
+            setFill(bar, 100, math.min(row.pct or 0, 100), true)   -- plain: Threat drops secret lists
             local own = row.isPlayer and not tostring(row.unit):find("pet", 1, true)
             bar.glow:SetShown((own and sample.warning) and true or false)
             bar:Show()
@@ -1217,6 +1223,10 @@ function Windows.ApplyStylePreset(style)
     end
 end
 
+-- Set by the threat events: threat windows redraw on the next frame instead of
+-- waiting for the refresh tick.
+local threatPending = false
+
 -- Render loop ------------------------------------------------------------------------
 
 local function animate(f, elapsed)
@@ -1251,6 +1261,17 @@ end
 -- threat windows and (for a few seconds after combat) all windows redraw.
 function Windows.Tick(elapsed)
     local count = S("windowCount")
+    if threatPending then
+        threatPending = false
+        local sample
+        for i = 1, count do
+            local f = frames[i]
+            if f and f:IsShown() and Windows.Mode(i) == "threat" then
+                sample = sample or sampleThreat()
+                render(i, sample)
+            end
+        end
+    end
     for i = 1, count do
         local f = frames[i]
         if f and f:IsShown() then
@@ -1293,6 +1314,9 @@ ns.On("PLAYER_LOGIN", function() Windows.Init() end)
 for _, event in ipairs({ "DAMAGE_METER_CURRENT_SESSION_UPDATED", "DAMAGE_METER_COMBAT_SESSION_UPDATED",
     "ADDON_RESTRICTION_STATE_CHANGED", "PLAYER_REGEN_DISABLED", "PLAYER_TARGET_CHANGED" }) do
     ns.On(event, markAll)
+end
+for _, event in ipairs({ "UNIT_THREAT_LIST_UPDATE", "UNIT_THREAT_SITUATION_UPDATE" }) do
+    ns.On(event, function() threatPending = true end)
 end
 -- A new target may warn (and flash) again.
 ns.On("PLAYER_TARGET_CHANGED", function() warned = false end)

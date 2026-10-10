@@ -13,7 +13,7 @@ ns.Threat = Threat
 
 local issecret = issecretvalue or function() return false end
 
-local MIN_INTERVAL = 0.2 -- samples closer together reuse the last rate
+local MIN_INTERVAL = 0.2 -- samples closer together reuse the last per-second rate (never the percent)
 local DEFAULT_SOUND = 8959
 
 local samples = {} -- unit -> { value, time, rate }
@@ -71,6 +71,15 @@ local function rateFor(unit, value, now)
     return last.rate
 end
 
+-- The group role "TANK" (assigned in the group), not who holds the target.
+-- Solo, a pet or a secret/odd answer counts as none.
+local function isTankRole(unit)
+    if not UnitGroupRolesAssigned then return false end
+    local role = UnitGroupRolesAssigned(unit)
+    if issecret(role) then return false end
+    return role == "TANK"
+end
+
 local function classOf(unit)
     local _, file = UnitClass(unit)
     return file
@@ -91,9 +100,10 @@ local function collect()
                     name = UnitName(unit),
                     class = classOf(unit),
                     unit = unit,
-                    pct = tanking and 100 or raw or scaled or 0,
+                    pct = raw or (tanking and 100) or scaled or 0,   -- raw % of the holder's threat; others may pass 100
                     perSecond = rateFor(unit, value or 0, now),   -- plain: checked above
                     tanking = tanking and true or false,
+                    tankRole = isTankRole(unit),
                     isPlayer = UnitIsUnit(unit, "player") and true or false,
                 }
             end
@@ -102,21 +112,13 @@ local function collect()
     return rows
 end
 
--- Sorting: one number per row, highest first. Holding the target lifts a row
--- above every percentage; equal numbers fall back to the unit token, which
--- is always a plain string. Names are never compared: UnitName may answer in
+-- Sorting: raw threat percent relative to the holder, highest first (the
+-- holder is 100; with the 110 % / 130 % pull rule others may stand above it
+-- without pulling). Equal numbers fall back to the unit token, which is
+-- always a plain string. Names are never compared: UnitName may answer in
 -- secret.
-local HOLDER_BONUS = 1e6
-
-local function sortKey(row)
-    local key = row.pct
-    if row.tanking then key = key + HOLDER_BONUS end
-    return key
-end
-
 local function order(a, b)
-    local ka, kb = sortKey(a), sortKey(b)
-    if ka ~= kb then return ka > kb end
+    if a.pct ~= b.pct then return a.pct > b.pct end
     return a.unit < b.unit
 end
 

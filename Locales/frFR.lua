@@ -133,6 +133,7 @@ L.MSG_RESET_COMBAT = "Les données ne peuvent être réinitialisées qu'hors com
 L.EMPTY_NO_DATA = "Aucune donnée"
 L.THREAT_UNAVAILABLE = "Menace indisponible"
 L.THREAT_NO_TARGET = "Aucune cible"
+L.THREAT_AGGRO = "aggro"
 L.THREAT_TANK = "tank"
 L.METER_UNAVAILABLE = "Compteur indisponible"
 L.THREAT_FLASH = "Menace : %s%%"
