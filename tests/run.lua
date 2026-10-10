@@ -193,6 +193,30 @@ ns.Window.ShowPage("profiles")
 check("profile row", rowFor("Active profile", "button") ~= nil, true)
 ns.Window.Toggle()
 check("closed", ns.Window.IsShown(), false)
+-- The options window keeps its place (and page) when the language changes.
+do
+local Locale = ns.Locale
+ns.Window.Open("profiles")
+local of = M.byName.ForeverCombatMeterOptions
+of._rect = { 300, 200, of:GetWidth(), of:GetHeight() }
+local bar = of.titleBar
+bar:GetScript("OnDragStart")(bar)
+bar:GetScript("OnDragStop")(bar)
+local saved = ns.AccountDB().optionsPosition
+check("options position stored on drag", saved ~= nil and saved.x .. "/" .. saved.y,
+    (300 + of:GetWidth() / 2 - 960) .. "/" .. (200 + of:GetHeight() - 1080))
+of._rect = { 500, 100, of:GetWidth(), of:GetHeight() }
+Locale.Set("deDE")
+local nf = M.byName.ForeverCombatMeterOptions
+check("a new window for the language", nf ~= of, true)
+check("still open", ns.Window.IsShown(), true)
+check("same page", M.byName.ForeverCombatMeterPageprofiles:IsShown(), true)
+check("where the old one was", nf._points.TOP and (nf._points.TOP[3] .. "/" .. nf._points.TOP[4]),
+    (500 + of:GetWidth() / 2 - 960) .. "/" .. (100 + of:GetHeight() - 1080))
+Locale.Set("AUTO")
+ns.AccountDB().optionsPosition = nil
+ns.Window.Toggle()
+end
 check("interface options page", M.registered[1], "Forever Combat Meter")
 
 section("Minimap button, compartment and slash command")
