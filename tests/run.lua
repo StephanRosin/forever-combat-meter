@@ -995,7 +995,7 @@ Settings.Set("animate", false)
 section("Windows: lock, move, resize")
 Windows.Refresh(1)
 check("unlocked by default", Windows.Config(1).locked, false)
-check("grips shown unlocked", w1.grips.right:IsShown() and w1.grips.left:IsShown(), true)
+check("four grips shown unlocked", w1.grips.TOPLEFT:IsShown() and w1.grips.TOPRIGHT:IsShown() and w1.grips.BOTTOMLEFT:IsShown() and w1.grips.BOTTOMRIGHT:IsShown(), true)
 w1._rect = { 800, 500, 220, w1:GetHeight() }
 w1.header:GetScript("OnMouseDown")(w1.header, "LeftButton")
 check("drag starts", w1._moving, true)
@@ -1008,7 +1008,7 @@ check("position saved", c1.point .. "," .. c1.x .. "," .. c1.y, "TOP," .. (840 +
 Windows.ToggleLock(1)
 check("locked", Windows.Config(1).locked, true)
 check("global follows: all locked", S("locked"), true)
-check("grips hidden locked", w1.grips.right:IsShown(), false)
+check("grips hidden locked", w1.grips.BOTTOMRIGHT:IsShown() or w1.grips.TOPLEFT:IsShown(), false)
 w1.header:GetScript("OnMouseDown")(w1.header, "LeftButton")
 check("lock blocks the drag", w1._moving, false)
 Settings.SetLocked(false)
@@ -1016,43 +1016,124 @@ check("unlock all", Windows.Config(1).locked, false)
 Settings.SetLocked(true)
 check("lock all", Windows.Config(1).locked, true)
 Settings.SetLocked(false)
-local rows0 = Windows.Config(1).rows
+Settings.ResetProfile()
+local function press(grip) grip:GetScript("OnMouseDown")(grip, "LeftButton") end
+local function drag(grip, x, y) M.state.cursorX, M.state.cursorY = x, y; grip:GetScript("OnUpdate")(grip, 0.02) end
+local function release(grip) grip:GetScript("OnMouseUp")(grip, "LeftButton") end
+-- The window's rectangle in UIParent units from its stored TOP anchor.
+local function storedRect(i)
+    local c, f = Windows.Config(i), Windows.Frame(i)
+    local s = f:GetScale()
+    local h = f:GetHeight()
+    local w = c.width * s
+    local cx = 960 + c.x * s
+    local top = 1080 + c.y * s
+    return cx - w / 2, cx + w / 2, top - h * s, top
+end
+local function near(name, got, want) check(name, math.abs(got - want) <= 1, true) end
+
+for _, style in ipairs({ "FOREVER", "COMPACT" }) do
+    for _, scale in ipairs({ 1, 1.5 }) do
+        Settings.ResetProfile()
+        Windows.ApplyStylePreset(style)
+        w1:SetScale(scale)
+        local W, rows = Windows.Config(1).width, Windows.Config(1).rows
+        local H = w1:GetHeight()
+        local left, bottom = 500, 300
+        w1._rect = { left, bottom, W, H }
+        local L0, R0, T0, B0 = left * scale, (left + W) * scale, (bottom + H) * scale, bottom * scale
+        for corner, g in pairs(w1.grips) do
+            local tag = style .. " x" .. scale .. " " .. corner
+            M.state.mouseDown = true
+            M.state.cursorX, M.state.cursorY = 100, 100
+            press(g)
+            local dx = corner:find("RIGHT") and 60 or -60
+            drag(g, 100 + dx * scale, 100 + (corner:find("TOP") and 80 or -80) * scale)
+            local step = S("barHeight") + S("barSpacing")
+            local wantRows = rows + math.floor(80 / step)
+            check(tag .. ": live rows", w1.cfg.rows, wantRows)
+            check(tag .. ": live width", w1:GetWidth(), W + 60)
+            check(tag .. ": nothing stored while dragging", Windows.Config(1).width, W)
+            release(g)
+            check(tag .. ": width saved", Windows.Config(1).width, W + 60)
+            check(tag .. ": rows saved", Windows.Config(1).rows, wantRows)
+            check(tag .. ": TOP anchor", Windows.Config(1).point, "TOP")
+            local l, r, b, t = storedRect(1)
+            if corner:find("RIGHT") then near(tag .. ": left fixed", l, L0) else near(tag .. ": right fixed", r, R0) end
+            if corner:find("TOP") then near(tag .. ": bottom fixed", b, B0) else near(tag .. ": top fixed", t, T0) end
+            Settings.ResetProfile()
+            Windows.ApplyStylePreset(style)
+        end
+    end
+end
+w1:SetScale(1)
+Settings.ResetProfile()
 w1._rect = { 800, 400, 220, w1:GetHeight() }
-M.state.cursorX, M.state.cursorY = 1020, 400
-local grip = w1.grips.right
-grip:GetScript("OnMouseDown")(grip, "LeftButton")
-M.state.cursorX, M.state.cursorY = 1100, 400 - 2 * 19
-grip:GetScript("OnUpdate")(grip, 0.02)
-check("live width", w1:GetWidth(), 300)
-check("anchor kept while resizing", w1._lastPoint[1], "TOP")
-grip:GetScript("OnMouseUp")(grip, "LeftButton")
-check("resize: width", Windows.Config(1).width, 300)
-check("resize right: centre moves half the change right", Windows.Config(1).x, -10 + 40)
-check("resize: rows", Windows.Config(1).rows, rows0 + 2)
-check("resize: top edge kept", Windows.Config(1).point, "TOP")
-w1._rect = { 800, 400, 300, w1:GetHeight() }
-M.state.cursorX, M.state.cursorY = 800, 400
-local gl = w1.grips.left
-gl:GetScript("OnMouseDown")(gl, "LeftButton")
-M.state.cursorX = 750
-gl:GetScript("OnUpdate")(gl, 0.02)
-gl:GetScript("OnMouseUp")(gl, "LeftButton")
-check("left grip widens to the left", Windows.Config(1).width, 350)
-check("resize left: centre moves half the change left", Windows.Config(1).x, 30 - 25)
-gl:GetScript("OnMouseDown")(gl, "LeftButton")
-M.state.cursorX, M.state.cursorY = -5000, -5000
-gl:GetScript("OnUpdate")(gl, 0.02)
-gl:GetScript("OnMouseUp")(gl, "LeftButton")
-check("width clamped", Windows.Config(1).width, 600)
-check("rows clamped", Windows.Config(1).rows, 40)
-check("clamped width: centre from the clamped change", Windows.Config(1).x, 5 - 125)
+local rows0 = Windows.Config(1).rows
+local gbr = w1.grips.BOTTOMRIGHT
+M.state.cursorX, M.state.cursorY = 1000, 400
+press(gbr); release(gbr)
+check("plain click: nothing written", ns.DB().windows, nil)
+press(gbr); drag(gbr, 1000, 400 + 5000)
+check("shrinks to 1 row (clamped)", w1.cfg.rows, 1)
+drag(gbr, 9000, -90000)
+check("width clamped", w1.cfg.width, 600)
+check("rows clamped", w1.cfg.rows, 40)
+release(gbr)
+check("clamped values saved", Windows.Config(1).width .. "," .. Windows.Config(1).rows, "600,40")
+local rowsAt = Windows.Config(1).rows
+w1._rect = { 800, 400, 600, w1:GetHeight() }
+M.state.cursorX, M.state.cursorY = 0, 0
+press(gbr)
+drag(gbr, 0, 0)
+M.state.mouseDown = false
+drag(gbr, 50, 0)
+check("button released elsewhere ends the drag", gbr:GetScript("OnUpdate"), nil)
+M.state.mouseDown = true
+Settings.ResetProfile()
+w1._rect = { 800, 400, 220, w1:GetHeight() }
+M.state.cursorX, M.state.cursorY = 0, 0
+gbr:GetScript("OnMouseDown")(gbr, "RightButton")
+check("right click starts nothing", gbr:GetScript("OnUpdate"), nil)
+gbr:GetScript("OnMouseUp")(gbr, "RightButton")
+check("right click writes nothing", ns.DB().windows, nil)
+
+-- Top grips stay clear of the header buttons (frame-local rects, y down).
+for _, style in ipairs({ "FOREVER", "COMPACT" }) do
+    Settings.ResetProfile()
+    Windows.ApplyStylePreset(style)
+    local lk = Windows.Look()
+    local W = Windows.Config(1).width
+    local order = lk.allButtons and 5 or 2
+    local g = w1.grips.TOPRIGHT
+    local p = g._lastPoint
+    check(style .. ": top-right grip hangs off the corner", p[1] .. "," .. p[3] .. "," .. p[4] .. "," .. p[5], "BOTTOMLEFT,TOPRIGHT,-3,-3")
+    local gl = w1.grips.TOPLEFT._lastPoint
+    check(style .. ": top-left grip", gl[1] .. "," .. gl[4] .. "," .. gl[5], "BOTTOMRIGHT,3,-3")
+    -- rect of the grip: x in [W-3, W+9], y (down) from -9 to +3
+    local gx0, gx1, gy0, gy1 = W - 3, W + 9, -9, 3
+    local right = W - (lk.glow and 4 or 2)
+    local top = (lk.header - lk.button) / 2
+    local overlap = false
+    for k = 1, order do
+        local bx1 = right - (k - 1) * (lk.button + 1)
+        local bx0 = bx1 - lk.button
+        local by0, by1 = top, top + lk.button
+        if bx0 < gx1 and bx1 > gx0 and by0 < gy1 and by1 > gy0 then overlap = true end
+    end
+    check(style .. ": no overlap with header buttons", overlap, false)
+    -- the title side: the left grip and the drag handle icon
+    check(style .. ": left grip reaches only 3 px in", w1.grips.TOPLEFT._lastPoint[4], 3)
+end
+Settings.ResetProfile()
+local grip = w1.grips.BOTTOMRIGHT
 Windows.ToggleLock(1)
 M.state.cursorX, M.state.cursorY = 0, 0
 grip:GetScript("OnMouseDown")(grip, "LeftButton")
 M.state.cursorX = 300
 check("locked: no resize started", grip:GetScript("OnUpdate"), nil)
 grip:GetScript("OnMouseUp")(grip, "LeftButton")
-check("locked: no resize", Windows.Config(1).width, 600)
+check("locked: no resize", Windows.Config(1).width, 220)
 Settings.Set("fadeAlpha", 50)
 w1._mouseOver = false
 Windows.Tick(0.02)
@@ -1160,13 +1241,13 @@ section("Windows: resize from the default anchor")
 Settings.ResetProfile()
 w1._rect = { 800, 400, 220, w1:GetHeight() }
 M.state.cursorX, M.state.cursorY = 1020, 400
+grip = w1.grips.BOTTOMRIGHT
 grip:GetScript("OnMouseDown")(grip, "LeftButton")
-check("CENTER default turns into TOP", Windows.Config(1).point, "TOP")
-check("TOP centre from the frame", Windows.Config(1).x, 800 + 110 - 960)
+check("CENTER default stays until the drag is released", Windows.Config(1).point, "CENTER")
 M.state.cursorX = 1040
 grip:GetScript("OnUpdate")(grip, 0.02)
 grip:GetScript("OnMouseUp")(grip, "LeftButton")
-check("then grows", Windows.Config(1).width .. "," .. Windows.Config(1).x, "240," .. (800 + 110 - 960 + 10))
+check("then TOP, grown to the right", Windows.Config(1).point .. "," .. Windows.Config(1).width .. "," .. Windows.Config(1).x, "TOP,240," .. (800 + 120 - 960))
 Settings.ResetProfile()
 
 section("Windows: add keeps the global lock true only while all are locked")

@@ -123,6 +123,12 @@ def resize(draw):
     poly(draw, [(27, 20), (20, 27)], 2.2)
 
 
+def arrow_corner(draw):
+    # Diagonal arrow towards the top right; the addon mirrors it per corner.
+    poly(draw, [(7, 25), (24, 8)], 2.6)
+    poly(draw, [(13, 7), (25, 7), (25, 19)], 2.6)
+
+
 ICONS = {
     "IconChevronDown": chevron_down,
     "IconChevronUp": chevron_up,
@@ -133,6 +139,7 @@ ICONS = {
     "IconGrip": grip,
     "IconCheck": check,
     "IconResize": resize,
+    "IconArrowCorner": arrow_corner,
     "IconReset": reset,
     "IconSession": session,
     "IconMode": mode,

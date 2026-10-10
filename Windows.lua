@@ -28,8 +28,10 @@ local LOOKS = {
     COMPACT = { header = 18, button = 12, icon = 10, pad = 0, glow = false, titleDelta = 3, allButtons = false },
 }
 local WIDTH_RANGE, ROWS_RANGE, POS_RANGE = { 120, 600 }, { 1, 40 }, { -4000, 4000 }
--- Resize grips: our own resize art, a little in from the corners.
-local GRIP_SIZE, GRIP_INSET = 14, 2
+-- Resize arrows hang off the four corners and reach GRIP_IN into the window:
+-- no further than the header's margin around its buttons (3 px in COMPACT).
+local GRIP_SIZE, GRIP_IN = 12, 3
+local CORNERS = { "TOPLEFT", "TOPRIGHT", "BOTTOMLEFT", "BOTTOMRIGHT" }
 -- Bar text layout: values get a fixed share of the bar on the right, the
 -- name the rest (after the icon).
 local TEXT_INSET, ICON_GAP, VALUE_SHARE = 5, 4, 0.45
@@ -299,6 +301,10 @@ local function layout(i)
     local f = frames[i]
     if not f then return end
     f.cfg = Windows.Config(i)
+    local r = f.resizing
+    if r and r.moved then   -- mid-drag: the live size, not yet stored
+        f.cfg.width, f.cfg.rows, f.cfg.point, f.cfg.x, f.cfg.y = r.width, r.rows, "TOP", r.x, r.y
+    end
     local lk, cfg = look(), f.cfg
     local barH, spacing = S("barHeight"), S("barSpacing")
     f:SetWidth(cfg.width)
@@ -306,8 +312,7 @@ local function layout(i)
     if not f.moving then place(f) end
     layoutHeader(f, lk)
     layoutBars(f, lk)
-    f.grips.left:SetShown(not cfg.locked)
-    f.grips.right:SetShown(not cfg.locked)
+    for _, g in pairs(f.grips) do g:SetShown(not cfg.locked) end
     applyLook(f, lk)
     st(i).dirty = true
 end
@@ -621,51 +626,76 @@ end
 
 -- Moving and resizing -------------------------------------------------------------
 
+-- Rows that fit a height, in whole bar steps.
 local function rowsFor(height)
     local lk = look()
     local barH, spacing = S("barHeight"), S("barSpacing")
-    return clamp((height - lk.header - 2 * lk.pad + spacing) / (barH + spacing), ROWS_RANGE)
+    local rows = math.floor((height - lk.header - 2 * lk.pad + spacing) / (barH + spacing) + 1e-6)
+    return math.max(ROWS_RANGE[1], math.min(ROWS_RANGE[2], rows))
 end
 
--- Resizing keeps the window's own anchor: the top edge's centre (TOP, x, y).
--- The width grows around that centre, so x moves by half the change toward
--- the dragged side and the opposite edge stays put; rows grow downward from
--- the fixed top. Done by hand from the cursor (StartSizing fires no
--- OnSizeChanged on this client).
+local function heightFor(rows)
+    local lk = look()
+    local barH, spacing = S("barHeight"), S("barSpacing")
+    return lk.header + 2 * lk.pad + rows * barH + (rows - 1) * spacing
+end
+
+-- Window anchor for a size, the corner opposite the dragged one fixed: always
+-- TOP (the window's convention), so x is the centre and y the top edge, both
+-- as offsets in the frame's own units. Edges in r are UIParent units.
+local function resizedPlacement(r, width, rows)
+    local s = r.scale
+    local w, h = width * s, heightFor(rows) * s
+    local fixedLeft = r.corner:find("RIGHT") ~= nil
+    local top = r.corner:find("BOTTOM") and r.top or (r.bottom + h)
+    local centre = fixedLeft and (r.left + w / 2) or (r.right - w / 2)
+    return math.floor((centre - r.screenW / 2) / s + 0.5), math.floor((top - r.screenH) / s + 0.5)
+end
+
 local function followCursor(f)
     local r = f.resizing
     if not r then return end
+    -- A button released outside the grip may not reach OnMouseUp.
+    if IsMouseButtonDown and not IsMouseButtonDown("LeftButton") then
+        r.grip:GetScript("OnMouseUp")(r.grip, "LeftButton")
+        return
+    end
     local x, y = cursor()
-    local side = r.fromLeft and -1 or 1
-    local width = clamp(r.width0 + side * (x - r.cursorX), WIDTH_RANGE)
-    local rows = rowsFor(r.height0 - (y - r.cursorY))
+    local dx, dy = (x - r.cursorX) / r.scale, (y - r.cursorY) / r.scale
+    local width = clamp(r.width0 + (r.corner:find("RIGHT") and dx or -dx), WIDTH_RANGE)
+    local rows = rowsFor(r.height0 + (r.corner:find("TOP") and dy or -dy))
     if width == r.width and rows == r.rows then return end
-    r.width, r.rows = width, rows
-    local centre = r.centre0 + side * (width - r.width0) / 2
-    write(f.index, { width = width, rows = rows, x = math.floor(centre + 0.5) })
+    r.width, r.rows, r.moved = width, rows, true
+    r.x, r.y = resizedPlacement(r, width, rows)
     layout(f.index)
     render(f.index)
 end
 
-local function startResize(f, grip, fromLeft)
-    if f.cfg.locked then return end
-    -- A window still on another anchor (the CENTER default) moves to TOP first.
-    if f.cfg.point ~= "TOP" then
-        savePosition(f)
-        if f.cfg.point ~= "TOP" then return end
-        place(f)
-    end
+local function startResize(f, grip, button)
+    if (button ~= nil and button ~= "LeftButton") or f.cfg.locked or f.resizing then return end
+    local s = f:GetScale()
+    local left, right, top, bottom = f:GetLeft(), f:GetRight(), f:GetTop(), f:GetBottom()
+    if not (left and top) then return end
     local x, y = cursor()
-    f.resizing = { fromLeft = fromLeft, cursorX = x, cursorY = y, width0 = f.cfg.width, height0 = f:GetHeight(),
-                   centre0 = f.cfg.x, width = f.cfg.width, rows = f.cfg.rows }
+    f.resizing = {
+        grip = grip, corner = grip.corner, scale = s, cursorX = x, cursorY = y,
+        left = left * s, right = right * s, top = top * s, bottom = bottom * s,
+        screenW = UIParent:GetWidth(), screenH = UIParent:GetHeight(),
+        width0 = f.cfg.width, height0 = f:GetHeight(), width = f.cfg.width, rows = f.cfg.rows,
+    }
     grip:SetScript("OnUpdate", function() followCursor(f) end)
 end
 
+-- The drop: written once, so a plain click changes nothing.
 local function stopResize(f, grip)
     grip:SetScript("OnUpdate", nil)
-    if not f.resizing then return end
+    local r = f.resizing
+    if not r or r.grip ~= grip then return end
     f.resizing = nil
-    Settings.Changed("windows")
+    if r.moved then
+        write(f.index, { width = r.width, rows = r.rows, point = "TOP", x = r.x, y = r.y })
+        Settings.Changed("windows")
+    end
     layout(f.index)
 end
 
@@ -673,21 +703,27 @@ local function paintGrip(grip, hover)
     grip.art:SetVertexColor(ACCENT[1], ACCENT[2], ACCENT[3], hover and 1 or 0.55)
 end
 
-local function newGrip(f, fromLeft)
+local function newGrip(f, corner)
     local grip = CreateFrame("Button", nil, f)
+    grip.corner = corner
     grip:SetSize(GRIP_SIZE, GRIP_SIZE)
     grip:SetFrameLevel(f:GetFrameLevel() + 10)
-    local corner = fromLeft and "BOTTOMLEFT" or "BOTTOMRIGHT"
-    grip:SetPoint(corner, f, corner, fromLeft and GRIP_INSET or -GRIP_INSET, GRIP_INSET)
     grip.art = grip:CreateTexture(nil, "OVERLAY")
     grip.art:SetAllPoints()
-    grip.art:SetTexture(Media.Icon("Resize"))
-    -- The art points to the bottom right; mirrored for the left corner.
-    if fromLeft then grip.art:SetTexCoord(1, 0, 0, 1) end
+    grip.art:SetTexture(Media.Icon("ArrowCorner"))
+    -- The art points to the top right; mirrored for the other corners.
+    local left, bottom = corner:find("LEFT") ~= nil, corner:find("BOTTOM") ~= nil
+    grip.art:SetTexCoord(left and 1 or 0, left and 0 or 1, bottom and 1 or 0, bottom and 0 or 1)
+    -- Mostly outside the corner; the part inside stays in the margin around
+    -- the header buttons, so it covers neither them nor their clicks.
+    local inner = (bottom and "TOP" or "BOTTOM") .. (left and "RIGHT" or "LEFT")
+    grip:SetPoint(inner, f, corner, left and GRIP_IN or -GRIP_IN, bottom and GRIP_IN or -GRIP_IN)
     paintGrip(grip, false)
-    grip:SetScript("OnMouseDown", function() startResize(f, grip, fromLeft) end)
-    grip:SetScript("OnMouseUp", function() stopResize(f, grip) end)
-    grip:SetScript("OnHide", function() stopResize(f, grip) end)
+    grip:SetScript("OnMouseDown", function(self, button) startResize(f, self, button) end)
+    grip:SetScript("OnMouseUp", function(self, button)
+        if button == nil or button == "LeftButton" then stopResize(f, self) end
+    end)
+    grip:SetScript("OnHide", function(self) stopResize(f, self) end)
     grip:SetScript("OnEnter", function(self)
         paintGrip(self, true)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -970,7 +1006,8 @@ function Windows.Create(i)
     f.empty:SetPoint("TOPLEFT", f.body, "TOPLEFT", 8, -6)
     f.empty:Hide()
     f.bars = {}
-    f.grips = { left = newGrip(f, true), right = newGrip(f, false) }
+    f.grips = {}
+    for _, corner in ipairs(CORNERS) do f.grips[corner] = newGrip(f, corner) end
     frames[i] = f
     layout(i)
     return f

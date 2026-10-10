@@ -226,6 +226,7 @@ function SendChatMessage(msg, channel) M.sent[#M.sent + 1] = { msg = msg, channe
 function GetMoney() return M.state.money end
 function GetMoneyString(v) return v .. "c" end
 function GetRealZoneText() return M.state.zone end
+function IsMouseButtonDown() return M.state.mouseDown ~= false end
 function GetCursorPosition() return M.state.cursorX or 0, M.state.cursorY or 0 end
 function IsInInstance()
     if M.state.instance then return true, M.state.instance.kind end
