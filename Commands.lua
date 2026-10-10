@@ -43,6 +43,13 @@ local function report(args)
             ns.Print(L.MSG_USAGE)
             return
         end
+        if channel == "WHISPER" then
+            if args[k + 1] then ns.Print("%s", L.MSG_WHISPER_TARGET) end
+            if not ns.Report.WhisperTarget() then
+                ns.Print("%s", L.REPORT_NO_TARGET)
+                return
+            end
+        end
         ns.Report.Choose(channel)
     end
     ns.Report.Window(1, n, channel)

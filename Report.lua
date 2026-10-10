@@ -99,8 +99,10 @@ end
 -- none).
 function Report.WhisperTarget()
     if not (UnitExists and UnitExists("target") and UnitIsPlayer and UnitIsPlayer("target")) then return nil end
-    if UnitIsUnit and UnitIsUnit("target", "player") then return nil end
+    local same = UnitIsUnit and UnitIsUnit("target", "player")
+    if issecret(same) or same then return nil end
     local friend = UnitIsFriend and UnitIsFriend("player", "target")
+    if issecret(friend) then return nil end
     if not friend then
         local mine, theirs = UnitFactionGroup and UnitFactionGroup("player"), UnitFactionGroup and UnitFactionGroup("target")
         if issecret(mine) or issecret(theirs) or mine == nil or mine ~= theirs then return nil end
@@ -118,20 +120,24 @@ local function send(msg, chatType, target)
     end
 end
 
-local queue, sending = {}, false
+local queue, sending, failed = {}, false, false
 
 -- Sends the next queued line and schedules the one after it.
 local function pump()
     local item = table.remove(queue, 1)
     if not item then
         sending = false
+        if failed then
+            failed = false
+            ns.Print("%s", L.REPORT_PARTIAL)
+        end
         return
     end
     sending = true
     -- The next tick is scheduled first and a failing send is contained, so
     -- one error never leaves the queue stuck.
     C_Timer.After(LINE_INTERVAL, pump)
-    pcall(send, item.msg, item.chatType, item.target)
+    if not pcall(send, item.msg, item.chatType, item.target) then failed = true end
 end
 
 -- Lines go out one by one, or to the player's own chat (no throttle there)

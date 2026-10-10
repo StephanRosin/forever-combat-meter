@@ -2561,6 +2561,28 @@ do
     drain()
     check("panel whisper: to the target", out[1] and (out[1].chatType .. ":" .. tostring(out[1].target)), "WHISPER:Bea-Realm")
     Detail.Close()
+    Settings.Set("reportChannel", "GUILD")
+    tgt = nil
+    reset()
+    SlashCmdList["FOREVERCOMBATMETER"]("report 1 whisper Dee")
+    drain()
+    check("/fcm report whisper without target: channel unchanged", S("reportChannel"), "GUILD")
+    check("/fcm report whisper without target: nothing sent", #out, 0)
+    check("/fcm report whisper: name hint", (M.Reveal(M.chat[1] or "")):find(ns.L.MSG_WHISPER_TARGET, 1, true) ~= nil, true)
+    check("/fcm report whisper: no-target note", (M.Reveal(M.chat[2] or "")):find(ns.L.REPORT_NO_TARGET, 1, true) ~= nil, true)
+    tgt = { name = "Ann", player = true, friend = true }
+    reset()
+    SlashCmdList["FOREVERCOMBATMETER"]("report 1 whisper")
+    drain()
+    check("/fcm report whisper with target: no hint, stored", #M.chat == 0 and S("reportChannel") == "WHISPER", true)
+    local realFriend = UnitIsFriend
+    UnitIsFriend = function() return M.Secret(true) end
+    check("secret friend result: not whisperable", Report.WhisperTarget(), nil)
+    UnitIsFriend = realFriend
+    local realGUN = GetUnitName
+    GetUnitName = function() return M.Secret("Ann") end
+    check("secret unit name: not whisperable", Report.WhisperTarget(), nil)
+    GetUnitName = realGUN
     for _, case in ipairs({ { "none", nil }, { "npc", { name = "Ogre", player = false, friend = false } } }) do
         tgt = case[2]
         reset()
@@ -2589,6 +2611,8 @@ do
     check("failed send: raises nothing out of the queue", okQ and okT, true)
     check("failed send: queue drained", Report.Pending(), 0)
     check("failed send: the rest still goes out", #out >= 2, true)
+    check("failed send: one note", #M.chat, 1)
+    check("failed send: note text", (M.Reveal(M.chat[1] or "")):find(ns.L.REPORT_PARTIAL, 1, true) ~= nil, true)
     out = {}
     check("later report: accepted", Report.Window(1, 1), true)
     drain()
