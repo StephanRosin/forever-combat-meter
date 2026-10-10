@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Build the release zip: one ForeverCombatMeter folder with exactly what
+# ./install copies, nothing else.
+#   tools/package            -> dist/ForeverCombatMeter-<version>.zip
+set -eu
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+VERSION="$(sed -n 's/^## Version: *//p' "$HERE/ForeverCombatMeter.toc" | tr -d '\r')"
+STAGE="$(mktemp -d)"
+trap 'rm -rf "$STAGE"' EXIT
+"$HERE/install" "$STAGE" >/dev/null
+mkdir -p "$HERE/dist"
+OUT="$HERE/dist/ForeverCombatMeter-$VERSION.zip"
+rm -f "$OUT"
+(cd "$STAGE" && zip -qrX "$OUT" ForeverCombatMeter)
+echo "$OUT"

@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Copy the addon into a WoW AddOns folder.
+#   ./install "<path to>/_classic_beta_/Interface/AddOns"
+set -eu
+DEST="${1:?usage: ./install <AddOns folder>}"
+[ -d "$DEST" ] || { echo "Not a directory: $DEST" >&2; exit 1; }
+HERE="$(cd "$(dirname "$0")" && pwd)"
+TARGET="$DEST/ForeverCombatMeter"
+rm -rf "$TARGET"
+mkdir -p "$TARGET"
+# Files listed in the TOC plus the TOC itself; nothing else ships.
+cp "$HERE/ForeverCombatMeter.toc" "$TARGET/"
+grep -v '^\s*#' "$HERE/ForeverCombatMeter.toc" | grep -v '^\s*$' | tr -d '\r' | while read -r f; do
+    f="${f//\\//}"
+    mkdir -p "$TARGET/$(dirname "$f")"
+    cp "$HERE/$f" "$TARGET/$f"
+done
+# Textures the Lua code loads by path.
+mkdir -p "$TARGET/Media"
+cp "$HERE"/Media/*.tga "$TARGET/Media/"
+echo "Installed to $TARGET"

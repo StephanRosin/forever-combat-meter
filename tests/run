@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Runs the tests with Lua 5.1, as in the game.
+set -e
+HERE="$(cd "$(dirname "$0")" && pwd)"
+cd "$HERE"
+exec lua5.1 -e "ADDONDIR='$(cd "$HERE/.." && pwd)'" run.lua

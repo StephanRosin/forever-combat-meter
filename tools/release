@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# Upload the packaged addon to CurseForge.
+#   tools/release <release|beta|alpha> "<changelog text>"
+# Version comes from the TOC (bump it first). The API token is read from
+# $CURSEFORGE_TOKEN or ~/.config/curseforge-token; it is never stored here.
+# The project ID is read from $CURSEFORGE_PROJECT_ID or from the
+# X-Curse-Project-ID line in the TOC.
+set -eu
+TYPE="${1:?usage: tools/release <release|beta|alpha> \"<changelog>\"}"
+CHANGELOG="${2:?changelog text required}"
+case "$TYPE" in release|beta|alpha) ;; *) echo "bad release type: $TYPE" >&2; exit 1 ;; esac
+# CurseForge game version "WoW Forever 1.60.1" (Interface 16001).
+GAME_VERSION_ID=17053
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+TOC="$HERE/ForeverCombatMeter.toc"
+PROJECT_ID="${CURSEFORGE_PROJECT_ID:-$(sed -n 's/^## X-Curse-Project-ID: *//p' "$TOC" | tr -d '\r')}"
+[ -n "$PROJECT_ID" ] || { echo "no project ID: add ## X-Curse-Project-ID to the TOC" >&2; exit 1; }
+AUTH="${CURSEFORGE_TOKEN:-}"
+[ -n "$AUTH" ] || AUTH="$(cat "$HOME/.config/curseforge-token")"
+VERSION="$(sed -n 's/^## Version: *//p' "$TOC" | tr -d '\r')"
+if git -C "$HERE" rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
+    echo "v$VERSION is already released: bump ## Version in the TOC" >&2; exit 1
+fi
+# Never upload a build whose tests fail.
+LOG="$(mktemp)"
+if ! "$HERE/tests/run" > "$LOG" 2>&1; then
+    tail -5 "$LOG" >&2
+    echo "tests failed: nothing uploaded" >&2
+    exit 1
+fi
+ZIP="$("$HERE/tools/package")"
+METADATA="$(python3 -c 'import json,sys; print(json.dumps({"changelog": sys.argv[1], "changelogType": "markdown", "displayName": "Forever Combat Meter " + sys.argv[2], "gameVersions": [int(sys.argv[3])], "releaseType": sys.argv[4]}))' \
+    "$CHANGELOG" "$VERSION" "$GAME_VERSION_ID" "$TYPE")"
+curl -sS --fail-with-body -H "X-Api-Token: $AUTH" \
+    --form-string "metadata=$METADATA" -F "file=@$ZIP" \
+    "https://wow.curseforge.com/api/projects/$PROJECT_ID/upload-file"
+echo
+git -C "$HERE" tag -a "v$VERSION" -m "Forever Combat Meter $VERSION"
+echo "Uploaded $ZIP as $TYPE, tagged v$VERSION (push the tag with: git push origin v$VERSION)"

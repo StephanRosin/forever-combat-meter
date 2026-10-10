@@ -1,0 +1,35 @@
+## Interface: 16001
+## Title: Forever Combat Meter
+## Notes: A damage, healing and threat meter in the style of the Forever addons: up to four windows, per-spell breakdown, death recap, chat report.
+## Notes-deDE: Ein Schadens-, Heilungs- und Bedrohungsmeter im Stil der Forever-Addons: bis zu vier Fenster, Aufschlüsselung pro Zauber, Todesübersicht, Chat-Bericht.
+## Notes-esES: Un medidor de daño, sanación y amenaza al estilo de los addons Forever: hasta cuatro ventanas, desglose por hechizo, resumen de muerte, informe en el chat.
+## Notes-esMX: Un medidor de daño, sanación y amenaza al estilo de los addons Forever: hasta cuatro ventanas, desglose por hechizo, resumen de muerte, informe en el chat.
+## Notes-frFR: Un compteur de dégâts, de soins et de menace dans le style des addons Forever : jusqu'à quatre fenêtres, détail par sort, récapitulatif de mort, rapport dans le chat.
+## Version: 1.0.0
+## IconTexture: Interface\AddOns\ForeverCombatMeter\Media\MinimapIcon.tga
+## AddonCompartmentFunc: ForeverCombatMeter_OnAddonCompartmentClick
+## AddonCompartmentFuncOnEnter: ForeverCombatMeter_OnAddonCompartmentEnter
+## AddonCompartmentFuncOnLeave: ForeverCombatMeter_OnAddonCompartmentLeave
+## SavedVariables: ForeverCombatMeterProfiles
+## SavedVariablesPerCharacter: ForeverCombatMeterChar
+
+# Format, Meter, Threat, Windows, Detail and Report join here in Tasks 2-5.
+Locales\enUS.lua
+Locales\deDE.lua
+Locales\esES.lua
+Locales\frFR.lua
+Locale.lua
+Core.lua
+Profiles.lua
+Settings.lua
+Share.lua
+Media.lua
+Position.lua
+Corners.lua
+Border.lua
+Options\Style.lua
+Options\Widgets.lua
+Options\Window.lua
+Options\Panel.lua
+Options\MinimapButton.lua
+Commands.lua
