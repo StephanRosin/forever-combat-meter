@@ -5,7 +5,7 @@ M.validEvents = { ADDON_LOADED = true, PLAYER_LOGIN = true, PLAYER_ENTERING_WORL
     PLAYER_REGEN_ENABLED = true, GLOBAL_MOUSE_DOWN = true,
     PLAYER_TARGET_CHANGED = true, GROUP_ROSTER_UPDATE = true, DAMAGE_METER_CURRENT_SESSION_UPDATED = true,
     DAMAGE_METER_COMBAT_SESSION_UPDATED = true, DAMAGE_METER_RESET = true, ADDON_RESTRICTION_STATE_CHANGED = true,
-    PLAYER_REGEN_DISABLED = true }
+    PLAYER_REGEN_DISABLED = true, CVAR_UPDATE = true }
 local ROOT = ADDONDIR
 local ADDON = "ForeverCombatMeter"
 
@@ -1711,6 +1711,13 @@ winRow(3, "rows").set(5)
 check("windows page: rows", Windows.Config(3).rows, 5)
 winRow(2, "locked").set(true)
 check("windows page: lock", Windows.Config(2).locked, true)
+check("windows page: lock keeps the global flag false", S("locked"), false)
+winRow(1, "locked").set(true)
+winRow(2, "locked").set(true)
+winRow(3, "locked").set(true)
+check("windows page: all locked sets the global flag", S("locked"), true)
+winRow(3, "locked").set(false)
+check("windows page: unlocking one clears the global flag", S("locked"), false)
 local modeChoices = {}
 for _, c in ipairs(winRow(1, "mode").choices()) do modeChoices[c.value] = true end
 check("mode choices include threat and damage", modeChoices.threat and modeChoices.damage, true)
@@ -1773,6 +1780,31 @@ C_CVar = nil
 check("no C_CVar: no error", pcall(Settings.Set, "hideBlizzard", true), true)
 C_CVar = savedCVar
 Settings.ResetProfile()
+-- The user switches Blizzard's meter by hand while ours is on.
+cvars.damageMeterEnabled = "1"
+Settings.Set("hideBlizzard", true)
+cvars.damageMeterEnabled = "1"; M.Fire("CVAR_UPDATE", "damageMeterEnabled", "1")
+cvars.damageMeterEnabled = "0"; M.Fire("CVAR_UPDATE", "damageMeterEnabled", "0")
+Settings.Set("hideBlizzard", false)
+check("manual off while ours is on is respected", cvars.damageMeterEnabled, "0")
+check("manual off: backup cleared", ns.AccountDB().blizzardMeterBackup, nil)
+Settings.ResetProfile()
+-- Our own write does not overwrite the backup.
+cvars.damageMeterEnabled = "1"
+Settings.Set("hideBlizzard", true)
+M.Fire("CVAR_UPDATE", "damageMeterEnabled", "0")
+check("own write keeps the backup", ns.AccountDB().blizzardMeterBackup, "1")
+-- A refused write keeps the backup and says so once.
+C_CVar.SetCVar = function() error("blocked") end
+M.chat = {}
+check("refused restore: no error", pcall(Settings.Set, "hideBlizzard", false), true)
+check("refused restore: backup kept", ns.AccountDB().blizzardMeterBackup, "1")
+Settings.Set("hideBlizzard", true); Settings.Set("hideBlizzard", false)
+check("refused write: noted once", #M.chat, 1)
+C_CVar.SetCVar = function(name, v) cvars[name] = v; return true end
+Settings.Set("hideBlizzard", false)
+check("later restore works", cvars.damageMeterEnabled, "1")
+Settings.ResetProfile()
 check("Blizzard frame never created by us", rawget(_G, "DamageMeter"), nil)
 
 section("Gear menu report, slash commands")
@@ -1796,6 +1828,8 @@ slash("windows 3")
 check("/fcm windows 3", S("windowCount"), 3)
 slash("mode 2 deaths")
 check("/fcm mode 2 deaths", Windows.Mode(2), "deaths")
+slash("mode 1.5 damage")
+check("/fcm mode 1.5: refused", Windows.Mode(1), "healing")
 slash("mode nonsense")
 check("/fcm mode nonsense: unchanged", Windows.Mode(1), "healing")
 check("/fcm mode nonsense: usage", M.chat[1] ~= nil and M.chat[1]:find("/fcm", 1, true) ~= nil, true)
@@ -1808,10 +1842,12 @@ check("/fcm windows 0 refused", S("windowCount"), 2)
 slash("windows")
 check("/fcm windows without number refused", S("windowCount"), 2)
 slash("toggle")
+check("/fcm toggle prints", M.chat[1] ~= nil and M.chat[1]:find(ns.L.MSG_WINDOWS_HIDDEN, 1, true) ~= nil, true)
 check("/fcm toggle hides", Windows.Frame(1):IsShown() or Windows.Frame(2):IsShown(), false)
 Windows.Tick(0.3)
 check("/fcm toggle: stays hidden through a tick", Windows.Frame(1):IsShown(), false)
 slash("toggle")
+check("/fcm toggle prints shown", M.chat[1] ~= nil and M.chat[1]:find(ns.L.MSG_WINDOWS_SHOWN, 1, true) ~= nil, true)
 check("/fcm toggle shows", Windows.Frame(1):IsShown() and Windows.Frame(2):IsShown(), true)
 M.popups = {}
 slash("reset")

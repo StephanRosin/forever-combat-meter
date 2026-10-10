@@ -14,7 +14,7 @@ local function setMode(args)
     key = key and key:lower()
     local known = false
     for _, k in ipairs(ns.Windows.ModeKeys()) do if k == key then known = true end end
-    if not known or not index or index < 1 or index > Settings.Get("windowCount") then
+    if not known or not index or index ~= math.floor(index) or index < 1 or index > Settings.Get("windowCount") then
         ns.Print(L.MSG_USAGE)
         return
     end
@@ -40,7 +40,9 @@ local COMMANDS = {
     windows = function(args) setWindows(tonumber(args[1])) end,
     report = function(args) ns.Report.Window(1, tonumber(args[1])) end,
     reset = function() ns.Windows.AskReset() end,
-    toggle = function() ns.Windows.ToggleHidden() end,
+    toggle = function()
+        ns.Print(ns.Windows.ToggleHidden() and L.MSG_WINDOWS_SHOWN or L.MSG_WINDOWS_HIDDEN)
+    end,
 }
 
 SLASH_FOREVERCOMBATMETER1 = "/fcm"

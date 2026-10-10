@@ -1000,6 +1000,16 @@ end
 
 -- Public actions --------------------------------------------------------------------
 
+-- The global "locked" (options footer, minimap, /fcm lock) is true while
+-- every window is locked.
+local function syncGlobalLock()
+    local all = true
+    for i = 1, S("windowCount") do
+        if not Windows.Config(i).locked then all = false end
+    end
+    ns.DB().locked = all or nil
+end
+
 function Windows.SetConfig(i, values)
     local clean = {}
     for k, v in pairs(values) do
@@ -1008,6 +1018,7 @@ function Windows.SetConfig(i, values)
         if k == "locked" then clean[k] = v and true or false end
     end
     write(i, clean)
+    if clean.locked ~= nil then syncGlobalLock() end
     layout(i)
     Settings.Changed("windows")
 end
@@ -1052,16 +1063,6 @@ function Windows.Scroll(i, delta)
     if not f then return end
     s.offset = math.max(0, math.min(s.offset - delta, (s.count or 0) - f.cfg.rows))
     render(i)
-end
-
--- The global "locked" (options footer, minimap, /fcm lock) is true while
--- every window is locked.
-local function syncGlobalLock()
-    local all = true
-    for i = 1, S("windowCount") do
-        if not Windows.Config(i).locked then all = false end
-    end
-    ns.DB().locked = all or nil
 end
 
 function Windows.ToggleLock(i)
