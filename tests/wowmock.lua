@@ -63,6 +63,8 @@ local function newWidget(name, kind)
     function w:SetEnabled(on) self._enabled = on and true or false end
     function w:IsEnabled() return self._enabled ~= false end
     function w:SetFrameLevel(v) self._level = v end
+    function w:SetFrameStrata(s) self._strata = s end
+    function w:GetFrameStrata() return self._strata end
     function w:SetScale(v) self._scale = v end
     function w:GetScale() return self._scale or 1 end
     function w:GetEffectiveScale() return self._scale or 1 end

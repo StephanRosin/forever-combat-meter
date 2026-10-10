@@ -1584,6 +1584,8 @@ do
     check("panel title", text(p.header.title:GetText()), "Bob \226\128\148 Damage")
     check("panel spell rows", Detail.Count(), 2)
     check("panel row 1 name", text(p.rows[1].name:GetText()), "Frostbolt")
+    check("panel strata MEDIUM (bags stay above)", p:GetFrameStrata(), "MEDIUM")
+    check("panel level above its meter window", p:GetFrameLevel() > Windows.Frame(1):GetFrameLevel(), true)
     check("panel row 1 value", text(p.rows[1].value:GetText()), "200 (20.0, 66.7%)")
     check("panel row 2 name", text(p.rows[2].name:GetText()), "Fireball")
     check("panel row 1 fill", p.rows[1]._value, 200)

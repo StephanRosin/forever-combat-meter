@@ -30,6 +30,9 @@ local GREY = { 0.6, 0.6, 0.6 }
 local GOLD = { 1, 0.82, 0.29 }
 local PRECISE = { interrupts = true, dispels = true }
 local SEP = " \226\128\148 "  -- " — "
+-- MEDIUM like the meter windows, so the panel does not cover Blizzard's bags
+-- (those are toplevel MEDIUM). The level keeps it over its own meter window.
+local PANEL_STRATA, PANEL_FRAME_LEVEL = "MEDIUM", 20
 
 local panel
 local current   -- { window, mode, view, row } of the open panel
@@ -344,7 +347,8 @@ local function create()
     local f = CreateFrame("Frame", "ForeverCombatMeterDetail", UIParent)
     panel = f
     f.rows = {}
-    f:SetFrameStrata("HIGH")
+    f:SetFrameStrata(PANEL_STRATA)
+    f:SetFrameLevel(PANEL_FRAME_LEVEL)
     f:SetMovable(true)
     f:SetClampedToScreen(true)
     f:EnableMouse(true)
