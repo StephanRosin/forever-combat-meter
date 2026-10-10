@@ -275,7 +275,7 @@ local function layoutHeader(f, lk)
     local unlocked = not cfg.locked
     h.grip:SetShown(unlocked and lk.glow)
     local b = h.buttons
-    local order = lk.allButtons and { b.menu, b.reset, b.lock, b.session, b.mode } or { b.menu, b.lock }
+    local order = lk.allButtons and { b.menu, b.reset, b.lock, b.session } or { b.menu, b.lock, b.session }
     for _, button in pairs(b) do button:Hide() end
     for k, button in ipairs(order) do
         button:SetSize(lk.button, lk.button)
@@ -761,6 +761,18 @@ local function sessionText(s, n)
     return string.format("%s (%s)", name, Format.Duration(s.duration))
 end
 
+-- What window i shows: Current, Overall or the name of a past fight.
+function Windows.SessionLabel(i)
+    local view = Windows.View(i)
+    if view == "overall" then return L.SESSION_OVERALL end
+    if type(view) == "number" then
+        for n, sess in ipairs(Meter.Sessions()) do
+            if not issecret(sess.id) and sess.id == view then return sessionText(sess, n) end
+        end
+    end
+    return L.SESSION_CURRENT
+end
+
 local function addSessions(parent, i)
     local function isView(v) return Windows.View(i) == v end
     local function setView(v) Windows.SetView(i, v) end
@@ -784,19 +796,22 @@ local function contextMenu(owner, build)
 end
 
 function Windows.OpenModeMenu(i, owner)
-    contextMenu(owner, function(root) addModes(root, i) end)
+    contextMenu(owner, function(root)
+        root:CreateTitle(L.MENU_MODE)
+        addModes(root, i)
+    end)
 end
 
 function Windows.OpenSessionMenu(i, owner)
-    contextMenu(owner, function(root) addSessions(root, i) end)
+    contextMenu(owner, function(root)
+        root:CreateTitle(L.MENU_SESSION)
+        addSessions(root, i)
+    end)
 end
 
 function Windows.OpenMenu(i, owner)
     contextMenu(owner, function(root)
         root:CreateTitle(L.ADDON_NAME)
-        addModes(root:CreateButton(L.MENU_MODE), i)
-        addSessions(root:CreateButton(L.MENU_SESSION), i)
-        root:CreateDivider()
         local new = root:CreateButton(L.MENU_NEW_WINDOW, function() Windows.Add() end)
         if S("windowCount") >= MAX_WINDOWS and new.SetEnabled then new:SetEnabled(false) end
         root:CreateButton(L.MENU_REPORT, function() ns.Report.Window(i, S("reportLines")) end)
@@ -893,14 +908,9 @@ local function createHeader(f)
         lock = headerButton(f, "Lock", function()
             return f.cfg.locked and L.TIP_UNLOCK_WINDOW or L.TIP_LOCK_WINDOW
         end, function() Windows.ToggleLock(i) end, function() return not f.cfg.locked end),
-        session = headerButton(f, "Session", L.TIP_SESSION, function(self, mouse)
-            if mouse == "RightButton" then
-                Windows.OpenSessionMenu(i, self)
-            else
-                Windows.SetView(i, Windows.View(i) == "current" and "overall" or "current")
-            end
-        end),
-        mode = headerButton(f, "Mode", L.TIP_MODE, function(self) Windows.OpenModeMenu(i, self) end),
+        session = headerButton(f, "Session", function()
+            return L.TIP_SESSION:format(Windows.SessionLabel(i))
+        end, function(self) Windows.OpenSessionMenu(i, self) end),
     }
 
     h:SetScript("OnMouseDown", function(_, mouse)
@@ -909,8 +919,12 @@ local function createHeader(f)
     h:SetScript("OnMouseUp", function() stopMoving(f) end)
     h:SetScript("OnHide", function() stopMoving(f) end)
     h:SetScript("OnClick", function(self, mouse)
-        if mouse == "RightButton" then Windows.OpenMenu(i, self) end
+        if mouse == "RightButton" then Windows.OpenModeMenu(i, self) end
     end)
+    h:SetScript("OnEnter", function(self)
+        tooltip(self, L.TIP_HEADER)
+    end)
+    h:SetScript("OnLeave", function() GameTooltip:Hide() end)
     h:SetScript("OnMouseWheel", function(_, delta) Windows.CycleMode(i, delta < 0 and 1 or -1) end)
 end
 

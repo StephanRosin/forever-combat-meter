@@ -10,10 +10,11 @@ A combat meter built for **WoW: Forever**. It reads Blizzard's own server-side m
 
 ## Modes
 - **Damage**, **Healing**, **Absorbs**, **Damage taken**, **Interrupts**, **Dispels**, **Deaths** — plus **Enemy damage taken** and **Avoidable damage taken** when the client offers them.
+- Right-click the window title to pick the mode (or use the mouse wheel over it).
 - **Threat** on your current target for the whole group (pets optional), with the tank on top.
 
 ## Sessions
-- **Current fight**, **Overall**, and every earlier fight the client keeps. Switch from the header or with the mouse wheel.
+- **Current fight**, **Overall**, and every earlier fight the client keeps. Pick one with the **session button** in the header.
 
 ## Up to four windows
 - Each window has its own mode, session, position, size and lock — damage and healing side by side, threat in a third.
