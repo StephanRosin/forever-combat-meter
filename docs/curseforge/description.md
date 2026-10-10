@@ -36,7 +36,7 @@ A combat meter built for **WoW: Forever**. It reads Blizzard's own server-side m
 - **Deaths**: time of death and the last hits before it.
 
 ## Threat warning
-- A centred warning ("Threat: 95%") and an optional sound when you pass your threshold and are not the tank — even without a threat window open.
+- An optional warning, off by default (switch it on in the options): a centred warning ("Threat: 95%") and an optional sound when you pass your threshold and are not the tank — even without a threat window open.
 
 ## Chat report
 - Report a window's top N or a player's top spells to say (in instances), party, raid, instance chat, guild or a whisper to your current target (greyed out without a player target) — pick the channel in the gear menu's Report submenu, the options or with `/fcm report [n] [channel]`; the last choice is remembered.

@@ -65,7 +65,7 @@ Settings.DEFAULTS = {
     valueColor = { 1, 1, 1 },
 
     -- Threat
-    threatWarn = true,
+    threatWarn = false,
     threatWarnPct = 90,
     threatSound = true,
     showPets = true,

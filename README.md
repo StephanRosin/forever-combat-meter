@@ -44,7 +44,7 @@ Then `/reload` or restart the game.
   edge to edge).
 - **Details**: hover a bar for the top five spells, click it for the breakdown
   panel with every spell; in deaths mode the death recap.
-- **Threat warning**: a centred warning and an optional sound when you pass your
+- **Threat warning** (optional, off by default; switch it on in the options): a centred warning and an optional sound when you pass your
   threshold without holding the target; once per target and fight.
 - **Chat report** of a window's ranking or a player's spells to say, party, raid,
   instance, guild or a whisper to your target (the gear menu's Report submenu; the last choice

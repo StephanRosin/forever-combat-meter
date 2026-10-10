@@ -660,6 +660,8 @@ party({
     party1 = { name = "Tank", class = "WARRIOR", tank = true, raw = 100, value = 9 },
 })
 world.sounds = {}
+check("threat warning off by default", Settings.Get("threatWarn"), false)
+Settings.Set("threatWarn", true)
 check("warning active at 95 %", Threat.CheckWarning(), true)
 check("sound played", #world.sounds, 1)
 check("sound id and channel", world.sounds[1][1] .. world.sounds[1][2], "8959Master")
@@ -691,7 +693,7 @@ check("sound off: silent", #world.sounds, 0)
 Settings.Set("threatSound", nil)
 Settings.Set("threatWarn", false)
 check("warning off", Threat.CheckWarning(), false)
-Settings.Set("threatWarn", nil)
+Settings.Set("threatWarn", true)
 Settings.Set("threatWarnPct", 98)
 check("custom threshold", Threat.CheckWarning(), false)
 Settings.Set("threatWarnPct", nil)
@@ -880,6 +882,7 @@ Settings.Set("windowCount", nil)
 check("count setting hides windows", Windows.Frame(2):IsShown(), false)
 
 section("Windows: threat")
+Settings.Set("threatWarn", true)
 party({
     player = { name = "Me", class = "MAGE", raw = 95, value = 1, self = true },
     party1 = { name = "Tank", class = "WARRIOR", tank = true, raw = 100, value = 9 },
@@ -1321,6 +1324,7 @@ check("a new unlocked window: not all locked", S("locked"), false)
 Settings.ResetProfile()
 
 section("Windows: threat warning flash")
+Settings.Set("threatWarn", true)
 party({
     player = { name = "Me", class = "MAGE", raw = 95, value = 1, self = true },
     party1 = { name = "Tank", class = "WARRIOR", tank = true, raw = 100, value = 9 },
@@ -1363,7 +1367,7 @@ Settings.Set("threatWarn", false)
 samples = 0
 Windows.Tick(0.2)
 check("warning off: no sampling", samples, 0)
-Settings.Set("threatWarn", nil)
+Settings.Set("threatWarn", true)
 world.target.attack = false
 samples = 0
 Windows.Tick(0.2)
