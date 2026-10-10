@@ -5,7 +5,7 @@
 ## Notes-esES: Un medidor de daño, sanación y amenaza al estilo de los addons Forever: hasta cuatro ventanas, desglose por hechizo, resumen de muerte, informe en el chat.
 ## Notes-esMX: Un medidor de daño, sanación y amenaza al estilo de los addons Forever: hasta cuatro ventanas, desglose por hechizo, resumen de muerte, informe en el chat.
 ## Notes-frFR: Un compteur de dégâts, de soins et de menace dans le style des addons Forever : jusqu'à quatre fenêtres, détail par sort, récapitulatif de mort, rapport dans le chat.
-## Version: 1.0.0
+## Version: 1.0.1
 ## X-Curse-Project-ID: 1737218
 ## IconTexture: Interface\AddOns\ForeverCombatMeter\Media\MinimapIcon.tga
 ## AddonCompartmentFunc: ForeverCombatMeter_OnAddonCompartmentClick

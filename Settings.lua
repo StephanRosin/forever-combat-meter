@@ -73,7 +73,6 @@ Settings.DEFAULTS = {
     -- Report
     reportLines = 5,
     reportChannel = "AUTO",  -- AUTO, SAY, PARTY, RAID, INSTANCE_CHAT, GUILD, WHISPER
-    reportTarget = "",       -- the last whisper name
 
     -- Breakdown panel (centre anchor and offsets from UIParent)
     detailPoint = "CENTER",

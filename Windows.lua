@@ -815,7 +815,7 @@ function Windows.OpenMenu(i, owner)
         local new = root:CreateButton(L.MENU_NEW_WINDOW, function() Windows.Add() end)
         if S("windowCount") >= MAX_WINDOWS and new.SetEnabled then new:SetEnabled(false) end
         local report = root:CreateButton(L.MENU_REPORT)
-        ns.Report.AddMenu(report, function(channel, target) ns.Report.Window(i, S("reportLines"), channel, target) end)
+        ns.Report.AddMenu(report, function(channel) ns.Report.Window(i, S("reportLines"), channel) end)
         local close = root:CreateButton(L.MENU_CLOSE_WINDOW, function() Windows.Close(i) end)
         if i == 1 and close.SetEnabled then close:SetEnabled(false) end
         root:CreateButton(Windows.Config(i).locked and L.MENU_UNLOCK or L.MENU_LOCK,

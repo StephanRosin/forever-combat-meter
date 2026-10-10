@@ -31,22 +31,21 @@ local function setWindows(n)
     ns.Windows.SetCount(n)
 end
 
--- /fcm report [n] [channel] [name]: a given channel is stored as the last
+-- /fcm report [n] [channel]: a given channel is stored as the last
 -- chosen one; without one the stored channel is used.
 local function report(args)
     local n, k = tonumber(args[1]), 1
     if n then k = 2 end
-    local channel, target
+    local channel
     if args[k] then
         channel = ns.Report.ParseChannel(args[k])
         if not channel then
             ns.Print(L.MSG_USAGE)
             return
         end
-        target = args[k + 1]
-        ns.Report.Choose(channel, target)
+        ns.Report.Choose(channel)
     end
-    ns.Report.Window(1, n, channel, target)
+    ns.Report.Window(1, n, channel)
 end
 
 local COMMANDS = {

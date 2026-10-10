@@ -26,7 +26,7 @@ Then `/reload` or restart the game.
 | --- | --- |
 | `/fcm mode [window] <mode>` | damage, healing, absorbs, taken, enemytaken, avoidable, interrupts, dispels, deaths, threat |
 | `/fcm windows <1-4>` | opens or closes windows |
-| `/fcm report [n] [channel] [name]` | sends window 1's top n to the chat; channel: auto, say, party, raid, instance, guild, whisper (remembered) |
+| `/fcm report [n] [channel]` | sends window 1's top n to the chat; channel: auto, say, party, raid, instance, guild, whisper (to your target; remembered) |
 | `/fcm reset` | clears all fights (asks first; not in combat) |
 | `/fcm toggle` | hides or shows all windows |
 | `/fcm lock` / `unlock` | locks or unlocks all windows |
@@ -47,7 +47,7 @@ Then `/reload` or restart the game.
 - **Threat warning**: a centred warning and an optional sound when you pass your
   threshold without holding the target; once per target and fight.
 - **Chat report** of a window's ranking or a player's spells to say, party, raid,
-  instance, guild or a whisper (the gear menu's Report submenu; the last choice
+  instance, guild or a whisper to your target (the gear menu's Report submenu; the last choice
   is remembered); refused in combat, when the values are secret.
 - **Profiles** shared across characters, export and import as text, optionally
   hiding Blizzard's own damage meter.

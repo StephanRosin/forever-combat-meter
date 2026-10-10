@@ -2448,7 +2448,7 @@ do
     end
 
     -- Entries and their states
-    check("menu entries", M.MenuTexts(reportMenu()), "Automatic,Say,Party,Raid,Instance,Guild,Whisper\226\128\166")
+    check("menu entries", M.MenuTexts(reportMenu()), "Automatic,Say,Party,Raid,Instance,Guild,Whisper")
     check("solo: automatic enabled", enabled("Automatic"), true)
     check("solo: say disabled outside an instance", enabled("Say"), false)
     check("solo: say hint", hint("Say"), ns.L.REPORT_HINT_SAY)
@@ -2458,7 +2458,7 @@ do
     check("solo: instance disabled", enabled("Instance"), false)
     check("solo: guild disabled", enabled("Guild"), false)
     check("solo: guild hint", hint("Guild"), ns.L.REPORT_HINT_GUILD)
-    check("solo: whisper enabled", enabled("Whisper\226\128\166"), true)
+    check("solo: whisper greyed without a target", enabled("Whisper"), false)
     M.state.instance = { kind = "party", name = "Dungeon" }
     check("instance: say enabled", enabled("Say"), true)
     M.state.instance = nil
@@ -2507,67 +2507,94 @@ do
     check("unusable stored channel: nothing sent", #out, 0)
     check("unusable stored channel: says why", (M.Reveal(M.chat[1] or "")):find("Guild", 1, true) ~= nil, true)
 
-    -- Whisper: a friendly player target is whispered directly
+    -- Whisper: the current target, a player who can be whispered
+    local WTXT = "Whisper"
+    local function tgtOf(t) tgt = t end
+    UnitFactionGroup = function(u) if u == "target" then return tgt and tgt.faction end return "Alliance" end
+    GetUnitName = function(u, full)
+        if u ~= "target" or not tgt then return nil end
+        if full and tgt.realm then return tgt.name .. "-" .. tgt.realm end
+        return tgt.name
+    end
+    tgt = nil
+    check("no target: whisper entry present", entry(WTXT) ~= nil, true)
+    check("no target: whisper greyed", enabled(WTXT), false)
+    check("no target: whisper hint", hint(WTXT), ns.L.REPORT_HINT_WHISPER)
+    tgt = { name = "Ogre", player = false, friend = false }
+    check("npc target: whisper greyed", enabled(WTXT), false)
+    check("npc target: whisper hint", hint(WTXT), ns.L.REPORT_HINT_WHISPER)
+    tgt = { name = "Ann", player = true, friend = true }
+    check("player target: entry text with the name", entry("Whisper Ann") ~= nil, true)
+    check("player target: whisper enabled", enabled("Whisper Ann"), true)
+    tgt = { name = "Ann", realm = "Other", player = true, friend = true }
+    check("player target with realm: entry text", entry("Whisper Ann-Other") ~= nil, true)
+    tgt = { name = "Zed", player = true, friend = false, faction = "Horde" }
+    check("enemy faction player: greyed", enabled(WTXT), false)
+    tgt = { name = "Yan", player = true, friend = false, faction = "Alliance" }
+    check("same faction (not friendly): enabled", enabled("Whisper Yan"), true)
+    tgt = { name = M.Secret("Ann"), player = true, friend = true }
+    check("secret target name: greyed, no error", (pcall(reportMenu)) and enabled(WTXT), false)
     reset()
-    tgt = { name = "Ann", realm = nil, player = true, friend = true }
-    check("whisper entry names the target", entry("Whisper Ann") ~= nil, true)
+    tgt = { name = "Ann", player = true, friend = true }
     M.MenuClick(entry("Whisper Ann"))
     drain()
-    check("whisper target: stored channel", S("reportChannel"), "WHISPER")
-    check("whisper target: stored name", S("reportTarget"), "Ann")
-    check("whisper target: chat type", out[1] and out[1].chatType, "WHISPER")
-    check("whisper target: to the target", out[1] and out[1].target, "Ann")
-    check("whisper target: no popup", #M.popups, 0)
-    tgt = { name = "Ann", realm = "Other", player = true, friend = true }
-    check("whisper entry with realm", entry("Whisper Ann-Other") ~= nil, true)
-    tgt = { name = "Ogre", player = false, friend = false }
-    check("hostile npc: popup entry", entry("Whisper\226\128\166") ~= nil, true)
-    tgt = { name = M.Secret("Ann"), player = true, friend = true }
-    check("secret target name: popup entry, no error", (pcall(reportMenu)) and entry("Whisper\226\128\166") ~= nil, true)
-    tgt = nil
-    -- Otherwise a popup asks for the name
+    check("whisper menu: stored channel", S("reportChannel"), "WHISPER")
+    check("whisper menu: chat type", out[1] and out[1].chatType, "WHISPER")
+    check("whisper menu: to the target", out[1] and out[1].target, "Ann")
+    check("whisper menu: no popup", #M.popups, 0)
+    check("no whisper popup dialog any more", StaticPopupDialogs.FOREVERCOMBATMETER_WHISPER, nil)
+    check("no reportTarget setting", Settings.DEFAULTS.reportTarget, nil)
+    -- Stored channel WHISPER: /fcm report and the panel use the target
     reset()
-    M.MenuClick(entry("Whisper\226\128\166"))
-    check("whisper: popup", M.popups[1] and M.popups[1].which, "FOREVERCOMBATMETER_WHISPER")
-    check("whisper: nothing sent yet", #out, 0)
-    local dialog = StaticPopupDialogs.FOREVERCOMBATMETER_WHISPER
-    check("whisper popup: edit box", dialog.hasEditBox, true)
-    check("whisper popup: maxLetters", dialog.maxLetters, 48)
-    local box = { text = "", max = 255 }
-    function box:SetMaxLetters(n) self.max = n end
-    function box:SetText(t) self.text = t end
-    function box:GetText() return self.text end
-    function box:HighlightText() end
-    function box:SetFocus() end
-    local popup = { editBox = box }
-    dialog.OnShow(popup)
-    check("whisper popup: limit set explicitly on show", box.max, 48)
-    check("whisper popup: prefilled with the last name", box.text, "Ann")
-    box.text = "  Cid-Realm  "
-    dialog.OnAccept(popup)
-    drain()
-    check("whisper popup: sent to the typed name", out[1] and out[1].target, "Cid-Realm")
-    check("whisper popup: name stored", S("reportTarget"), "Cid-Realm")
-    dialog.OnHide(popup)
-    check("whisper popup: shared box limit given back", box.max, 0)
-    -- The stored name is used without asking
-    reset()
+    tgt = { name = "Bea", realm = "Realm", player = true, friend = true }
     SlashCmdList["FOREVERCOMBATMETER"]("report 1")
     drain()
-    check("stored whisper: no popup", #M.popups, 0)
-    check("stored whisper: to the stored name", out[1] and out[1].target, "Cid-Realm")
-    -- Whisper without any stored name: the popup
-    reset()
-    Settings.Set("reportTarget", "")
-    SlashCmdList["FOREVERCOMBATMETER"]("report 1")
-    check("whisper without a name: popup", M.popups[1] and M.popups[1].which, "FOREVERCOMBATMETER_WHISPER")
-    dialog.OnHide(popup)
-    -- /fcm report [n] [channel] [name]
+    check("/fcm report (stored whisper): to the target", out[1] and out[1].target, "Bea-Realm")
     reset()
     SlashCmdList["FOREVERCOMBATMETER"]("report 1 whisper Dee")
     drain()
-    check("/fcm report 1 whisper Dee", out[1] and (out[1].chatType .. ":" .. tostring(out[1].target)), "WHISPER:Dee")
-    check("/fcm report: channel stored", S("reportTarget"), "Dee")
+    check("/fcm report whisper: name argument dropped", out[1] and (out[1].chatType .. ":" .. tostring(out[1].target)), "WHISPER:Bea-Realm")
+    check("/fcm report whisper: channel stored", S("reportChannel"), "WHISPER")
+    Detail.Open(1, bob)
+    reset()
+    Detail.ReportSpells()
+    drain()
+    check("panel whisper: to the target", out[1] and (out[1].chatType .. ":" .. tostring(out[1].target)), "WHISPER:Bea-Realm")
+    Detail.Close()
+    for _, case in ipairs({ { "none", nil }, { "npc", { name = "Ogre", player = false, friend = false } } }) do
+        tgt = case[2]
+        reset()
+        SlashCmdList["FOREVERCOMBATMETER"]("report 1")
+        drain()
+        check("/fcm report whisper, " .. case[1] .. ": nothing sent", #out, 0)
+        check("/fcm report whisper, " .. case[1] .. ": says why", (M.Reveal(M.chat[1] or "")):find(ns.L.REPORT_NO_TARGET, 1, true) ~= nil, true)
+        check("/fcm report whisper, " .. case[1] .. ": no popup", #M.popups, 0)
+        Detail.Open(1, bob)
+        reset()
+        Detail.ReportSpells()
+        drain()
+        check("panel whisper, " .. case[1] .. ": nothing sent", #out, 0)
+        check("panel whisper, " .. case[1] .. ": says why", (M.Reveal(M.chat[1] or "")):find(ns.L.REPORT_NO_TARGET, 1, true) ~= nil, true)
+        Detail.Close()
+    end
+    tgt = nil
+    -- A report whose send raises must not wedge the queue
+    Settings.Set("reportChannel", "GUILD")
+    guild = true
+    reset()
+    local failing, realSend = true, C_ChatInfo.SendChatMessage
+    C_ChatInfo.SendChatMessage = function(...) if failing then failing = false error("boom") end return realSend(...) end
+    local okQ = pcall(Report.Window, 1, 2)
+    local okT = pcall(drain)
+    check("failed send: raises nothing out of the queue", okQ and okT, true)
+    check("failed send: queue drained", Report.Pending(), 0)
+    check("failed send: the rest still goes out", #out >= 2, true)
+    out = {}
+    check("later report: accepted", Report.Window(1, 1), true)
+    drain()
+    check("later report: sent after a failed send", #out >= 1 and out[1].chatType, "GUILD")
+    C_ChatInfo.SendChatMessage = realSend
+    guild = false
     reset()
     SlashCmdList["FOREVERCOMBATMETER"]("report auto")
     drain()
@@ -2579,7 +2606,7 @@ do
     check("/fcm report bad channel: nothing stored", S("reportChannel"), "AUTO")
     -- Same secret refusal on every channel
     Settings.Set("reportChannel", "WHISPER")
-    Settings.Set("reportTarget", "Dee")
+    tgt = { name = "Dee", player = true, friend = true }
     M.state.combat = true
     Windows.Refresh(1)
     reset()
@@ -2588,6 +2615,7 @@ do
     check("secret whisper: refused", resW, false)
     check("secret whisper: nothing sent", #out, 0)
     check("secret whisper: no popup", #M.popups, 0)
+    tgt = nil
     M.state.combat = false
     Windows.Refresh(1)
     -- Options: channel select and whisper name on the General page
@@ -2599,20 +2627,17 @@ do
     check("options: channel choices", rows.reportChannel and #rows.reportChannel.choices(), 7)
     rows.reportChannel.set("PARTY")
     check("options: channel set", S("reportChannel"), "PARTY")
-    check("options: whisper name hidden unless whisper", rows.reportTarget.visible(), false)
-    rows.reportChannel.set("WHISPER")
-    check("options: whisper name shown for whisper", rows.reportTarget.visible(), true)
-    rows.reportTarget.set("  Eve ")
-    check("options: whisper name trimmed", S("reportTarget"), "Eve")
+    check("options: no whisper name row", rows.reportTarget, nil)
     -- Import keeps only known channels
     Settings.ResetProfile()
     check("import: bad channel skipped", ns.Share.Import("FCM1:ts13:reportChannels5:SHOUT}"), true)
     check("import: bad channel not stored", ns.DB().reportChannel, nil)
     ns.Share.Import("FCM1:ts13:reportChannels5:GUILDs12:reportTargets3:Eve}")
     check("import: good channel kept", S("reportChannel"), "GUILD")
-    check("import: whisper name kept", S("reportTarget"), "Eve")
+    check("import: old reportTarget ignored", S("reportTarget"), nil)
+    check("import: old reportTarget not stored", ns.DB().reportTarget, nil)
     Settings.ResetProfile()
-    UnitExists, UnitName, UnitIsPlayer, UnitIsFriend, IsInGuild, C_ChatInfo = realUnitExists, realUnitName, nil, nil, nil, nil
+    UnitExists, UnitName, UnitIsPlayer, UnitIsFriend, IsInGuild, C_ChatInfo, UnitFactionGroup, GetUnitName = realUnitExists, realUnitName, nil, nil, nil, nil, nil, nil
     reset()
 end
 

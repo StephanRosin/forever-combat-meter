@@ -128,11 +128,6 @@ local function generalRows()
         check("hideBlizzard", "OPT_HIDE_BLIZZARD"),
         { type = "header", label = "OPT_REPORT" },
         choice("reportChannel", "OPT_REPORT_CHANNEL", ns.Report.CHANNELS, "REPORT_CH_"),
-        visibleIf({
-            key = "reportTarget", type = "input", label = "OPT_REPORT_TARGET", maxLetters = 48,
-            get = function() return S("reportTarget") end,
-            set = function(v) Settings.Set("reportTarget", (v:gsub("^%s+", ""):gsub("%s+$", ""))) end,
-        }, function() return S("reportChannel") == "WHISPER" end),
         num("reportLines", "OPT_REPORT_LINES", ""),
         { type = "header", label = "OPT_MINIMAP" },
         check("minimapShow", "OPT_MINIMAP_SHOW"),

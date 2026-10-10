@@ -39,7 +39,7 @@ A combat meter built for **WoW: Forever**. It reads Blizzard's own server-side m
 - A centred warning ("Threat: 95%") and an optional sound when you pass your threshold and are not the tank — even without a threat window open.
 
 ## Chat report
-- Report a window's top N or a player's top spells to say (in instances), party, raid, instance chat, guild or a whisper — pick the channel in the gear menu's Report submenu (the target is whispered directly), the options or with `/fcm report [n] [channel] [name]`; the last choice is remembered.
+- Report a window's top N or a player's top spells to say (in instances), party, raid, instance chat, guild or a whisper to your current target (greyed out without a player target) — pick the channel in the gear menu's Report submenu, the options or with `/fcm report [n] [channel]`; the last choice is remembered.
 
 ## Combat-safe
 - In combat the game hides the exact numbers from addons ("secret values"). The meter shows them as the game hands them out and sorts, percents and fills in the details as soon as combat ends — no errors, no blocked actions.

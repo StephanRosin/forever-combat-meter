@@ -10,7 +10,7 @@ local L, Settings, Meter, Format, Windows = ns.L, ns.Settings, ns.Meter, ns.Form
 -- channel is the one last chosen (profile setting reportChannel): AUTO (as
 -- the client's chat box: instance chat, raid, party, say inside an
 -- instance, else printed locally), or SAY, PARTY, RAID, INSTANCE_CHAT,
--- GUILD, WHISPER (reportTarget, else a popup asks for the name). SAY from
+-- GUILD, WHISPER (the current target, if it is a player who can be whispered). SAY from
 -- addon code is forbidden outside instances. In combat the values are
 -- secret and cannot be put into a chat message: the report is refused and
 -- the reason printed. Lines are built from plain values only (the secret
@@ -25,7 +25,6 @@ local SEP = " \226\128\148 "  -- " — "
 -- The client throttles chat from addons: at most one line per this many
 -- seconds, the rest waits in a queue.
 local LINE_INTERVAL = 0.2
-local WHISPER_LETTERS = 48   -- name-realm
 
 Report.CHANNELS = { "AUTO", "SAY", "PARTY", "RAID", "INSTANCE_CHAT", "GUILD", "WHISPER" }
 local KNOWN = {}
@@ -88,36 +87,26 @@ function Report.StoredChannel()
     return "AUTO"
 end
 
-local function trimmed(text)
-    if type(text) ~= "string" then return nil end
-    text = text:gsub("^%s+", ""):gsub("%s+$", "")
-    if text == "" then return nil end
-    return text
-end
-
--- The stored whisper name, or nil.
-function Report.StoredTarget()
-    return trimmed(S("reportTarget"))
-end
-
--- Remembers the chosen channel (and the whisper name) for the next report.
-function Report.Choose(channel, target)
+-- Remembers the chosen channel for the next report.
+function Report.Choose(channel)
     if not KNOWN[channel] then return end
-    local values = { reportChannel = channel }
-    target = trimmed(target)
-    if target then values.reportTarget = target end
-    Settings.SetMany(values)
+    Settings.Set("reportChannel", channel)
 end
 
--- The current target when it is a friendly player other than oneself: its
--- "Name" or "Name-Realm"; nil otherwise (a secret name counts as none).
+-- The current target's whisper name ("Name", or "Name-Realm" when the realm
+-- is needed), when it is a player other than oneself who can be whispered
+-- (friendly or of the own faction); nil otherwise (a secret name counts as
+-- none).
 function Report.WhisperTarget()
     if not (UnitExists and UnitExists("target") and UnitIsPlayer and UnitIsPlayer("target")) then return nil end
-    if not (UnitIsFriend and UnitIsFriend("player", "target")) then return nil end
     if UnitIsUnit and UnitIsUnit("target", "player") then return nil end
-    local name, realm = UnitName("target")
-    if issecret(name) or issecret(realm) or type(name) ~= "string" or name == "" then return nil end
-    if type(realm) == "string" and realm ~= "" then return format("%s-%s", name, realm) end
+    local friend = UnitIsFriend and UnitIsFriend("player", "target")
+    if not friend then
+        local mine, theirs = UnitFactionGroup and UnitFactionGroup("player"), UnitFactionGroup and UnitFactionGroup("target")
+        if issecret(mine) or issecret(theirs) or mine == nil or mine ~= theirs then return nil end
+    end
+    local name = GetUnitName and GetUnitName("target", true)
+    if issecret(name) or type(name) ~= "string" or name == "" then return nil end
     return name
 end
 
@@ -139,8 +128,10 @@ local function pump()
         return
     end
     sending = true
-    send(item.msg, item.chatType, item.target)
+    -- The next tick is scheduled first and a failing send is contained, so
+    -- one error never leaves the queue stuck.
     C_Timer.After(LINE_INTERVAL, pump)
+    pcall(send, item.msg, item.chatType, item.target)
 end
 
 -- Lines go out one by one, or to the player's own chat (no throttle there)
@@ -159,56 +150,6 @@ end
 -- Lines still waiting to be sent.
 function Report.Pending() return #queue end
 
--- The whisper popup: asks for a name, then calls the waiting report.
-local waiting
-local function editBoxOf(popup)
-    return popup and (popup.editBox or popup.EditBox or (popup.GetEditBox and popup:GetEditBox()))
-end
-
-local function acceptWhisper(popup)
-    local box = editBoxOf(popup)
-    local name = trimmed(box and box:GetText())
-    local run = waiting
-    waiting = nil
-    if not name or not run then return end   -- plain: typed text
-    Report.Choose("WHISPER", name)
-    run(name)
-end
-
-StaticPopupDialogs.FOREVERCOMBATMETER_WHISPER = {
-    text = "", button1 = ACCEPT or OKAY, button2 = CANCEL, hasEditBox = true, maxLetters = WHISPER_LETTERS,
-    timeout = 0, whileDead = true, hideOnEscape = true,
-    -- The edit box is shared by every popup and keeps the last one's limit:
-    -- set ours explicitly, and give it back unlimited.
-    OnShow = function(self)
-        local box = editBoxOf(self)
-        if not box then return end
-        box:SetMaxLetters(WHISPER_LETTERS)
-        box:SetText(Report.StoredTarget() or "")
-        box:HighlightText()
-        box:SetFocus()
-    end,
-    OnHide = function(self)
-        local box = editBoxOf(self)
-        if box then box:SetMaxLetters(0) end
-        waiting = nil
-    end,
-    OnAccept = function(self) acceptWhisper(self) end,
-    EditBoxOnEnterPressed = function(box)
-        local popup = box:GetParent()
-        acceptWhisper(popup)
-        popup:Hide()
-    end,
-    EditBoxOnEscapePressed = function(box) box:GetParent():Hide() end,
-}
-
--- Asks for a whisper name; run(name) once it is given.
-function Report.AskWhisper(run)
-    waiting = run
-    StaticPopupDialogs.FOREVERCOMBATMETER_WHISPER.text = L.POPUP_WHISPER
-    StaticPopup_Show("FOREVERCOMBATMETER_WHISPER")
-end
-
 local function refuse(message)
     ns.Print("%s", message)
     return false
@@ -221,9 +162,9 @@ local function anySecret(...)
     return false
 end
 
--- To `channel` (nil: the stored one); WHISPER to `target`, else the stored
--- name, else after the popup.
-local function deliver(lines, channel, target)
+-- To `channel` (nil: the stored one); WHISPER goes to the current target,
+-- and without one nothing is sent.
+local function deliver(lines, channel)
     channel = channel or Report.StoredChannel()
     if channel == "AUTO" then
         enqueue(lines, Report.Channel())
@@ -232,14 +173,10 @@ local function deliver(lines, channel, target)
     if not Report.Usable(channel) then
         return refuse(L.REPORT_UNAVAILABLE:format(Report.ChannelLabel(channel)))
     end
+    local target
     if channel == "WHISPER" then
-        target = trimmed(target) or Report.StoredTarget()
-        if not target then
-            Report.AskWhisper(function(name) enqueue(lines, "WHISPER", name) end)
-            return true
-        end
-    else
-        target = nil
+        target = Report.WhisperTarget()
+        if not target then return refuse(L.REPORT_NO_TARGET) end
     end
     enqueue(lines, channel, target)
     return true
@@ -250,9 +187,9 @@ local function limit(n, available)
     return math.max(0, math.min(n, available))
 end
 
--- The ranking of window i: header line, then the first n rows. channel and
--- target are optional (nil: the stored ones).
-function Report.Window(i, n, channel, target)
+-- The ranking of window i: header line, then the first n rows. channel is
+-- optional (nil: the stored one).
+function Report.Window(i, n, channel)
     local mode, view = Windows.Mode(i), Windows.View(i)
     local data = Meter.Fetch(mode, view)
     if not data then return refuse(L.REPORT_EMPTY) end
@@ -276,11 +213,11 @@ function Report.Window(i, n, channel, target)
         if mode ~= "deaths" then percent = r.percent end
         lines[#lines + 1] = format("%s. %s  %s", k, r.name, Format.ValueText(r.total, percent))
     end
-    return deliver(lines, channel, target)
+    return deliver(lines, channel)
 end
 
 -- One source's top spells; source = Detail.Source().
-function Report.Spells(source, n, channel, target)
+function Report.Spells(source, n, channel)
     if not source then return refuse(L.REPORT_EMPTY) end   -- plain: a table
     local data = Meter.Spells(source.mode, source.view, source.row)
     if not data or data.secret then return refuse(L.REPORT_SECRET) end
@@ -297,41 +234,32 @@ function Report.Spells(source, n, channel, target)
         local sp = data.rows[k]
         lines[#lines + 1] = format("%s. %s  %s", k, Format.SpellLabel(sp), Format.ValueText(sp.total, sp.percentOfSource))
     end
-    return deliver(lines, channel, target)
+    return deliver(lines, channel)
 end
 
 -- The report submenu (the gear menu's Report): one entry per channel, the
 -- stored one checked; a channel that cannot work now is greyed out with the
--- reason as its tooltip. Picking one stores it and calls run(channel, target).
+-- reason as its tooltip. Whisper goes to the current target and is greyed
+-- out without a player target. Picking one stores it and calls run(channel).
 local function closeMenu() return MenuResponse and MenuResponse.Close end
 
 function Report.AddMenu(parent, run)
     local function isStored(channel) return Report.StoredChannel() == channel end
     for _, channel in ipairs(Report.CHANNELS) do
-        local entry
+        local label, usable, why = Report.ChannelLabel(channel), Report.Usable(channel)
         if channel == "WHISPER" then
             local name = Report.WhisperTarget()
             if name then   -- plain: WhisperTarget drops secret names
-                entry = parent:CreateRadio(L.REPORT_WHISPER_TO:format(name), isStored, function()
-                    Report.Choose("WHISPER", name)
-                    run("WHISPER", name)
-                    return closeMenu()
-                end, channel)
+                label = L.REPORT_WHISPER_TO:format(name)
             else
-                entry = parent:CreateRadio(L.REPORT_WHISPER_ASK, isStored, function()
-                    Report.Choose("WHISPER")
-                    Report.AskWhisper(function(n) run("WHISPER", n) end)
-                    return closeMenu()
-                end, channel)
+                label, usable, why = L.REPORT_CH_WHISPER, false, "REPORT_HINT_WHISPER"
             end
-        else
-            entry = parent:CreateRadio(Report.ChannelLabel(channel), isStored, function()
-                Report.Choose(channel)
-                run(channel)
-                return closeMenu()
-            end, channel)
         end
-        local usable, why = Report.Usable(channel)
+        local entry = parent:CreateRadio(label, isStored, function()
+            Report.Choose(channel)
+            run(channel)
+            return closeMenu()
+        end, channel)
         if not usable then
             if entry.SetEnabled then entry:SetEnabled(false) end
             if why and entry.SetTooltip then
