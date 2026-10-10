@@ -190,6 +190,20 @@ local function windowField(row, field)
     return row
 end
 
+-- The window select shared by the Layout and Bars pages.
+local function windowPick()
+    return windowField(visibleIf({
+        type = "select", label = "OPT_LAYOUT_WINDOW",
+        choices = function()
+            local list = {}
+            for i = 1, S("windowCount") do list[#list + 1] = { label = L.OPT_WINDOW_N:format(i), value = i } end
+            return list
+        end,
+        get = function() return pickedWindow() end,
+        set = function(v) layoutWindow = v; Window.Refresh() end,
+    }, function() return S("windowCount") > 1 end), "window")
+end
+
 local function layoutRows()
     local function cfg() return ns.Windows.Config(pickedWindow()) end
     local pos = ns.Position.WindowRows(pickedWindow)
@@ -204,18 +218,8 @@ local function layoutRows()
     end
     local scale = windowNum("scale", "OPT_SCALE", "%")
     scale.set = function(v) ns.Windows.SetScale(pickedWindow(), v) end
-    local pick = windowField(visibleIf({
-        type = "select", label = "OPT_LAYOUT_WINDOW",
-        choices = function()
-            local list = {}
-            for i = 1, S("windowCount") do list[#list + 1] = { label = L.OPT_WINDOW_N:format(i), value = i } end
-            return list
-        end,
-        get = function() return pickedWindow() end,
-        set = function(v) layoutWindow = v; Window.Refresh() end,
-    }, function() return S("windowCount") > 1 end), "window")
     return {
-        pick,
+        windowPick(),
         { type = "header", label = "OPT_POSITION" },
         windowField({
             type = "check", label = "OPT_LOCK",
@@ -250,12 +254,26 @@ local function layoutRows()
 end
 
 local function barRows()
+    local function useClass() return ns.Windows.Config(pickedWindow()).classColor end
     return {
+        windowPick(),
+        { type = "header", label = "OPT_COLORS" },
+        windowField({
+            type = "check", label = "OPT_BAR_CLASS_COLOR",
+            get = useClass,
+            set = function(v) ns.Windows.SetConfig(pickedWindow(), { classColor = v }) end,
+        }, "classColor"),
+        visibleIf(windowField({
+            type = "color", label = "OPT_BAR_COLOR", noOpacity = true,
+            get = function() local c = ns.Windows.Config(pickedWindow()).barColor; return { c[1], c[2], c[3], 1 } end,
+            set = function(c) ns.Windows.SetConfig(pickedWindow(), { barColor = { c[1], c[2], c[3] } }) end,
+        }, "barColor"), function() return not useClass() end),
+        { type = "header", label = "OPT_DETAIL" },
+        check("detailClassColor", "OPT_BAR_CLASS_COLOR"),
+        visibleIf(colorRow("detailBarColor", "OPT_BAR_COLOR", true), function() return not S("detailClassColor") end),
         { type = "header", label = "OPT_BARS" },
         num("barHeight", "OPT_BAR_HEIGHT"),
         media("barTexture", "OPT_BAR_TEXTURE", "statusbar"),
-        check("barClassColor", "OPT_BAR_CLASS_COLOR"),
-        visibleIf(colorRow("barColor", "OPT_BAR_COLOR", true), function() return not S("barClassColor") end),
         num("barBgAlpha", "OPT_BAR_BG_ALPHA", "%"),
         check("showIcon", "OPT_SHOW_ICON"),
         check("showRank", "OPT_SHOW_RANK"),

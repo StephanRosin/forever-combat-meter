@@ -135,6 +135,13 @@ function Share.RegisterTable(key, clean)
     tables[key] = clean
 end
 
+-- Settings that no longer exist but still arrive in old strings; Windows.lua
+-- moves them into the windows.
+local legacy = {}
+function Share.RegisterLegacy(key, clean)
+    legacy[key] = clean
+end
+
 local function allowed(key, value)
     local enum = ENUMS[key]
     return not enum or enum[value] == true
@@ -154,6 +161,8 @@ function Share.Decode(text)
         local default = Settings.DEFAULTS[key]
         if tables[key] then
             clean[key] = tables[key](v)
+        elseif legacy[key] then
+            clean[key] = legacy[key](v)
         elseif default ~= nil and sameType(v, default) and allowed(key, v) then
             clean[key] = v
         end
@@ -171,7 +180,7 @@ function Share.Import(text)
     local db = ns.DB()
     for k in pairs(db) do db[k] = nil end
     for key, v in pairs(clean) do
-        if tables[key] then
+        if tables[key] or legacy[key] then
             db[key] = v
         else
             v = Settings.Clamp(key, v)

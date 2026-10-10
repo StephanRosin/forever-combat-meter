@@ -70,7 +70,8 @@ local function present(v) return issecret(v) or v ~= nil end
 -- New windows sit side by side to the left of the first one.
 local function windowDefaults(i)
     return { mode = "damage", view = "current", point = "CENTER", x = 300 - (i - 1) * 230, y = 0,
-             width = 220, rows = 8, scale = 100, locked = false }
+             width = 220, rows = 8, scale = 100, locked = false,
+             classColor = true, barColor = { 0.45, 0.55, 0.75 } }
 end
 
 function Windows.Defaults(i)
@@ -97,7 +98,7 @@ local function write(i, values)
     local def = windowDefaults(i)
     for k, v in pairs(values) do
         if def[k] ~= nil then
-            if v == def[k] then own[k] = nil else own[k] = v end
+            if Settings.SameValue(v, def[k]) then own[k] = nil else own[k] = v end
         end
     end
     all[i] = next(own) and own or nil
@@ -136,6 +137,16 @@ local CLEAN = {
     x = number(POS_RANGE), y = number(POS_RANGE), width = number(WIDTH_RANGE), rows = number(ROWS_RANGE),
     scale = number(SCALE_RANGE),
     locked = function(v) return v == true or nil end,
+    classColor = function(v) if type(v) == "boolean" then return v end end,
+    barColor = function(v)
+        if type(v) ~= "table" then return nil end
+        local out = {}
+        for k = 1, 3 do
+            if type(v[k]) ~= "number" or v[k] ~= v[k] then return nil end
+            out[k] = math.max(0, math.min(1, v[k]))
+        end
+        return out
+    end,
 }
 
 function Windows.Clean(value)
@@ -145,8 +156,9 @@ function Windows.Clean(value)
         if type(i) == "number" and i >= 1 and i <= MAX_WINDOWS and i == math.floor(i) and type(w) == "table" then
             local own, def = {}, windowDefaults(i)
             for k, clean in pairs(CLEAN) do
-                local v = w[k] ~= nil and clean(w[k]) or nil
-                if v ~= nil and v ~= def[k] then own[k] = v end
+                local v
+                if w[k] ~= nil then v = clean(w[k]) end
+                if v ~= nil and not Settings.SameValue(v, def[k]) then own[k] = v end
             end
             if next(own) then out[i] = own end
         end
@@ -154,6 +166,27 @@ function Windows.Clean(value)
     return next(out) and out or nil
 end
 ns.Share.RegisterTable("windows", Windows.Clean)
+-- Old export strings carry the colours as profile settings (see migrate).
+ns.Share.RegisterLegacy("barClassColor", function(v) if type(v) == "boolean" then return v end end)
+ns.Share.RegisterLegacy("barColor", function(v) return type(v) == "table" and v or nil end)
+
+-- Before the colours were per window, `barClassColor` and `barColor` were
+-- profile settings: copied into every existing window once, then dropped.
+local function migrate()
+    local db = ns.DB()
+    if db.barClassColor == nil and db.barColor == nil then return end
+    local useClass, color = db.barClassColor, db.barColor
+    db.barClassColor, db.barColor = nil, nil
+    local own = db.windows or {}
+    for i = 1, db.windowCount or Settings.DEFAULTS.windowCount do
+        local w = own[i] or {}
+        local values = {}
+        if w.classColor == nil and type(useClass) == "boolean" then values.classColor = useClass end
+        if w.barColor == nil and CLEAN.barColor(color) then values.barColor = CLEAN.barColor(color) end
+        if next(values) then write(i, values) end
+    end
+end
+Windows.Migrate = migrate
 
 local function st(i)
     state[i] = state[i] or { offset = 0, dirty = true, count = 0 }
@@ -204,13 +237,13 @@ local function buttonColor(b)
     return IDLE
 end
 
-local function classColor(class)
-    if S("barClassColor") and not issecret(class) and type(class) == "string" and RAID_CLASS_COLORS then
+-- The colour of a bar: the class's while `useClass`, else `color`.
+local function classColor(class, useClass, color)
+    if useClass and not issecret(class) and type(class) == "string" and RAID_CLASS_COLORS then
         local c = RAID_CLASS_COLORS[class]
         if c then return c.r, c.g, c.b end
     end
-    local c = S("barColor")
-    return c[1], c[2], c[3]
+    return color[1], color[2], color[3]
 end
 
 local function applyLook(f, lk)
@@ -430,8 +463,8 @@ local function setFill(bar, max, value)
     end
 end
 
-local function paintBar(bar, class)
-    local r, g, b = classColor(class)
+local function paintBar(bar, class, cfg)
+    local r, g, b = classColor(class, cfg.classColor, cfg.barColor)
     bar:SetStatusBarColor(r, g, b, 1)
     bar.bg:SetColorTexture(r, g, b, S("barBgAlpha") / 100)
 end
@@ -481,7 +514,7 @@ local function renderMeter(f, s, mode, view)
         local row = k <= shown and rows[n]
         if row then
             bar.row, bar.rank = row, n
-            paintBar(bar, row.class)
+            paintBar(bar, row.class, f.cfg)
             setIcon(bar, row.specIcon, row.class)
             bar.name:SetText(Format.Name(rank and n or nil, row.name))
             bar.value:SetText(meterValues(row, mode))
@@ -585,7 +618,7 @@ local function renderThreat(f, s, sample)
         local row = k <= shown and rows[n]
         if row then
             bar.row, bar.rank = row, n
-            paintBar(bar, row.class)
+            paintBar(bar, row.class, f.cfg)
             setIcon(bar, nil, row.class)
             local name = Format.Name(rank and n or nil, row.name)
             if row.tanking then name = string.format("%s (%s)", name, L.THREAT_TANK) end
@@ -1174,6 +1207,7 @@ end
 function Windows.Init()
     if ready then return end
     ready = true
+    migrate()
     sync()
     local driver = CreateFrame("Frame")
     driver:SetScript("OnUpdate", function(_, elapsed) Windows.Tick(elapsed) end)
@@ -1203,6 +1237,7 @@ ns.On("DAMAGE_METER_RESET", function()
 end)
 
 Settings.OnChange(function(key)
+    if key == nil then migrate() end
     if not ready or key == "minimapShow" or key == "minimapAngle" then return end
     if key == "windows" then
         markAll()

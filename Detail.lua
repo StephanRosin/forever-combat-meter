@@ -110,7 +110,7 @@ end
 local function lineColor(line)
     if line.dim then return GREY[1], GREY[2], GREY[3] end
     if line.title then
-        local r, g, b = Windows.ClassColor(line.class)
+        local r, g, b = Windows.ClassColor(line.class, true, { 1, 1, 1 })
         return r, g, b
     end
     return 1, 1, 1
@@ -472,7 +472,7 @@ function Detail.Refresh()
     if panel.laidRows ~= visible then layout(panel, #list) end
     offset = math.max(0, math.min(offset, #list - visible))
     shownRows = math.min(visible, #list)
-    local r, g, b = Windows.ClassColor(row.class)
+    local r, g, b = Windows.ClassColor(row.class, S("detailClassColor"), S("detailBarColor"))
     local max = list[1] and list[1].total
     for k = 1, shownRows do fillRow(panel.rows[k], list[offset + k], max, r, g, b) end
     for k = shownRows + 1, #panel.rows do panel.rows[k]:Hide() end

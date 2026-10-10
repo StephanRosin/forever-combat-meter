@@ -27,8 +27,6 @@ Settings.DEFAULTS = {
     barSpacing = 1,
     padding = 4,            -- inner margin of a window (COMPACT preset: 0)
     barTexture = "Blizzard",
-    barClassColor = true,
-    barColor = { 0.45, 0.55, 0.75 },
     barBgAlpha = 25,        -- percent
     showIcon = true,
     showRank = true,
@@ -80,6 +78,8 @@ Settings.DEFAULTS = {
     detailX = 0,
     detailY = 150,
     detailWidth = 300,
+    detailClassColor = true,
+    detailBarColor = { 0.45, 0.55, 0.75 },
     detailRows = 20,        -- spell rows shown; more scroll with the wheel
 }
 
