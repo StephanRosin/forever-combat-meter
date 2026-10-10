@@ -374,31 +374,24 @@ local function fillRow(row, entry, max, r, g, b)
     row:Show()
 end
 
--- A row opened in combat on another player has no GUID and a secret name.
--- Once the values are plain, the same rank in the window's rows is that
--- player (the API order in combat is the sorted order).
-local function unresolved(row)
-    if Format.IsSecret(row.name) then return true end
+-- Another player's row opened in combat has no GUID and a secret name; no
+-- plain key identifies them later, so the panel never guesses the row: after
+-- combat it asks for a new click on the bar. Own rows and creatures resolve.
+local function unidentified(row)
     return row.guid == nil and row.creatureID == nil and not row.isPlayer
-end
-
-local function resolve()
-    if not current.stale or InCombatLockdown() then return end
-    local data = Windows.Data(current.window)
-    if not data or data.secret then return end
-    local row = data.rows[current.rank]
-    -- The class is never secret: a different one means the ranking moved.
-    if row and not unresolved(row) and row.class == current.row.class then
-        current.row, current.stale = row, false
-    end
 end
 
 function Detail.Refresh()
     if not current or not panel or not panel:IsShown() then return end
-    resolve()
     local row = current.row
-    panel.header.title:SetText(format("%s%s%s", Format.Name(nil, row.name), SEP, modeLabel(current.mode)))
-    local list = entries(current.mode, current.view, row)
+    local list
+    if current.unknown and not InCombatLockdown() then
+        panel.header.title:SetText(format("%s", modeLabel(current.mode)))
+        list = { { name = L.DETAIL_REOPEN, value = "" } }
+    else
+        panel.header.title:SetText(format("%s%s%s", Format.Name(nil, row.name), SEP, modeLabel(current.mode)))
+        list = entries(current.mode, current.view, row)
+    end
     if panel.laidRows ~= #list then layout(panel, #list) end
     shownRows = #list
     local r, g, b = Windows.ClassColor(row.class)
@@ -409,13 +402,8 @@ end
 
 function Detail.Open(windowIndex, row)
     if not row then return end
-    local rank
-    local f = Windows.Frame(windowIndex)
-    for _, bar in ipairs(f and f.bars or {}) do
-        if bar.row == row then rank = bar.rank end
-    end
     current = { window = windowIndex, mode = Windows.Mode(windowIndex), view = Windows.View(windowIndex), row = row,
-                rank = rank, stale = rank ~= nil and unresolved(row) }
+                unknown = unidentified(row) }
     local frame = panel or create()
     frame:Show()
     elapsedTick = 0
@@ -431,7 +419,7 @@ end
 -- Right click on the panel's title: its top spells into the chat.
 function Detail.ReportSpells()
     local source = Detail.Source()
-    if not source or source.mode == "deaths" then return end
+    if not source or source.mode == "deaths" or current.unknown then return end
     if ns.Report then ns.Report.Spells(source, S("reportLines")) end
 end
 

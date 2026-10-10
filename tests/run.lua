@@ -1452,20 +1452,38 @@ do
     Windows.SetMode(1, "damage")
     Windows.Refresh(1)
 
-    -- Opened in combat on another player, resolved after combat. The mock's
-    -- API order must be the sorted order (Bob on top) for the rank to hold.
-    M.dm.byType[CUR][T.DamageDone].combatSources[1].totalAmount = 600
+    -- Opened in combat on another player: never resolved by rank afterwards.
+    local src = M.dm.byType[CUR][T.DamageDone].combatSources
+    src[1].totalAmount = 600
     M.state.combat = true
     Windows.Refresh(1)
     Detail.Open(1, wbar(1).row)
     check("stale: after combat line first", text(p.rows[1].name:GetText()), ns.L.DETAIL_AFTER_COMBAT)
     check("stale: title is secret in combat", M.IsSecret(p.header.title:GetText()), true)
+    -- another player of the same class takes Bob's rank
+    src[1], src[3] = src[3], src[1]
+    src[1].classFilename = src[3].classFilename
     M.state.combat = false
     Windows.Refresh(1)
     Detail.Refresh()
-    check("stale: title plain and Bob", p.header.title:GetText(), "Bob \226\128\148 Damage")
-    check("stale: Bob's spells", text(p.rows[1].name:GetText()), "Frostbolt")
-    check("stale: two spells", Detail.Count(), 2)
+    check("stale: generic plain title", p.header.title:GetText(), "Damage")
+    check("stale: reopen hint", text(p.rows[1].name:GetText()), ns.L.DETAIL_REOPEN)
+    check("stale: one row", Detail.Count(), 1)
+    -- reopening from the bar after combat works
+    for k = 1, 3 do if wbar(k).row.guid == "Player-2" then Detail.Open(1, wbar(k).row) end end
+    check("reopen: Bob's title", p.header.title:GetText(), "Bob \226\128\148 Damage")
+    check("reopen: Bob's spells", text(p.rows[1].name:GetText()), "Frostbolt")
+    Detail.Close()
+    -- own row keeps working across the boundary
+    M.state.combat = true
+    Windows.Refresh(1)
+    local mine
+    for k = 1, 3 do if wbar(k).row.isPlayer then mine = wbar(k).row end end
+    Detail.Open(1, mine)
+    M.state.combat = false
+    Windows.Refresh(1)
+    Detail.Refresh()
+    check("own row: spells after combat", Detail.Count(), 7)
     Detail.Close()
 end
 
