@@ -23,7 +23,7 @@ InfoPanel 1.6.**
 - ForeverMeter (installed, GPL-3.0) shows what works. It is **reference only**: read it to learn how something works,
   never copy its code (the GPL would then apply to this addon).
 - Look, options window, settings, profiles, export/import, Media/Border/Corners/Position, locale handling: as
-  Forever Quest Log and InfoPanel 1.6.0 (`~/Dokumente/wow_addons_tbc/InfoPanel`, branch infopanel-1.6) — ported.
+  Forever Quest Log and InfoPanel 1.6.0 — ported.
 
 ## 2. Decisions
 

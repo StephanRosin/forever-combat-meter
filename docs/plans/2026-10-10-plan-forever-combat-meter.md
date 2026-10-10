@@ -140,7 +140,7 @@ reportLines = 5 [1, 25],
 
 - [ ] `./install`; the user restarts the game (new media files need a restart, /reload is not enough) and checks with ForeverMeter disabled: windows, modes, sessions, a fight (values in combat, recompute after), tooltip, breakdown, death recap, threat warning, report, options pages, languages, profiles, Blizzard meter switch, Lua errors. Fix findings with tests.
 
-### Task 8: Docs, CurseForge text, Vault
+### Task 8: Docs, CurseForge text
 
 - [ ] `README.md`, `docs/curseforge/description.md` + logo (style of the other Forever logos), `## Version: 1.0.0`.
-- [ ] Vault page `10-Projekte/WoW-Addons/ForeverCombatMeter.md` (structure, secret-value rules, pitfalls), add it to `WoW-Addons.md`; memory pointer. Release only when the user gives the CurseForge project ID and says so.
+- [ ] Project documentation (structure, secret-value rules, pitfalls). Release only when the CurseForge project ID is known.
