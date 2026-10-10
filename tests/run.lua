@@ -620,6 +620,19 @@ check("no target: no rows", #Threat.List().rows, 0)
 check("no target: not unavailable", Threat.List().unavailable, false)
 world.target.exists = true
 
+-- Equal keys fall back to the unit token; secret names are never compared.
+party({
+    party2 = { name = M.Secret("Bea"), raw = 50, value = 1 },
+    party1 = { name = M.Secret("Cid"), raw = 50, value = 1 },
+    player = { name = M.Secret("Me"), raw = 50, value = 1, self = true },
+    party3 = { name = M.Secret("Tank"), tank = true, raw = 10, value = 1 },
+})
+local okSort, sorted = pcall(Threat.List)
+check("secret names: sorting raises nothing", okSort, true)
+local units = {}
+for _, r in ipairs(okSort and sorted.rows or {}) do units[#units + 1] = r.unit end
+check("holder first, ties by unit token", table.concat(units, ","), "party3,party1,party2,player")
+
 section("Threat per second")
 party({ player = { name = "Me", raw = 40, value = 1000, self = true } })
 world.time = 100
@@ -657,6 +670,10 @@ Threat.CheckWarning()
 check("roster change does not re-arm", #world.sounds, 1)
 M.Fire("PLAYER_TARGET_CHANGED")
 check("target change re-arms", Threat.CheckWarning() and #world.sounds, 2)
+Threat.CheckWarning()
+check("same fight: no second sound", #world.sounds, 2)
+M.Fire("PLAYER_REGEN_DISABLED")
+check("new fight on the same target re-arms", Threat.CheckWarning() and #world.sounds, 3)
 world.members.player.raw = 89
 check("below the threshold", Threat.CheckWarning(), false)
 world.members.player.raw = 90
@@ -820,7 +837,7 @@ check("overall data", txt(bar(1, 1).name), "1. Old")
 Windows.SetView(1, 4)
 check("past fight view", Windows.View(1), 4)
 check("past fight not persisted", ns.DB().windows, nil)
-check("past fight title", txt(w1.header.title), "Damage · Hogger")
+check("past fight title", txt(w1.header.title), "Damage · Hogger (0:42)")
 check("past fight data", txt(bar(1, 1).name), "1. Past")
 M.Fire("DAMAGE_METER_RESET")
 check("reset: back to current", Windows.View(1), "current")
@@ -880,6 +897,13 @@ check("threat text keeps the real percent", txt(bar(1, 2).value):find("120.0%", 
 check("warning glow on the own row", bar(1, 3).glow:IsShown(), true)
 check("no glow on others", bar(1, 2).glow:IsShown(), false)
 check("warning sound", #world.sounds, 1)
+GameTooltip._lines = {}
+bar(1, 1):GetScript("OnEnter")(bar(1, 1))
+check("threat bar: no tooltip", #GameTooltip._lines, 0)
+local openedBefore = ns.Detail.IsOpen()
+bar(1, 1):GetScript("OnMouseUp")(bar(1, 1), "LeftButton")
+check("threat bar: no breakdown", ns.Detail.IsOpen(), openedBefore)
+check("threat bar: leave raises nothing", (pcall(bar(1, 1):GetScript("OnLeave"), bar(1, 1))), true)
 world.members.player.raw = 10
 Windows.Refresh(1)
 check("glow off below the threshold", bar(1, 3).glow:IsShown(), false)
@@ -918,7 +942,8 @@ Settings.Set("animate", false)
 M.state.combat = true
 local okV = pcall(Windows.SetView, 1, 5)
 check("secret session name renders", okV, true)
-check("secret session title", txt(w1.header.title), "Damage · Boss")
+check("secret session title: Fight n", txt(w1.header.title), "Damage · Fight 2 (1:35)")
+check("title and session tooltip agree", Windows.SessionLabel(1), "Fight 2 (1:35)")
 local okM = pcall(Windows.OpenSessionMenu, 1, w1.header)
 check("session menu with a secret name", okM, true)
 check("secret name not in the menu", M.MenuFind(M.LastMenu(), "Boss"), nil)
@@ -1329,6 +1354,11 @@ Windows.Tick(5)
 M.Fire("PLAYER_TARGET_CHANGED")
 Windows.Tick(0.2)
 check("new target flashes again", fl:IsShown(), true)
+Windows.Tick(5)
+check("same fight: flash gone", fl:IsShown(), false)
+M.Fire("PLAYER_REGEN_DISABLED")
+Windows.Tick(0.2)
+check("new fight on the same target flashes again", fl:IsShown(), true)
 Settings.Set("threatWarn", false)
 samples = 0
 Windows.Tick(0.2)
@@ -1561,8 +1591,13 @@ do
     check("combat: panel title with a secret name", text(p.header.title:GetText()), "Bob \226\128\148 Damage")
     check("combat: refresh raises nothing", (pcall(Detail.Refresh)), true)
     Detail.Close()
+    M.spells[1001] = { "Pyroblast", 135808 }   -- secret rows keep the API order
     Detail.Open(1, own)
     check("combat: own breakdown in the panel", Detail.Count(), 7)
+    local icon1 = p.rows[1].icon:GetTexture()
+    check("combat: secret spell icon reaches SetTexture unchanged", M.IsSecret(icon1) and M.Reveal(icon1), 135808)
+    check("combat: unknown spell keeps the question mark", p.rows[2].icon:GetTexture(), 134400)
+    M.spells[1001] = nil
     check("combat: own value is a secret display string", M.IsSecret(p.rows[1].value:GetText()), true)
     check("combat: own refresh raises nothing", (pcall(Detail.Refresh)), true)
     Detail.Close()
@@ -1716,7 +1751,15 @@ do
     M.state.group = false
     M.state.instance = nil
     world.raid = false
+    -- Lines leave one per timer tick: let the queue run dry first.
+    local function drain()
+        for _ = 1, 50 do
+            if Report.Pending() == 0 and #M.timers == 0 then return end
+            M.RunTimers()
+        end
+    end
     local function sent()
+        drain()
         local t = {}
         for _, s in ipairs(M.sent) do t[#t + 1] = s.channel .. ":" .. s.msg end
         return t
@@ -1765,6 +1808,23 @@ do
     check("window report: first line", s[2], "RAID:1. Me  1.5k (75.0%)")
     check("window report: second line", s[3], "RAID:2. Bob  300 (15.0%)")
     check("window report: via the global sender", M.sent[1].via, "global")
+    -- One line now, the next one per 0.2 s timer.
+    reset()
+    M.timers = {}
+    Report.Window(1, 2)
+    check("throttle: first line at once", #M.sent, 1)
+    check("throttle: rest queued", Report.Pending(), 2)
+    local function tick() local l = M.timers; M.timers = {}; for _, fn in ipairs(l) do fn() end end
+    tick()
+    check("throttle: one more per tick", #M.sent, 2)
+    Report.Window(1, 1)
+    check("throttle: a second report waits behind the first", #M.sent, 2)
+    tick(); tick(); tick()
+    check("throttle: all sent in order", #M.sent == 5 and M.sent[3].msg:find("2. Bob", 1, true) ~= nil, true)
+    tick()
+    check("throttle: queue empty", Report.Pending(), 0)
+    tick()
+    check("throttle: idle again", #M.timers, 0)
     reset()
     Settings.Set("reportLines", 3)
     Report.Window(1)
@@ -1794,6 +1854,7 @@ do
     reset()
     M.state.group = true
     Report.Window(1, 1)
+    drain()
     check("uses C_ChatInfo.SendChatMessage", M.sent[1] and M.sent[1].via, "C_ChatInfo")
     C_ChatInfo = nil
 
@@ -1861,6 +1922,27 @@ for key in pairs(Settings.DEFAULTS) do
     if not INTERNAL[key] then check("row for setting " .. key, covered[key], true) end
 end
 check("windowCount row", covered.windowCount, true)
+-- The slider goes through Add / Close: leftovers and the global lock stay right.
+do
+    local countRow
+    for _, page in ipairs(ns.Window.PAGES) do
+        for _, r in ipairs(page.rows and page.rows() or {}) do if r.key == "windowCount" then countRow = r end end
+    end
+    Settings.ResetProfile()
+    countRow.set(3)
+    Windows.SetConfig(3, { mode = "healing" })
+    countRow.set(2)
+    Settings.SetLocked(true)
+    check("slider: all locked", S("locked"), true)
+    countRow.set(3)
+    check("slider: count", S("windowCount"), 3)
+    check("slider: a new window starts from its defaults", Windows.Mode(3), "damage")
+    check("slider: a new unlocked window clears the global lock", S("locked"), false)
+    countRow.set(1)
+    check("slider: down to one", S("windowCount"), 1)
+    check("slider: no leftovers", ns.DB().windows and ns.DB().windows[2], nil)
+    Settings.ResetProfile()
+end
 
 local RAW = "^[A-Z][A-Z0-9]*_[A-Z0-9_]+$"
 for code, strings in pairs(ns.Locales) do
@@ -2253,6 +2335,28 @@ Settings.Set("hideBlizzard", false)
 check("later restore works", cvars.damageMeterEnabled, "1")
 Settings.ResetProfile()
 check("Blizzard frame never created by us", rawget(_G, "DamageMeter"), nil)
+-- Never written in combat: the toggle waits for the end of combat.
+cvars.damageMeterEnabled = "1"
+ns.SwitchProfile("Plain")   -- a copy without the option
+ns.SwitchProfile("Default")
+M.state.combat = true
+Settings.Set("hideBlizzard", true)
+check("combat: CVar untouched", cvars.damageMeterEnabled, "1")
+M.Fire("PLAYER_LOGIN")
+check("combat login: CVar untouched", cvars.damageMeterEnabled, "1")
+M.state.combat = false
+M.Fire("PLAYER_REGEN_ENABLED")
+check("after combat: written", cvars.damageMeterEnabled, "0")
+check("after combat: backup", ns.AccountDB().blizzardMeterBackup, "1")
+M.state.combat = true
+ns.SwitchProfile("Plain")
+check("combat profile switch: CVar untouched", cvars.damageMeterEnabled, "0")
+M.state.combat = false
+M.Fire("PLAYER_REGEN_ENABLED")
+check("profile switch after combat: restored", cvars.damageMeterEnabled, "1")
+ns.SwitchProfile("Default")
+ns.DeleteProfile("Plain")
+Settings.ResetProfile()
 
 section("Gear menu report, slash commands")
 local calls = {}
@@ -2300,6 +2404,52 @@ M.popups = {}
 slash("reset")
 check("/fcm reset asks", M.popups[#M.popups] and M.popups[#M.popups].which, "FOREVERCOMBATMETER_RESET")
 Settings.ResetProfile()
+
+section("Secret lint")
+-- A cheap static check, because the mock cannot catch it: on the client even
+-- `secret == nil`, `secret ~= nil`, `not secret`, `secret and/or x` and
+-- `if secret then` raise, while Lua 5.1 has no __eq across types and lets
+-- them pass here. Every line that tests one of the field names below in one
+-- of those ways must, on the same line, either check issecret( / present( /
+-- Present( first, or say why the value is plain with a "-- plain: ..."
+-- comment. Keep the list in step with what C_DamageMeter, C_DeathRecap,
+-- C_Spell and UnitName can hand out in secret (Meter.lua, Threat.lua).
+local SECRET_FIELDS = {
+    "name", "total", "totalAmount", "perSecond", "amountPerSecond", "percent", "percentOfSource", "max",
+    "maxAmount", "icon", "spellID", "spell", "guid", "sourceGUID", "creature", "creatureID", "duration",
+    "deathTime", "timestamp", "value", "amount", "hp", "pct", "title", "source", "id", "sessionID",
+}
+local LINT_FILES = { "Format.lua", "Meter.lua", "Threat.lua", "Windows.lua", "Detail.lua", "Report.lua",
+    "Resize.lua", "Commands.lua", "Blizzard.lua", "Options/Window.lua", "Options/Widgets.lua",
+    "Options/Style.lua", "Options/Panel.lua", "Options/MinimapButton.lua" }
+local function lintLine(line)
+    if line:find("%-%- plain:") then return nil end
+    local code = line:gsub("%-%-.*$", "")
+    if code:find("issecret(", 1, true) or code:find("present(", 1, true) or code:find("Present(", 1, true) then return nil end
+    for _, field in ipairs(SECRET_FIELDS) do
+        local w = "%f[%w_]" .. field .. "%f[^%w_]"
+        for _, pat in ipairs({ w .. "%s*[=~]=%s*nil", "nil%s*[=~]=%s*[%w_%.]*" .. w, w .. "%s+or%f[^%w_]",
+            w .. "%s+and%f[^%w_]", "not%s+[%w_%.]*" .. w, "if%s+[%w_%.]*" .. w .. "%s+then" }) do
+            if code:find(pat) then return field end
+        end
+    end
+end
+check("lint: icon == nil caught", lintLine("        if icon == nil then icon = QUESTION_MARK end"), "icon")
+check("lint: ~= nil caught", lintLine("    if row.percent ~= nil then x() end"), "percent")
+check("lint: or caught", lintLine("    local n = sp.name or \"?\""), "name")
+check("lint: truthiness caught", lintLine("    if sp.creature then return 1 end"), "creature")
+check("lint: not caught", lintLine("    if not r.total then return end"), "total")
+check("lint: guarded line passes", lintLine("    if not issecret(icon) and icon == nil then icon = 1 end"), nil)
+check("lint: plain note passes", lintLine("    if line.title then   -- plain: a flag"), nil)
+check("lint: other names pass", lintLine("    if names == nil or titles then end"), nil)
+for _, f in ipairs(LINT_FILES) do
+    local n = 0
+    for line in io.lines(ROOT .. "/" .. f) do
+        n = n + 1
+        local hit = lintLine(line)
+        if hit then check(("secret lint %s:%d (%s)"):format(f, n, hit), line, "explicit issecret or -- plain:") end
+    end
+end
 
 section("No accidental globals")
 local allowed = { SLASH_FOREVERCOMBATMETER1 = true, SLASH_FOREVERCOMBATMETER2 = true, ForeverCombatMeterProfiles = true,

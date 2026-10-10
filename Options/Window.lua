@@ -21,6 +21,11 @@ local function num(key, label, unit, step)
     }
 end
 
+local function setter(row, set)
+    row.set = set
+    return row
+end
+
 local function check(key, label)
     return {
         key = key, type = "check", label = label,
@@ -50,7 +55,7 @@ local function media(key, label, kind)
         choices = function()
             local list = {}
             for _, name in ipairs(ns.Media.Names(kind)) do
-                list[#list + 1] = { label = name, value = name, font = kind == "font" and name or nil }
+                list[#list + 1] = { label = name, value = name, font = kind == "font" and name or nil }   -- plain: a media name
             end
             return list
         end,
@@ -167,7 +172,8 @@ end
 local function windowsRows()
     local rows = {
         { type = "header", label = "OPT_WINDOWS" },
-        num("windowCount", "OPT_WINDOW_COUNT", ""),
+        -- Through Windows.SetCount: Add / Close keep leftovers and the lock right.
+        setter(num("windowCount", "OPT_WINDOW_COUNT", ""), function(v) ns.Windows.SetCount(v) end),
         check("locked", "OPT_LOCK"),
         { type = "buttons", buttons = {
             { label = "MENU_NEW_WINDOW", width = 150, onClick = function() ns.Windows.Add() end },

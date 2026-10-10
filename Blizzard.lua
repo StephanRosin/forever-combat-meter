@@ -7,6 +7,11 @@ local L, Settings = ns.L, ns.Settings
 -- data and put back when the option goes off. While ours is on, a change of
 -- the CVar from elsewhere (the user in Blizzard's settings) becomes the
 -- value to restore.
+--
+-- Combat: Blizzard's meter is an Edit Mode system frame that reacts to the
+-- CVar inside the SetCVar call (CVAR_UPDATE is synchronous). A write from
+-- addon code in combat would run that reaction tainted, so every write goes
+-- through ns.AfterCombat; the CVAR_UPDATE handler only records the value.
 local Blizzard = {}
 ns.Blizzard = Blizzard
 
@@ -32,9 +37,9 @@ local function write(value)
     return false
 end
 
-function Blizzard.Apply()
+local function apply()
     local value = current()
-    if value == nil then return end   -- this client has no such switch
+    if value == nil then return end   -- plain: a CVar; nil: this client has no such switch
     known = value
     local store = ns.AccountDB()
     if Settings.Get("hideBlizzard") then
@@ -46,16 +51,23 @@ function Blizzard.Apply()
     end
 end
 
+-- Login, the option, a profile switch: now, or once combat has ended.
+function Blizzard.Apply()
+    ns.AfterCombat("blizzard", apply)
+end
+
 Settings.OnChange(function(key)
     if key == nil or key == "hideBlizzard" then Blizzard.Apply() end
 end)
 
+-- Records the value only: no write, no call into the UI.
 ns.On("CVAR_UPDATE", function(_, name, value)
-    if writing or name ~= CVAR or not Settings.Get("hideBlizzard") then return end
-    if tostring(value) == known then return end
-    known = tostring(value)
+    if writing or name ~= CVAR or value == nil or not Settings.Get("hideBlizzard") then return end   -- plain: a CVar
+    value = tostring(value)
+    if value == known then return end
+    known = value
     local store = ns.AccountDB()
-    if store.blizzardMeterBackup ~= nil and value ~= nil then store.blizzardMeterBackup = tostring(value) end
+    if store.blizzardMeterBackup ~= nil then store.blizzardMeterBackup = value end
 end)
 
 ns.On("PLAYER_LOGIN", function() Blizzard.Apply() end)

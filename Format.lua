@@ -82,14 +82,15 @@ function Format.Present(v)
 end
 
 -- "Spell" or "Spell \194\183 Creature" (damage taken: who hit). The name may
--- be secret: string.format only. creature is plain or nil (Meter.Spells).
+-- be secret: string.format only. creature is plain or nil (Meter.Spells);
+-- a secret one is still shown, never tested.
 function Format.SpellLabel(sp)
-    if sp.creature then return format("%s \194\183 %s", sp.name, sp.creature) end
+    if Format.Present(sp.creature) then return format("%s \194\183 %s", sp.name, sp.creature) end
     return format("%s", sp.name)
 end
 
 -- "total" or "total (percent)"; percent nil (in combat) leaves it out.
 function Format.ValueText(total, percent)
-    if percent ~= nil then return format("%s (%s)", Format.Amount(total), Format.Percent(percent)) end
+    if Format.Present(percent) then return format("%s (%s)", Format.Amount(total), Format.Percent(percent)) end
     return Format.Amount(total)
 end

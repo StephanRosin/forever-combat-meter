@@ -429,7 +429,7 @@ function Windows.IconDebug()
     end
     local kind, what = Windows.ChooseIcon(row.specIcon, row.class)
     local _, name = Windows.IconFor(row.specIcon, row.class)
-    local wanted = (type(name) == "string") and name or "-"
+    local wanted = (type(name) == "string") and name or "-"   -- plain: an atlas name
     local info = (C_Texture and C_Texture.GetAtlasInfo) and (C_Texture.GetAtlasInfo(wanted) ~= nil) or "n/a"
     local shown = kind == "sheet" and "class sheet" or show(what)
     return ("specIcon=%s class=%s -> %s %s; atlas %s exists: %s; sheet coords: %s"):format(
@@ -493,7 +493,7 @@ local function setFill(bar, max, value)
     bar.maxValue = max
     bar:SetMinMaxValues(0, max)
     -- Out of combat a bar that showed a secret value starts where it is.
-    local from = bar.current or (bar.wasSecret and value or 0)
+    local from = bar.current or (bar.wasSecret and value or 0)   -- plain: secrets returned above
     bar.wasSecret = nil
     if S("animate") then
         bar.target = value
@@ -517,13 +517,26 @@ local function showEmpty(f, text)
     f.empty:Show()
 end
 
+-- A past fight in the list: its name, "Fight n" while the name is secret
+-- or missing, plus the length when it is readable.
+local function sessionText(s, n)
+    local name = s.name
+    if issecret(name) or type(name) ~= "string" then name = L.SESSION_FIGHT:format(tostring(n)) end
+    if issecret(s.duration) or type(s.duration) ~= "number" then return name end
+    return string.format("%s (%s)", name, Format.Duration(s.duration))
+end
+
+-- The one label of a view (window title, session tooltip): Current, Overall
+-- or the past fight's sessionText.
 local function sessionLabel(view)
-    if view == "current" then return L.SESSION_CURRENT end
     if view == "overall" then return L.SESSION_OVERALL end
-    for _, s in ipairs(Meter.Sessions()) do
-        if not issecret(s.id) and s.id == view and present(s.name) then return s.name end
+    if type(view) == "number" then
+        for n, sess in ipairs(Meter.Sessions()) do
+            if not issecret(sess.id) and sess.id == view then return sessionText(sess, n) end
+        end
+        return L.SESSION_FIGHT:format(tostring(view))
     end
-    return L.SESSION_FIGHT:format(tostring(view))
+    return L.SESSION_CURRENT
 end
 
 local function visibleRows(f, s, count)
@@ -667,7 +680,7 @@ local function renderThreat(f, s, sample)
             bar.name:SetText(name)
             bar.value:SetText(threatValues(row))
             -- rawPct passes 100 before the pull (110 % melee, 130 % ranged).
-            setFill(bar, 100, math.min(row.pct or 0, 100))
+            setFill(bar, 100, math.min(row.pct or 0, 100))   -- plain: Threat drops secret lists
             local own = row.isPlayer and not tostring(row.unit):find("pet", 1, true)
             bar.glow:SetShown((own and sample.warning) and true or false)
             bar:Show()
@@ -755,22 +768,9 @@ local function addModes(parent, i)
     end
 end
 
-local function sessionText(s, n)
-    local name = (issecret(s.name) or type(s.name) ~= "string") and L.SESSION_FIGHT:format(tostring(n)) or s.name
-    if issecret(s.duration) or type(s.duration) ~= "number" then return name end
-    return string.format("%s (%s)", name, Format.Duration(s.duration))
-end
-
 -- What window i shows: Current, Overall or the name of a past fight.
 function Windows.SessionLabel(i)
-    local view = Windows.View(i)
-    if view == "overall" then return L.SESSION_OVERALL end
-    if type(view) == "number" then
-        for n, sess in ipairs(Meter.Sessions()) do
-            if not issecret(sess.id) and sess.id == view then return sessionText(sess, n) end
-        end
-    end
-    return L.SESSION_CURRENT
+    return sessionLabel(Windows.View(i))
 end
 
 local function addSessions(parent, i)
@@ -976,8 +976,10 @@ function Windows.NewBar(f, k)
     bar:EnableMouse(true)
     bar:EnableMouseWheel(true)
     bar:SetScript("OnMouseWheel", function(_, delta) Windows.Scroll(f.index, delta) end)
+    -- Threat rows have no spells and no recap: no tooltip, no breakdown.
     for script, key in pairs({ OnEnter = "enter", OnLeave = "leave", OnMouseUp = "click" }) do
         bar:SetScript(script, function(self, ...)
+            if key ~= "leave" and Windows.Mode(f.index) == "threat" then return end
             local fn = Windows.BarScripts[key]
             if fn then fn(self, f.index, ...) end
         end)
@@ -1136,6 +1138,19 @@ function Windows.Add()
     return n + 1
 end
 
+-- Opens or closes windows until there are n (the options slider, /fcm
+-- windows): through Add and Close, so leftovers and the global lock stay right.
+function Windows.SetCount(n)
+    local range = Settings.RANGES.windowCount
+    n = math.max(range[1], math.min(range[2], math.floor(n + 0.5)))
+    while S("windowCount") < n do
+        if not Windows.Add() then break end
+    end
+    while S("windowCount") > n do
+        if not Windows.Close(S("windowCount")) then break end
+    end
+end
+
 function Windows.Close(i)
     local n = S("windowCount")
     if i <= 1 or i > n then return false end
@@ -1280,6 +1295,8 @@ for _, event in ipairs({ "DAMAGE_METER_CURRENT_SESSION_UPDATED", "DAMAGE_METER_C
 end
 -- A new target may warn (and flash) again.
 ns.On("PLAYER_TARGET_CHANGED", function() warned = false end)
+-- So may a new fight on the same target.
+ns.On("PLAYER_REGEN_DISABLED", function() warned = false end)
 -- Amounts can stay secret for a moment after combat: redraw for a while.
 ns.On("PLAYER_REGEN_ENABLED", function()
     burstLeft = AFTER_COMBAT

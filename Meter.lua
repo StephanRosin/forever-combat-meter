@@ -39,7 +39,7 @@ function Meter.BuildModes(enum)
     if not enum then return list end
     for _, pair in ipairs(MODE_ENUMS) do
         local value = enum[pair[2]]
-        if value ~= nil then list[#list + 1] = { key = pair[1], type = value } end
+        if value ~= nil then list[#list + 1] = { key = pair[1], type = value } end   -- plain: an enum value
     end
     return list
 end
@@ -74,7 +74,9 @@ function Meter.Available()
     if not dm or not dm.IsDamageMeterAvailable then return false, "" end
     local ok, available, reason = pcall(dm.IsDamageMeterAvailable)
     if not ok then return false, "" end
-    return available and true or false, reason or ""
+    if issecret(available) then return false, "" end
+    if issecret(reason) or type(reason) ~= "string" then reason = "" end
+    return available and true or false, reason
 end
 
 -- Past fights { id, name, duration }; name may be secret (instance creatures).
@@ -142,23 +144,29 @@ end
 -- The rate the API gives; out of combat total / duration when it says 0.
 local function perSecond(entry, duration, secret)
     local ps = entry.amountPerSecond
-    if secret then return ps end
-    ps = ps or 0
+    if secret or issecret(ps) then return ps end
+    if ps == nil then ps = 0 end
     if ps == 0 and positive(entry.totalAmount) and positive(duration) then
         return entry.totalAmount / duration
     end
     return ps
 end
 
+-- A readable number, else 0 (nil or secret: never tested, never computed).
+local function plainNumber(v)
+    if issecret(v) or type(v) ~= "number" then return 0 end
+    return v
+end
+
 -- The denominator for percentages: the API total, or the sum of the rows.
 local function grandTotal(apiTotal, rows)
     if positive(apiTotal) then return apiTotal end
     local sum = 0
-    for _, r in ipairs(rows) do sum = sum + (r.total or 0) end
+    for _, r in ipairs(rows) do sum = sum + plainNumber(r.total) end
     return sum
 end
 
-local function byTotal(a, b) return (a.total or 0) > (b.total or 0) end
+local function byTotal(a, b) return plainNumber(a.total) > plainNumber(b.total) end
 
 -- An ID worth keeping: readable and not the client's 0 / -1 for "none".
 local function idOrNil(v)
@@ -205,11 +213,11 @@ function Meter.Fetch(modeKey, view)
         total = grandTotal(total, rows)
         sort(rows, byTotal)
         for _, r in ipairs(rows) do
-            r.percent = total > 0 and (r.total or 0) / total * 100 or 0
+            r.percent = total > 0 and plainNumber(r.total) / total * 100 or 0
         end
-        max = rows[1] and rows[1].total or 0
-    elseif not present(max) then
-        max = rows[1] and rows[1].total
+        max = rows[1] and plainNumber(rows[1].total) or 0
+    elseif not present(max) and rows[1] then
+        max = rows[1].total
     end
     return { secret = secret, total = total, duration = duration, max = max, rows = rows }
 end
@@ -242,16 +250,20 @@ function Meter.Spells(modeKey, view, row)
     local meterType = Meter.ModeType(modeKey)
     if meterType == nil or not row then return nil end
     local guid, creatureID = row.guid, row.creatureID
-    if guid == nil and row.isPlayer and UnitGUID then guid = UnitGUID("player") end
+    -- row.guid / row.creatureID are plain or nil (plainOrNil in Fetch);
+    -- UnitGUID may still answer in secret: checked before any test.
+    if not present(guid) and row.isPlayer and UnitGUID then guid = UnitGUID("player") end
     if issecret(guid) then guid = nil end
     if issecret(creatureID) then creatureID = nil end
-    if guid == nil and creatureID == nil then return nil end
+    if not present(guid) and not present(creatureID) then return nil end
     local source = readSource(meterType, view, guid, creatureID)
-    if not source then return nil end
+    if not source then return nil end   -- plain: the table readSource returned
     local spells = source.combatSpells or {}
     local first = spells[1]
     local secret = issecret(source.totalAmount) or (first ~= nil and issecret(first.totalAmount))
-    local duration = not secret and sessionDuration(readSession(meterType, view), view) or nil
+    -- A secret rate needs no duration; the plain one may (total / duration).
+    local duration
+    if not secret then duration = sessionDuration(readSession(meterType, view), view) end
     local rows = {}
     for i, sp in ipairs(spells) do
         rows[i] = {
@@ -267,7 +279,7 @@ function Meter.Spells(modeKey, view, row)
         local total = grandTotal(source.totalAmount, rows)
         sort(rows, byTotal)
         for _, r in ipairs(rows) do
-            r.percentOfSource = total > 0 and (r.total or 0) / total * 100 or 0
+            r.percentOfSource = total > 0 and plainNumber(r.total) / total * 100 or 0
         end
     end
     return { secret = secret, rows = rows }
@@ -320,19 +332,20 @@ function Meter.Recap(recapID)
     if not dr or not dr.GetRecapEvents then return nil end
     if dr.HasRecapEvents then
         local ok, has = pcall(dr.HasRecapEvents, recapID)
-        if not ok or not has then return nil end
+        if not ok or (not issecret(has) and not has) then return nil end
     end
     local ok, events = pcall(dr.GetRecapEvents, recapID)
     if not ok or type(events) ~= "table" or #events == 0 then return nil end
     local list, readable = chronological(events)
-    local last = readable and list[#list].e.timestamp or nil
+    local last
+    if readable then last = list[#list].e.timestamp end
     local out = { secret = false }
     for i = math.max(1, #list - RECAP_LINES + 1), #list do
         local e = list[i].e
         local spell, icon = recapSpell(e)
         if issecret(e.amount) or issecret(e.currentHP) then out.secret = true end
         out[#out + 1] = {
-            time = last and (e.timestamp - last) or nil,
+            time = readable and (e.timestamp - last) or nil,
             spell = spell,
             icon = icon,
             source = e.sourceName,

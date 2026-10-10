@@ -28,8 +28,7 @@ local function setWindows(n)
         ns.Print(L.MSG_USAGE)
         return
     end
-    while Settings.Get("windowCount") < n do ns.Windows.Add() end
-    while Settings.Get("windowCount") > n do ns.Windows.Close(Settings.Get("windowCount")) end
+    ns.Windows.SetCount(n)
 end
 
 local COMMANDS = {

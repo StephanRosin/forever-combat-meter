@@ -42,7 +42,7 @@ local function modeLabel(key) return L["MODE_" .. key:upper()] or key end
 local spellLabel = Format.SpellLabel
 
 local function recapLabel(e)
-    if e.time then return format("%.0fs  %s", e.time, e.spell) end
+    if Format.Present(e.time) then return format("%.0fs  %s", e.time, e.spell) end
     return format("%s", e.spell)
 end
 
@@ -90,7 +90,7 @@ function Detail.Lines(modeKey, view, row)
     else
         addPair(L.DETAIL_TOTAL, Format.Amount(row.total))
         addPair(L.DETAIL_PER_SECOND, Format.PerSecond(row.perSecond, PRECISE[modeKey]))
-        if row.percent ~= nil then addPair(L.DETAIL_SHARE, Format.Percent(row.percent)) end
+        if Format.Present(row.percent) then addPair(L.DETAIL_SHARE, Format.Percent(row.percent)) end
         local data = Meter.Spells(modeKey, view, row)
         if not data then
             add(unreadable(), { dim = true })
@@ -109,7 +109,7 @@ end
 
 local function lineColor(line)
     if line.dim then return GREY[1], GREY[2], GREY[3] end
-    if line.title then
+    if line.title then   -- plain: a flag
         local r, g, b = Windows.ClassColor(line.class, true, { 1, 1, 1 })
         return r, g, b
     end
@@ -418,7 +418,7 @@ local function entries(mode, view, row)
         local sp = data.rows[k]
         local value
         local ps = Format.PerSecond(sp.perSecond, PRECISE[mode])
-        if sp.percentOfSource ~= nil then
+        if Format.Present(sp.percentOfSource) then
             value = format("%s (%s, %s)", Format.Amount(sp.total), ps, Format.Percent(sp.percentOfSource))
         else
             value = format("%s (%s)", Format.Amount(sp.total), ps)
@@ -434,9 +434,10 @@ local function fillRow(row, entry, max, r, g, b)
     if entry.noIcon then
         row.icon:Hide()
     else
-        -- A secret icon may be passed on as it is; no icon: the question mark.
+        -- A secret icon goes to SetTexture as it is (even "== nil" on a
+        -- secret raises); a plain missing icon becomes the question mark.
         local icon = entry.icon
-        if icon == nil then icon = QUESTION_MARK end
+        if not issecret(icon) and icon == nil then icon = QUESTION_MARK end
         row.icon:SetTexture(icon)
         row.icon:SetTexCoord(SPEC_CROP[1], SPEC_CROP[2], SPEC_CROP[3], SPEC_CROP[4])
         row.icon:Show()
@@ -453,7 +454,7 @@ end
 -- plain key identifies them later, so the panel never guesses the row: after
 -- combat it asks for a new click on the bar. Own rows and creatures resolve.
 local function unidentified(row)
-    return row.guid == nil and row.creatureID == nil and not row.isPlayer
+    return row.guid == nil and row.creatureID == nil and not row.isPlayer   -- plain: Meter.Fetch keeps only plain IDs
 end
 
 function Detail.Refresh()
@@ -508,7 +509,7 @@ end
 -- Right click on the panel's title: its top spells into the chat.
 function Detail.ReportSpells()
     local source = Detail.Source()
-    if not source or source.mode == "deaths" or current.unknown then return end
+    if not source or source.mode == "deaths" or current.unknown then return end   -- plain: a table
     if ns.Report then ns.Report.Spells(source, S("reportLines")) end
 end
 

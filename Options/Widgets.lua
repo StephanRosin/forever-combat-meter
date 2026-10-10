@@ -788,7 +788,7 @@ local function makeReadOnly(area, edit)
     edit:SetScript("OnEditFocusLost", function(self) self:HighlightText(0, 0) end)
     edit:SetScript("OnTextChanged", function(self, userInput)
         if not userInput then return end
-        self:SetText(area.value or "")
+        self:SetText(area.value or "")   -- plain: an export string
         self:HighlightText()
     end)
 end

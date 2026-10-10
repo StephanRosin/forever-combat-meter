@@ -31,6 +31,8 @@ function Threat.Reset()
 end
 
 ns.On("PLAYER_TARGET_CHANGED", Threat.Reset)
+-- A new fight on the same target warns again.
+ns.On("PLAYER_REGEN_DISABLED", Threat.Reset)
 ns.On("GROUP_ROSTER_UPDATE", clearSamples)
 
 -- Group member tokens (and pets when wanted), the player first in a party.
@@ -90,7 +92,7 @@ local function collect()
                     class = classOf(unit),
                     unit = unit,
                     pct = tanking and 100 or raw or scaled or 0,
-                    perSecond = rateFor(unit, value or 0, now),
+                    perSecond = rateFor(unit, value or 0, now),   -- plain: checked above
                     tanking = tanking and true or false,
                     isPlayer = UnitIsUnit(unit, "player") and true or false,
                 }
@@ -100,10 +102,22 @@ local function collect()
     return rows
 end
 
+-- Sorting: one number per row, highest first. Holding the target lifts a row
+-- above every percentage; equal numbers fall back to the unit token, which
+-- is always a plain string. Names are never compared: UnitName may answer in
+-- secret.
+local HOLDER_BONUS = 1e6
+
+local function sortKey(row)
+    local key = row.pct
+    if row.tanking then key = key + HOLDER_BONUS end
+    return key
+end
+
 local function order(a, b)
-    if a.tanking ~= b.tanking then return a.tanking end
-    if a.pct ~= b.pct then return a.pct > b.pct end
-    return tostring(a.name) < tostring(b.name)
+    local ka, kb = sortKey(a), sortKey(b)
+    if ka ~= kb then return ka > kb end
+    return a.unit < b.unit
 end
 
 function Threat.List()
