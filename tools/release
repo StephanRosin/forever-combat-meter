@@ -21,6 +21,8 @@ VERSION="$(sed -n 's/^## Version: *//p' "$TOC" | tr -d '\r')"
 if git -C "$HERE" rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
     echo "v$VERSION is already released: bump ## Version in the TOC" >&2; exit 1
 fi
+# The tag marks HEAD while tests and package read the working tree: both must be the same.
+[ -z "$(git -C "$HERE" status --porcelain)" ] || { echo "uncommitted changes: commit first" >&2; exit 1; }
 # Never upload a build whose tests fail.
 LOG="$(mktemp)"
 if ! "$HERE/tests/run" > "$LOG" 2>&1; then
@@ -31,7 +33,8 @@ fi
 ZIP="$("$HERE/tools/package")"
 METADATA="$(python3 -c 'import json,sys; print(json.dumps({"changelog": sys.argv[1], "changelogType": "markdown", "displayName": "Forever Combat Meter " + sys.argv[2], "gameVersions": [int(sys.argv[3])], "releaseType": sys.argv[4]}))' \
     "$CHANGELOG" "$VERSION" "$GAME_VERSION_ID" "$TYPE")"
-curl -sS --fail-with-body -H "X-Api-Token: $AUTH" \
+# The header from a file descriptor (printf is a builtin): the token never shows in a process list.
+curl -sS --fail-with-body -H @<(printf 'X-Api-Token: %s\n' "$AUTH") \
     --form-string "metadata=$METADATA" -F "file=@$ZIP" \
     "https://wow.curseforge.com/api/projects/$PROJECT_ID/upload-file"
 echo
