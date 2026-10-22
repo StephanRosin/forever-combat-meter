@@ -10,10 +10,10 @@ English, Deutsch, Español, Français.
 ## Install
 
 Download the zip from CurseForge and unpack it into
-`<WoW>/_classic_beta_/Interface/AddOns/`, or install from this repository:
+`<WoW>/_forever_/Interface/AddOns/`, or install from this repository:
 
 ```sh
-./install "<WoW>/_classic_beta_/Interface/AddOns"
+./install "<WoW>/_forever_/Interface/AddOns"
 ```
 
 Then `/reload` or restart the game.

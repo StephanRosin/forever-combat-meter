@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Copy the addon into a WoW AddOns folder.
-#   ./install "<path to>/_classic_beta_/Interface/AddOns"
+#   ./install "<path to>/_forever_/Interface/AddOns"
 set -eu
 DEST="${1:?usage: ./install <AddOns folder>}"
 [ -d "$DEST" ] || { echo "Not a directory: $DEST" >&2; exit 1; }
