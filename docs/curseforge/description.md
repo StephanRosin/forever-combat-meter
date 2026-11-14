@@ -25,6 +25,11 @@ A combat meter built for **WoW: Forever**. It reads Blizzard's own server-side m
 - **Forever**: the header of Forever Quest Log — gold glow, rounded corners, a fine line — with border, shadow and background of your choice.
 - **Compact**: a slim header, bars edge to edge, name and numbers inside the bars, like Details!.
 
+## Themes (beta)
+Forever addons can now wear a shared look: Wood, Parchment, Tech, Runestone, Stained Glass, Comic, Frost, Pixel, Swiss Clean, Console and Pitwall, each with its own colour choices. Pick one in the options under Theme. It works on its own, but looks best when your other Forever addons wear the same theme — "Apply to all Forever addons" switches them in one click. Classic stays the default, and switching back to Classic always restores your previous settings exactly.
+
+A theme dresses every meter window with its backdrop, ornaments, title font and bar texture; names and numbers in the rows stay in a readable font. Switching works in combat too. Each theme keeps all its settings of its own; the first time, it starts from your Classic settings. "Take positions from" copies the positions of another theme (with undo), "Reset theme" starts it anew from Classic. The theme fonts ship with the addon (SIL Open Font License).
+
 ## Bars
 - Class colours (or one colour), spec icon or class icon, rank and name.
 - Columns: total, per second, percent — each switchable.
