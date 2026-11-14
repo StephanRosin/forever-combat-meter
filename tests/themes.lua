@@ -140,13 +140,14 @@ return function(ns, M, check, section)
     check("wood: backdrop under the window", box ~= nil and box:IsShown(), true)
     check("wood: backdrop file", box.back:GetTexture():find("WoodBack", 1, true) ~= nil, true)
     check("wood: backdrop below the window", box:GetFrameLevel() < f:GetFrameLevel(), true)
-    check("wood: backdrop reaches beyond the window", box._points.TOPLEFT[3], -4)
+    check("wood: backdrop inside the ring", box._points.TOPLEFT[3], 3)
     local ring = ns.Border.Pieces(f)
     check("wood: ring round the backdrop", ring[1]._points.BOTTOMLEFT[1], box)
+    check("wood: background colour only behind the bars", f.bg._points.TOPLEFT[3], S("padding"))
     local shown = 0
     for _, o in ipairs(box.ornaments) do if o:IsShown() then shown = shown + 1 end end
     check("wood: four rivets", shown, 4)
-    check("wood: rivet at the ring's outer corner", box.ornaments[1]._points.TOPLEFT[3], 1 - 3)
+    check("wood: rivet in the window's corner", box.ornaments[1]._points.TOPLEFT[1], f)
     check("wood: no gold glow", f.header.shine:IsShown(), false)
     Themes.Switch("PARCHMENT")
     check("parchment: one seal", box.ornaments[3]:IsShown() and not box.ornaments[1]:IsShown(), true)
@@ -157,7 +158,6 @@ return function(ns, M, check, section)
     Themes.Switch("GLASS")
     check("glass: mosaic at full brightness", box.back._vertex[1], 1)
     Themes.Switch("COMIC")
-    check("comic: solid shadow", box.shadow:IsShown(), true)
     check("comic: paper grey as in the other addons", box.back._vertex[1] .. "/" .. box.back._vertex[4], "0.7/1")
     check("comic: background clear", S("bgAlpha"), 0)
     local gear = f.header.buttons.menu
@@ -169,6 +169,33 @@ return function(ns, M, check, section)
     check("comic: thick outline", S("valueFlag"), "THICKOUTLINE")
     Themes.Switch("CLASSIC")
     check("Classic: no theme art", box:IsShown(), false)
+    check("Classic: background over the whole window", f.bg._points.TOPLEFT, nil)
+
+    -- Players stack windows edge to edge: no theme reaches past the window
+    -- Classic draws (soft shadow aside), and none changes its size.
+    local classicW, classicH = f:GetWidth(), f:GetHeight()
+    for _, id in ipairs(Settings.THEMES) do
+        if id ~= "CLASSIC" then
+            Themes.Switch(id)
+            Themes.Reset()
+            local extent = ns.Border.Extent({ style = S("borderStyle"), size = S("borderSize") })
+            local p = f.themeBox._points
+            check(id .. ": ring's outer edge on the window's edge", p.TOPLEFT[3] .. "," .. p.BOTTOMRIGHT[4],
+                extent .. "," .. extent)
+            check(id .. ": ring as thick as its inset", ns.Border.Pieces(f)[1]._h, extent)
+            check(id .. ": same width as Classic", f:GetWidth(), classicW)
+            check(id .. ": same height as Classic", f:GetHeight(), classicH)
+            for i, o in ipairs(f.themeBox.ornaments) do
+                if o:IsShown() then
+                    local point, rel, _, dx, dy = o:GetPoint()
+                    check(id .. ": ornament " .. i .. " inside the corner",
+                        rel == f and dx * ((i == 1 or i == 3) and 1 or -1) >= 0 and dy * (i <= 2 and -1 or 1) >= 0, true)
+                end
+            end
+            check(id .. ": no solid shadow", f.themeBox.shadow, nil)
+        end
+    end
+    Themes.Switch("CLASSIC")
     check("Classic: its own border again (none by default)", ns.Border.Pieces(f)[1]:IsShown(), false)
     check("Classic: gold line", f.header.line._texColor[1], ns.ThemeArt.LINE[1])
     check("Classic: icons in their own colour", f.header.buttons.menu.icon._vertex[1], 0.73)

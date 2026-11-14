@@ -10,7 +10,7 @@ local Settings = ns.Settings
 --
 -- A theme chosen the first time starts from the CLASSIC set (windows,
 -- positions, sizes, modes: everything the player set up) with the theme's
--- look on top. Its art beyond settings (backdrop, ornaments, solid shadow)
+-- look on top. Its art beyond settings (backdrop, ornaments)
 -- is ThemeArt.lua's. Nothing here is protected: switching works in combat.
 local Themes = {}
 ns.Themes = Themes
@@ -29,12 +29,11 @@ local LATIN_CLIENTS = { enUS = true, enGB = true, deDE = true, frFR = true, esES
 -- values (nil: font too); fontSizeAdd: how much larger the theme's font
 -- must be to read like the others (not for a standard bodyFont). Text outline is the client's OUTLINE (never a hand-made soft
 -- one: with these fonts that showed black text in Forever Unit Frames).
--- art (ThemeArt.lua): pad = how far the backdrop reaches beyond the window
--- (the border ring goes round it), back = backdrop file in Media/Themes,
+-- art (ThemeArt.lua, all of it inside the window's edge): back = backdrop
+-- file in Media/Themes,
 -- tint = its colour, ornament = corner piece, corners = which ones
 -- (Corners.POINTS order: 1 top left, 2 top right, 3 bottom left, 4 bottom
--- right), ornamentInset = how far in from the ring's outer corner
--- (negative: further out), hardShadow = offset of a solid shadow, line =
+-- right), ornamentInset = how far in from the window's corner, line =
 -- colour of the title's line, darkTitle = a dark strip behind the title.
 -- iconColor, iconHover: the title's icon buttons, every state (nil: their
 -- usual gold and blue).
@@ -51,15 +50,15 @@ Themes.SPECS = {
         font = "Cinzel", bar = "FCM Wood",
         look = { borderStyle = "GOLD", borderSize = 3, cornerRadius = 3, bgMode = "SOLID",
             bgColor = { 0.1, 0.06, 0.02 }, bgAlpha = 85, shadowEnabled = true, shadowAlpha = 60, shadowSize = 6 },
-        art = { pad = 4, back = "WoodBack", ornament = "Rivet", corners = { 1, 2, 3, 4 }, ornamentSize = 11,
-            ornamentInset = 1, line = { 0.85, 0.65, 0.3, 0.6 } },
+        art = { back = "WoodBack", ornament = "Rivet", corners = { 1, 2, 3, 4 }, ornamentSize = 8,
+            ornamentInset = 0, line = { 0.85, 0.65, 0.3, 0.6 } },
     },
     -- Dark navy with a faint grid, a thin cyan line.
     TECH = {
         font = "Space Grotesk", bar = "FCM Tech",
         look = { borderStyle = "FLAT", borderSize = 1, borderColor = { 0.25, 0.88, 0.94, 0.9 }, cornerRadius = 0,
             bgMode = "SOLID", bgColor = { 0.02, 0.05, 0.08 }, bgAlpha = 92, shadowEnabled = false },
-        art = { pad = 3, back = "TechBack", line = { 0.25, 0.88, 0.94, 0.6 } },
+        art = { back = "TechBack", line = { 0.25, 0.88, 0.94, 0.6 } },
     },
     -- Parchment round the bars, a brown ink line, a wax seal.
     PARCHMENT = {
@@ -67,8 +66,8 @@ Themes.SPECS = {
         look = { borderStyle = "FLAT", borderSize = 2, borderColor = { 0.29, 0.2, 0.12, 1 }, cornerRadius = 2,
             bgMode = "SOLID", bgColor = { 0.22, 0.15, 0.07 }, bgAlpha = 72, shadowEnabled = true, shadowAlpha = 45,
             shadowSize = 5 },
-        art = { pad = 4, back = "ParchmentBack", ornament = "Seal", corners = { 3 }, ornamentSize = 22,
-            ornamentInset = -6, line = { 0.29, 0.2, 0.12, 0.8 } },
+        art = { back = "ParchmentBack", ornament = "Seal", corners = { 3 }, ornamentSize = 12,
+            ornamentInset = 0, line = { 0.29, 0.2, 0.12, 0.8 } },
     },
     -- Grey granite, a dark chiselled edge, glowing runes.
     RUNESTONE = {
@@ -76,8 +75,8 @@ Themes.SPECS = {
         look = { borderStyle = "FLAT", borderSize = 2, borderColor = { 0.1, 0.1, 0.12, 1 }, cornerRadius = 0,
             bgMode = "SOLID", bgColor = { 0.04, 0.05, 0.06 }, bgAlpha = 92, shadowEnabled = true, shadowAlpha = 70,
             shadowSize = 6 },
-        art = { pad = 5, back = "StoneBack", ornament = "Rune", corners = { 1, 2 }, ornamentSize = 14,
-            ornamentInset = 2, ornamentColor = { 0.35, 0.95, 0.85, 1 }, line = { 0.35, 0.95, 0.85, 0.5 } },
+        art = { back = "StoneBack", ornament = "Rune", corners = { 1, 2 }, ornamentSize = 9,
+            ornamentInset = 1, ornamentColor = { 0.35, 0.95, 0.85, 1 }, line = { 0.35, 0.95, 0.85, 0.5 } },
     },
     -- A mosaic of coloured glass round the bars, dark lead, a dark title.
     GLASS = {
@@ -85,9 +84,9 @@ Themes.SPECS = {
         look = { borderStyle = "FLAT", borderSize = 3, borderColor = { 0.07, 0.06, 0.05, 1 }, cornerRadius = 0,
             bgMode = "SOLID", bgColor = { 0.05, 0.04, 0.06 }, bgAlpha = 90, shadowEnabled = true, shadowAlpha = 55,
             shadowSize = 6 },
-        art = { pad = 6, back = "GlassBack", darkTitle = true, line = { 0.07, 0.06, 0.05, 1 } },
+        art = { back = "GlassBack", darkTitle = true, line = { 0.07, 0.06, 0.05, 1 } },
     },
-    -- Thick ink line, halftone paper, a solid shadow. The paper is the
+    -- Thick ink line, halftone paper. The paper is the
     -- backdrop alone, grey as in the other Forever addons: no fill over it.
     COMIC = {
         font = "Bangers", bodyFont = STANDARD, bar = "FCM Comic", fontSizeAdd = 2, outline = "THICKOUTLINE",
@@ -95,7 +94,7 @@ Themes.SPECS = {
         iconColor = { 0.1, 0.1, 0.1 }, iconHover = { 0.4, 0.4, 0.4 },
         look = { borderStyle = "FLAT", borderSize = 3, borderColor = { 0.07, 0.07, 0.07, 1 }, cornerRadius = 0,
             bgAlpha = 0, shadowEnabled = false },
-        art = { pad = 0, back = "ComicBack", tint = { 0.7, 0.7, 0.7, 1 }, hardShadow = 5, line = { 0.07, 0.07, 0.07, 1 } },
+        art = { back = "ComicBack", tint = { 0.7, 0.7, 0.7, 1 }, line = { 0.07, 0.07, 0.07, 1 } },
     },
     -- Translucent ice, a pale rim, rounded.
     FROST = {
@@ -103,14 +102,14 @@ Themes.SPECS = {
         look = { borderStyle = "FLAT", borderSize = 1, borderColor = { 0.86, 0.96, 1, 0.8 }, cornerRadius = 6,
             bgMode = "SOLID", bgColor = { 0.04, 0.12, 0.22 }, bgAlpha = 75, shadowEnabled = true, shadowAlpha = 55,
             shadowSize = 8 },
-        art = { pad = 2, back = "FrostBack", tint = { 1, 1, 1, 0.75 }, line = { 0.86, 0.96, 1, 0.5 } },
+        art = { back = "FrostBack", tint = { 1, 1, 1, 0.75 }, line = { 0.86, 0.96, 1, 0.5 } },
     },
-    -- A light pixel frame, scan lines, a solid shadow.
+    -- A light pixel frame, scan lines.
     PIXEL = {
         font = "VT323", bar = "FCM Pixel", fontSizeAdd = 4,
         look = { borderStyle = "FLAT", borderSize = 3, borderColor = { 1, 0.95, 0.91, 1 }, cornerRadius = 0,
             bgMode = "SOLID", bgColor = { 0, 0, 0 }, bgAlpha = 100, shadowEnabled = false },
-        art = { pad = 0, back = "PixelBack", hardShadow = 4, line = { 1, 0.95, 0.91, 0.6 } },
+        art = { back = "PixelBack", line = { 1, 0.95, 0.91, 0.6 } },
     },
 }
 

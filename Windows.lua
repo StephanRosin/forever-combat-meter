@@ -253,11 +253,11 @@ local function applyLook(f, lk)
     local radius = lk.glow and S("cornerRadius") or (ns.DB().cornerRadius or 0)
     radius = ns.Corners.Clamp(radius, f:GetWidth(), f:GetHeight())
     ns.Corners.Fit(f.clip, f, radius, { f.bg, f.header.shine })
-    -- A theme's backdrop reaches beyond the window: the ring goes round it.
+    -- Under a theme the ring lies inside the window's edge (ThemeArt.lua).
     local extent = ns.Border.Extent({ style = S("borderStyle"), size = S("borderSize") })
-    local box, outer = ns.ThemeArt.Style(f, ns.Themes.Spec(S("theme")), radius, extent)
+    local box = ns.ThemeArt.Style(f, ns.Themes.Spec(S("theme")), radius, extent, S("padding"))
     ns.Border.Draw(f, box, {
-        style = S("borderStyle"), size = S("borderSize"), color = S("borderColor"), radius = outer,
+        style = S("borderStyle"), size = S("borderSize"), color = S("borderColor"), radius = radius,
         shadow = S("shadowEnabled"), shadowSize = S("shadowSize"), shadowAlpha = S("shadowAlpha") / 100,
     })
 end
