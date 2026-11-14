@@ -158,64 +158,172 @@ function Themes.Spec(id)
     return Themes.SPECS[id] or Themes.SPECS.CLASSIC
 end
 
--- Comic colours: the paper's tint and the accent (the window titles, the
--- default gold) of COMIC, picked apart from the theme sets: kept next to
--- them (themeSets.comicColor), so switching themes never loses it and the
--- stored looks stay as they are (applied when drawn). GREY is Comic as it
--- was. Same ids and values in every Forever addon.
--- On a dark paper (dark: true) the dark-ink icons are drawn light.
-Themes.COMIC_COLORS = { "GREY", "DARKGREY", "BLACK", "WHITE", "YELLOW", "BLUE", "RED", "GREEN", "PURPLE" }
+-- Theme colours: a backdrop colour and an accent per theme, picked apart
+-- from the theme sets: kept next to them per profile (themeColors =
+-- { [theme] = colour id }), so switching themes never loses them and the
+-- stored looks stay as they are (applied when drawn). The first colour of
+-- each theme is the theme as it was (nothing applied). Same ids and values
+-- in every Forever addon.
+-- paper (COMIC): the tint of the theme's own light paper; dark: on a dark
+-- paper what is dark ink elsewhere is drawn light. back (every other
+-- theme): the mean colour the backdrop is drawn in, from a grey version of
+-- the theme's texture (<Name>BackGrey.tga). accent: the heading colour
+-- instead of the theme's; none = the theme's.
 local YELLOW_ACCENT = { 1.00, 0.90, 0.10 }
 local BLUE_ACCENT = { 0.15, 0.45, 0.95 }
-local COMIC_PALETTE = {
-    GREY = { paper = { 0.70, 0.70, 0.70 } },
-    DARKGREY = { paper = { 0.38, 0.38, 0.38 }, accent = YELLOW_ACCENT, dark = true },
-    BLACK = { paper = { 0.16, 0.16, 0.16 }, accent = YELLOW_ACCENT, dark = true },
-    WHITE = { paper = { 1.00, 1.00, 1.00 }, accent = BLUE_ACCENT },
-    YELLOW = { paper = { 0.86, 0.76, 0.36 }, accent = BLUE_ACCENT },
-    BLUE = { paper = { 0.45, 0.60, 0.86 }, accent = YELLOW_ACCENT },
-    RED = { paper = { 0.86, 0.44, 0.40 }, accent = YELLOW_ACCENT },
-    GREEN = { paper = { 0.50, 0.76, 0.46 }, accent = YELLOW_ACCENT },
-    PURPLE = { paper = { 0.70, 0.52, 0.84 }, accent = YELLOW_ACCENT },
+local PICO_YELLOW = { 1, 0.93, 0.15 }
+Themes.COLORS = {
+    WOOD = {
+        { id = "OAK" },
+        { id = "WALNUT", back = { 0.15, 0.09, 0.06 } },
+        { id = "BIRCH", back = { 0.38, 0.32, 0.22 } },
+        { id = "CHERRY", back = { 0.30, 0.12, 0.08 } },
+        { id = "EBONY", back = { 0.08, 0.07, 0.07 } },
+        { id = "DRIFTWOOD", back = { 0.25, 0.24, 0.22 } },
+    },
+    TECH = {
+        { id = "CYAN" },
+        { id = "GREEN", back = { 0.02, 0.10, 0.05 }, accent = { 0.30, 0.95, 0.45 } },
+        { id = "AMBER", back = { 0.10, 0.07, 0.02 }, accent = { 1, 0.75, 0.20 } },
+        { id = "MAGENTA", back = { 0.09, 0.03, 0.10 }, accent = { 0.95, 0.40, 0.95 } },
+        { id = "BLUE", back = { 0.03, 0.05, 0.13 }, accent = { 0.45, 0.65, 1 } },
+        { id = "GREY", back = { 0.07, 0.07, 0.08 }, accent = { 0.85, 0.88, 0.90 } },
+    },
+    PARCHMENT = {
+        { id = "CLASSIC" },
+        { id = "AGED", back = { 0.32, 0.25, 0.15 } },
+        { id = "ASH", back = { 0.33, 0.33, 0.31 } },
+        { id = "SEA", back = { 0.25, 0.30, 0.33 } },
+        { id = "ROSE", back = { 0.36, 0.27, 0.26 } },
+        { id = "DARK", back = { 0.20, 0.17, 0.13 } },
+    },
+    RUNESTONE = {
+        { id = "GRANITE" },
+        { id = "SANDSTONE", back = { 0.33, 0.27, 0.18 }, accent = { 1, 0.80, 0.35 } },
+        { id = "SLATE", back = { 0.15, 0.18, 0.25 }, accent = { 0.55, 0.75, 1 } },
+        { id = "MOSS", back = { 0.15, 0.22, 0.14 }, accent = { 0.50, 1, 0.45 } },
+        { id = "OBSIDIAN", back = { 0.07, 0.06, 0.09 }, accent = { 0.75, 0.50, 1 } },
+    },
+    GLASS = {
+        { id = "CATHEDRAL" },
+        { id = "BLUE", back = { 0.08, 0.12, 0.28 } },
+        { id = "GREEN", back = { 0.07, 0.20, 0.10 } },
+        { id = "AMBER", back = { 0.28, 0.17, 0.05 } },
+        { id = "VIOLET", back = { 0.18, 0.08, 0.26 } },
+        { id = "RUBY", back = { 0.26, 0.05, 0.08 } },
+    },
+    COMIC = {
+        { id = "GREY" },
+        { id = "DARKGREY", paper = { 0.38, 0.38, 0.38 }, accent = YELLOW_ACCENT, dark = true },
+        { id = "BLACK", paper = { 0.16, 0.16, 0.16 }, accent = YELLOW_ACCENT, dark = true },
+        { id = "WHITE", paper = { 1.00, 1.00, 1.00 }, accent = BLUE_ACCENT },
+        { id = "YELLOW", paper = { 0.86, 0.76, 0.36 }, accent = BLUE_ACCENT },
+        { id = "BLUE", paper = { 0.45, 0.60, 0.86 }, accent = YELLOW_ACCENT },
+        { id = "RED", paper = { 0.86, 0.44, 0.40 }, accent = YELLOW_ACCENT },
+        { id = "GREEN", paper = { 0.50, 0.76, 0.46 }, accent = YELLOW_ACCENT },
+        { id = "PURPLE", paper = { 0.70, 0.52, 0.84 }, accent = YELLOW_ACCENT },
+    },
+    FROST = {
+        { id = "ICE" },
+        { id = "DEEP", back = { 0.10, 0.18, 0.32 }, accent = { 0.60, 0.85, 1 } },
+        { id = "AURORA", back = { 0.10, 0.27, 0.24 }, accent = { 0.55, 1, 0.80 } },
+        { id = "VIOLET", back = { 0.22, 0.18, 0.33 }, accent = { 0.85, 0.75, 1 } },
+        { id = "SILVER", back = { 0.30, 0.31, 0.33 }, accent = { 0.92, 0.92, 0.95 } },
+        { id = "NIGHT", back = { 0.06, 0.08, 0.14 }, accent = { 0.70, 0.85, 1 } },
+    },
+    -- PICO-8's palette.
+    PIXEL = {
+        { id = "NAVY" },
+        { id = "PLUM", back = { 0.23, 0.08, 0.16 }, accent = PICO_YELLOW },
+        { id = "FOREST", back = { 0.00, 0.20, 0.12 }, accent = PICO_YELLOW },
+        { id = "BROWN", back = { 0.20, 0.12, 0.08 }, accent = { 1, 0.64, 0.00 } },
+        { id = "GREY", back = { 0.18, 0.17, 0.16 } },
+        { id = "BLACK", back = { 0.03, 0.03, 0.04 }, accent = { 0, 0.89, 0.21 } },
+        { id = "TEAL", back = { 0.02, 0.17, 0.22 }, accent = { 0.16, 0.68, 1 } },
+        { id = "PURPLE", back = { 0.15, 0.10, 0.25 }, accent = { 1, 0.47, 0.66 } },
+    },
 }
+-- The mean grey of each <Name>BackGrey.tga: a backdrop colour is drawn as
+-- vertex colour back / mean (at most 1).
+Themes.GREY_MEAN = { Wood = 0.800, Tech = 0.705, Parchment = 0.799, Stone = 0.800, Glass = 0.777, Frost = 0.796,
+    Pixel = 0.800 }
 
-function Themes.ComicColor()
-    local id = storedSets().comicColor
-    return COMIC_PALETTE[id] and id or "GREY"
+-- The colour ids of themeId (default the current theme) in menu order;
+-- none for CLASSIC.
+function Themes.Colors(themeId)
+    local list = {}
+    for _, c in ipairs(Themes.COLORS[themeId or Themes.Current()] or {}) do list[#list + 1] = c.id end
+    return list
 end
 
--- Picks the comic colour; repaints at once while COMIC is in use. true, or
--- nil and why not.
-function Themes.SetComicColor(id)
-    if not COMIC_PALETTE[id] then return nil, "UNKNOWN" end
-    storedSets().comicColor = id
-    if Themes.Current() == "COMIC" then Settings.Changed(nil) end
+local function colorOf(themeId, id)
+    for _, c in ipairs(Themes.COLORS[themeId] or {}) do
+        if c.id == id then return c end
+    end
+end
+
+-- The stored choices; a comicColor from before them moved in once.
+local function chosen()
+    local sets = storedSets()
+    sets.themeColors = sets.themeColors or {}
+    if sets.comicColor then
+        sets.themeColors.COMIC = sets.themeColors.COMIC or sets.comicColor
+        sets.comicColor = nil
+    end
+    return sets.themeColors
+end
+
+-- The colour id of themeId (default the current theme): the stored one or
+-- the theme's first; nil for CLASSIC.
+function Themes.Color(themeId)
+    themeId = themeId or Themes.Current()
+    local list = Themes.COLORS[themeId]
+    if not list then return nil end
+    local id = chosen()[themeId]
+    return colorOf(themeId, id) and id or list[1].id
+end
+
+-- Picks colour id for themeId (default the current theme); repaints at once
+-- while that theme is in use. true, or nil and why not.
+function Themes.SetColor(id, themeId)
+    themeId = themeId or Themes.Current()
+    if not colorOf(themeId, id) then return nil, "UNKNOWN" end
+    chosen()[themeId] = id
+    if themeId == Themes.Current() then Settings.Changed(nil) end
     return true
 end
 
--- The colour in use while COMIC is, else nil.
-local function comicPalette()
-    if Themes.Current() ~= "COMIC" then return nil end
-    return COMIC_PALETTE[Themes.ComicColor()]
+-- The colour in use, nil while it is the theme's first (the theme as it is).
+local function palette()
+    local themeId = Themes.Current()
+    local id = Themes.Color(themeId)
+    if not id or id == Themes.COLORS[themeId][1].id then return nil end
+    return colorOf(themeId, id)
 end
 
--- The backdrop's tint { r, g, b, a } for art: the comic colour's paper
--- under COMIC, else art.tint.
-function Themes.BackTint(art)
-    local p = comicPalette()
-    if not p then return art.tint end
-    return { p.paper[1], p.paper[2], p.paper[3], 1 }
+-- The backdrop's file (in Media/Themes) and tint { r, g, b, a } for art:
+-- a comic colour tints the paper; any other colour takes the grey file,
+-- tinted to its mean colour (back / the grey's mean, at most 1), at the
+-- theme's alpha; the first colour leaves art as it is.
+function Themes.Backdrop(art)
+    local p = palette()
+    if p and p.paper then return art.back, { p.paper[1], p.paper[2], p.paper[3], 1 } end
+    local mean = p and p.back and Themes.GREY_MEAN[art.back:match("^(%a+)Back$")]
+    if not mean then return art.back, art.tint end
+    local b = p.back
+    return art.back .. "Grey", { math.min(1, b[1] / mean), math.min(1, b[2] / mean), math.min(1, b[3] / mean),
+        art.tint and art.tint[4] or 1 }
 end
 
 -- Whether COMIC is in use on a dark paper.
 function Themes.DarkPaper()
-    local p = comicPalette()
+    local p = palette()
     return p ~= nil and p.dark == true
 end
 
--- The title colour to draw: the comic colour's accent, or color as stored.
+-- The title colour to draw: the colour's accent, or color as stored.
 function Themes.Accent(color)
-    local p = comicPalette()
+    local p = palette()
     return p and p.accent or color
 end
 
@@ -370,7 +478,7 @@ _G.ForeverThemes["ForeverCombatMeter"] = {
     -- After another addon (the InfoPanel's right column) wrote the stored
     -- settings: apply them as after a change in the options.
     Refresh = function() Settings.Changed(nil) end,
-    ComicColors = Themes.COMIC_COLORS,
-    ComicColor = function() return Themes.ComicColor() end,
-    SetComicColor = function(id) return Themes.SetComicColor(id) end,
+    Colors = function(themeId) return Themes.Colors(themeId) end,
+    Color = function(themeId) return Themes.Color(themeId) end,
+    SetColor = function(id, themeId) return Themes.SetColor(id, themeId) end,
 }

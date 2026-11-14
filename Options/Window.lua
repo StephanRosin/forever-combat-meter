@@ -148,12 +148,20 @@ local function themeCopyRow()
     }
 end
 
--- Comic's paper and accent, kept apart from the theme sets.
-local function comicColorRow()
-    local row = choice(nil, "OPT_COMIC_COLOR", ns.Themes.COMIC_COLORS, "COMIC_COLOR_")
-    row.get = function() return ns.Themes.ComicColor() end
-    row.set = function(v) refused(ns.Themes.SetComicColor(v)) end
-    return row
+-- The current theme's colours, kept apart from the theme sets.
+local function themeColorRow()
+    return {
+        type = "select", label = "OPT_THEME_COLOR",
+        choices = function()
+            local list, theme = {}, ns.Themes.Current()
+            for _, id in ipairs(ns.Themes.Colors()) do
+                list[#list + 1] = { label = L["THEME_COLOR_" .. theme .. "_" .. id], value = id }
+            end
+            return list
+        end,
+        get = function() return ns.Themes.Color() end,
+        set = function(v) refused(ns.Themes.SetColor(v)) end,
+    }
 end
 
 -- The theme first: it swaps every other setting (Themes.lua).
@@ -162,9 +170,9 @@ local function themeRows()
     theme.set = function(v) refused(ns.Themes.Switch(v)) end
     return {
         { type = "header", label = "OPT_THEME" },
-        { type = "text", label = "OPT_THEME_HINT", height = 40 },
+        { type = "text", label = "OPT_THEME_HINT", height = 88 },
         theme,
-        visibleIf(comicColorRow(), function() return ns.Themes.Current() == "COMIC" end),
+        visibleIf(themeColorRow(), function() return #ns.Themes.Colors() > 0 end),
         themeCopyRow(),
         visibleIf({ type = "buttons", buttons = {
             { label = "OPT_THEME_RESET", width = 170, onClick = function() refused(ns.Themes.Reset()) end },

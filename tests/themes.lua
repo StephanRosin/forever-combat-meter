@@ -168,21 +168,26 @@ return function(ns, M, check, section)
     check("comic: grip in ink", f.header.grip._vertex[1], 0.1)
     check("comic: outline, not thick (pixelated)", S("valueFlag"), "OUTLINE")
 
-    -- Comic colours: paper and title accent, apart from the theme sets.
+    -- Theme colours: backdrop and title accent, apart from the theme sets.
     local registry = _G.ForeverThemes.ForeverCombatMeter
     local function title() return table.concat({ f.header.title:GetTextColor() }, "/", 1, 3) end
+    local function back() return box.back:GetTexture():match("[^\\]+$") end
+    local function vertex() return table.concat(box.back._vertex, "/") end
     local greyTitle, stored = title(), ns.Share.Export()
-    check("comic colour: grey by default", registry.ComicColor(), "GREY")
-    check("comic colour: the nine", table.concat(registry.ComicColors, " "),
+    check("comic colour: grey by default", registry.Color(), "GREY")
+    check("comic colour: the nine", table.concat(registry.Colors(), " "),
         "GREY DARKGREY BLACK WHITE YELLOW BLUE RED GREEN PURPLE")
-    check("comic colour: blue", registry.SetComicColor("BLUE"), true)
+    check("colour: by theme", table.concat(registry.Colors("TECH"), " "), "CYAN GREEN AMBER MAGENTA BLUE GREY")
+    check("colour: none for classic", #registry.Colors("CLASSIC") .. tostring(registry.Color("CLASSIC")), "0nil")
+    check("comic colour: blue", registry.SetColor("BLUE"), true)
     check("comic colour: blue paper", box.back._vertex[3] .. "/" .. box.back._vertex[4], "0.86/1")
+    check("comic colour: own paper", back(), "ComicBack")
     check("comic colour: yellow title", title(), "1/0.9/0.1")
-    check("comic colour: yellow", registry.SetComicColor("YELLOW"), true)
+    check("comic colour: yellow", registry.SetColor("YELLOW"), true)
     check("comic colour: yellow paper", box.back._vertex[1], 0.86)
     check("comic colour: blue title", title(), "0.15/0.45/0.95")
     check("comic colour: the look not stored", ns.Share.Export(), stored)
-    check("comic colour: dark grey", registry.SetComicColor("DARKGREY"), true)
+    check("comic colour: dark grey", registry.SetColor("DARKGREY"), true)
     check("comic colour: dark grey paper", box.back._vertex[1], 0.38)
     check("comic colour: dark grey, yellow title", title(), "1/0.9/0.1")
     check("comic colour: dark paper, light icons", gear.icon._vertex[1], 0.85)
@@ -190,25 +195,55 @@ return function(ns, M, check, section)
     check("comic colour: dark paper, hover white", gear.icon._vertex[1], 1)
     gear:GetScript("OnLeave")(gear)
     check("comic colour: dark paper, light grip", f.header.grip._vertex[1], 0.85)
-    check("comic colour: white", registry.SetComicColor("WHITE"), true)
+    check("comic colour: white", registry.SetColor("WHITE"), true)
     check("comic colour: white paper", box.back._vertex[1] .. "/" .. box.back._vertex[3], "1/1")
     check("comic colour: white, blue title", title(), "0.15/0.45/0.95")
     check("comic colour: white, ink icons", gear.icon._vertex[1], 0.1)
-    registry.SetComicColor("YELLOW")
-    check("comic colour: unknown", select(2, registry.SetComicColor("PINK")), "UNKNOWN")
-    check("comic colour: unknown leaves it", registry.ComicColor(), "YELLOW")
+    registry.SetColor("YELLOW")
+    check("colour: unknown", select(2, registry.SetColor("PINK")), "UNKNOWN")
+    check("colour: another theme's id is unknown", select(2, registry.SetColor("OAK")), "UNKNOWN")
+    check("colour: unknown leaves it", registry.Color(), "YELLOW")
+    check("colour: picked for another theme", registry.SetColor("AURORA", "FROST"), true)
     Themes.Switch("WOOD")
-    check("comic colour: kept away from comic", registry.ComicColor(), "YELLOW")
-    check("comic colour: wood paper as it is", box.back._vertex[1], 1)
-    check("comic colour: picked under wood", registry.SetComicColor("GREEN"), true)
+    check("colour: comic kept away from comic", registry.Color("COMIC"), "YELLOW")
+    check("colour: wood as it is", back() .. " " .. vertex(), "WoodBack 1/1/1/1")
+    check("colour: wood title as it is", title(), table.concat(S("headerColor"), "/", 1, 3))
+    check("colour: cherry", registry.SetColor("CHERRY"), true)
+    check("colour: cherry on the grey wood", back(), "WoodBackGrey")
+    check("colour: cherry back / mean", vertex(), (0.30 / 0.8) .. "/" .. (0.12 / 0.8) .. "/" .. (0.08 / 0.8) .. "/1")
+    check("colour: cherry keeps the title", title(), table.concat(S("headerColor"), "/", 1, 3))
+    check("colour: the look not stored", ns.DB().themeSets.WOOD, nil)
+    Themes.Switch("FROST")
+    check("colour: frost keeps its own", registry.Color(), "AURORA")
+    check("colour: aurora on the grey ice, the theme's alpha", back() .. " " .. vertex(),
+        "FrostBackGrey " .. (0.10 / 0.796) .. "/" .. (0.27 / 0.796) .. "/" .. (0.24 / 0.796) .. "/0.75")
+    check("colour: aurora title", title(), "0.55/1/0.8")
+    registry.SetColor("ICE")
+    check("colour: ice as frost was", back() .. " " .. vertex() .. " " .. title(),
+        "FrostBack 1/1/1/0.75 " .. table.concat(S("headerColor"), "/", 1, 3))
+    -- Every theme's first colour draws as before (art.tint, else white).
+    for _, id in ipairs(Themes.IDS) do
+        if id ~= "CLASSIC" then
+            Themes.Switch(id)
+            local picked = registry.Color()
+            registry.SetColor(registry.Colors()[1])
+            local art = Themes.Spec(id).art
+            check(id .. ": first colour as before", back() .. " " .. vertex(),
+                art.back .. " " .. table.concat(art.tint or { 1, 1, 1, 1 }, "/"))
+            registry.SetColor(picked)
+        end
+    end
     Themes.Switch("COMIC")
     check("comic colour: back to comic", box.back._vertex[2], 0.76)
-    check("comic colour: grey again", registry.SetComicColor("GREY"), true)
+    check("comic colour: grey again", registry.SetColor("GREY"), true)
     check("comic colour: grey paper restored", box.back._vertex[1] .. "/" .. box.back._vertex[4], "0.7/1")
     check("comic colour: grey title restored", title(), greyTitle)
-    ns.DB().themeSets.comicColor = "PINK"
-    check("comic colour: unknown stored is grey", registry.ComicColor(), "GREY")
-    ns.DB().themeSets.comicColor = nil
+    ns.DB().themeSets.themeColors.COMIC = "PINK"
+    check("colour: unknown stored is the first", registry.Color(), "GREY")
+    ns.DB().themeSets.themeColors = nil
+    ns.DB().themeSets.comicColor = "RED"
+    check("colour: comicColor moves in", registry.Color() .. " " .. tostring(ns.DB().themeSets.comicColor), "RED nil")
+    ns.DB().themeSets.themeColors = nil
     Themes.Switch("CLASSIC")
     check("Classic: no theme art", box:IsShown(), false)
     check("Classic: background over the whole window", f.bg._points.TOPLEFT, nil)
@@ -268,9 +303,14 @@ return function(ns, M, check, section)
     check("reset only for a theme", first[6].visible(), true)
     first[3].set("CLASSIC")
     check("no reset for Classic", first[6].visible(), false)
-    check("comic colour only under Comic", first[4].visible(), false)
+    check("no colour under Classic", first[4].visible(), false)
     first[3].set("COMIC")
-    check("comic colour under Comic", first[4].visible() and first[4].get(), "GREY")
+    check("colour under Comic", first[4].visible() and first[4].get(), "GREY")
+    first[3].set("PIXEL")
+    check("colour: pixel's eight", #first[4].choices() .. " " .. first[4].choices()[8].label, "8 Purple")
+    first[4].set("TEAL")
+    check("colour: set from the options", Themes.Color(), "TEAL")
+    first[4].set("NAVY")
     first[3].set("CLASSIC")
 
     section("Themes: picker registry")
