@@ -298,8 +298,12 @@ local function layoutHeader(f, lk)
     local grip = ns.ThemeArt.IconColor(ACCENT)
     h.grip:SetVertexColor(grip[1], grip[2], grip[3])
     h.title:ClearAllPoints()
-    local indent = ns.Themes.Spec(S("theme")).titleIndent or 0
-    h.title:SetPoint("LEFT", h, "LEFT", (lk.glow and (unlocked and 24 or 8) or 4) + indent, 0)
+    -- Past a theme's wedge the grip (or, locked, the title) comes first.
+    local indent = ns.ThemeArt.TitleIndent(lk.header)
+    local gripX = indent > 0 and indent or 8
+    h.grip:SetPoint("LEFT", gripX, 0)
+    h.title:SetPoint("LEFT", h, "LEFT", indent > 0 and (h.grip:IsShown() and gripX + 16 or indent)
+        or (lk.glow and (unlocked and 24 or 8) or 4), 0)
     h.title:SetPoint("RIGHT", order[#order], "LEFT", -4, 0)
 end
 

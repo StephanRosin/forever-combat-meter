@@ -36,6 +36,7 @@ local function build(f)
     box.ornaments = {}
     for i = 1, 4 do box.ornaments[i] = box.over:CreateTexture(nil, "OVERLAY") end
     box.band = box.over:CreateTexture(nil, "ARTWORK")
+    box.wedge = box.over:CreateTexture(nil, "OVERLAY")
     f.themeBox = box
     return box
 end
@@ -55,7 +56,6 @@ local function placeOrnaments(f, box, art)
     local wanted = {}
     for _, i in ipairs(art.ornament and art.corners or {}) do wanted[i] = true end
     local size, inset = art.ornamentSize or DEFAULT_ORNAMENT_SIZE, math.max(art.ornamentInset or 0, 0)
-    if size == "HEADER" then size = f.header and f.header:GetHeight() or DEFAULT_ORNAMENT_SIZE end
     local c = ns.Themes.Ornament(art.ornamentColor or { 1, 1, 1, 1 })
     for i, piece in ipairs(box.ornaments) do
         piece:SetShown(wanted[i] == true)
@@ -83,6 +83,36 @@ local function placeBand(box, art)
     box.band:SetPoint("TOPRIGHT", box, "TOPRIGHT", 0, 0)
     box.band:SetHeight(band.height)
     box.band:SetColorTexture(band.color[1], band.color[2], band.color[3], band.color[4])
+end
+
+-- The wedge texture is square with the slanted piece in its left part:
+-- that part only, as wide as high, as in every Forever addon. Its right
+-- edge runs from 0.98 of the width at the top to 0.62 at the bottom; the
+-- title starts TITLE_GAP past it at the title's middle.
+local WEDGE_PART, TITLE_GAP = 0.53, 8
+
+-- The wedge in the title strip inside the ring (inset by the ring's extent).
+local function placeWedge(f, box, art, inset)
+    box.wedge:SetShown(art.wedge ~= nil and f.header ~= nil)
+    if not box.wedge:IsShown() then return end
+    local h = f.header:GetHeight() - inset
+    box.wedge:ClearAllPoints()
+    box.wedge:SetPoint("TOPLEFT", box, "TOPLEFT", 0, 0)
+    box.wedge:SetSize(h, h)
+    box.wedge:SetTexture(PATH .. art.wedge)
+    box.wedge:SetTexCoord(0, WEDGE_PART, 0, 1)
+    local c = ns.Themes.Ornament(art.wedgeColor)
+    box.wedge:SetVertexColor(c[1], c[2], c[3], c[4])
+end
+
+-- How far from the header's left a title (or the grip before it) starts to
+-- clear the theme's wedge in a header this high; 0 without a wedge.
+function ThemeArt.TitleIndent(header)
+    local art = ns.Themes.Spec(ns.Settings.Get("theme")).art
+    if not (art and art.wedge) then return 0 end
+    local inset = ns.Border.Extent({ style = ns.Settings.Get("borderStyle"), size = ns.Settings.Get("borderSize") })
+    local h, mid = header - inset, header / 2 - inset
+    return inset + math.floor(0.98 * h - 0.36 * mid + 0.5) + TITLE_GAP
 end
 
 -- The title strip: no gold glow under a theme (its backdrop is the look),
@@ -141,6 +171,7 @@ function ThemeArt.Style(f, spec, radius, extent, padding)
     ns.Corners.Fit(box.clip, box, radius, { box.back })
     placeOrnaments(f, box, art)
     placeBand(box, art)
+    placeWedge(f, box, art, extent)
     if f.header then styleHeader(f.header, art) end
     return box
 end

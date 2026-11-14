@@ -36,8 +36,8 @@ local LATIN_CLIENTS = { enUS = true, enGB = true, deDE = true, frFR = true, esES
 -- right), ornamentInset = how far in from the window's corner, line =
 -- colour of the title's line, darkTitle = a dark strip behind the title
 -- (true, or its colour), band = a strip { color, height } along the top
--- edge; ornamentSize "HEADER": as high as the title strip.
--- titleIndent: the title moved right (past an ornament).
+-- edge. wedge = a piece at the title strip's start in wedgeColor (the
+-- title begins after it, ThemeArt.TitleIndent).
 -- iconColor, iconHover: the title's icon buttons, every state (nil: their
 -- usual gold and blue).
 -- Old-style figures and small caps (or Bangers' weight) do not read at row
@@ -138,13 +138,11 @@ Themes.SPECS = {
     -- a red wedge, the bars on black.
     PITWALL = {
         font = "Titillium Web Bold Italic", bodyFont = "Titillium Web SemiBold", bar = "FCM Swiss",
-        titleIndent = 10,
         look = { borderStyle = "FLAT", borderSize = 1, borderColor = { 0.043, 0.047, 0.055, 1 }, cornerRadius = 0,
             bgMode = "SOLID", bgColor = { 0.039, 0.039, 0.039 }, bgAlpha = 100, shadowEnabled = false, headerColor = { 0.949, 0.953, 0.961 },
             nameColor = { 0.949, 0.953, 0.961 }, valueColor = { 0.949, 0.953, 0.961 } },
         art = { back = "SwissBack", darkTitle = { 0, 0, 0, 1 }, line = { 0, 0, 0, 1 },
-            ornament = "PitwallWedge", corners = { 1 }, ornamentSize = "HEADER", ornamentInset = 1,
-            ornamentColor = { 0.882, 0.024, 0, 1 } },
+            wedge = "PitwallWedge", wedgeColor = { 0.882, 0.024, 0, 1 } },
     },
 }
 

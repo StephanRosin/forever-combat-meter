@@ -310,7 +310,7 @@ return function(ns, M, check, section)
 
     section("Themes: Swiss, Console, Pitwall, Handheld")
     local function ring() return table.concat(ns.Border.Pieces(f)[1]._vertex, "/", 1, 3) end
-    local wedge = box.ornaments[1]
+    local wedge = box.wedge
     local function wedgeColor() return table.concat(wedge._vertex, "/", 1, 3) end
     local listed = {}
     for _, c in ipairs(ns.Window.PAGES[1].rows()[3].choices()) do listed[#listed + 1] = c.value end
@@ -348,9 +348,17 @@ return function(ns, M, check, section)
     check("pitwall: carbon hairline", ring(), "0.043/0.047/0.055")
     check("pitwall: black title strip", f.header.dark:IsShown() and table.concat(f.header.dark._texColor, "/", 1, 3),
         "0/0/0")
-    check("pitwall: red wedge as high as the strip", wedge:IsShown() and wedgeColor() .. " " .. wedge._w,
-        "0.882/0.024/0 " .. f.header:GetHeight())
-    check("pitwall: title right of the wedge", f.header.title._points.LEFT[3] >= 18, true)
+    -- The family's rule: as high and wide as the strip inside the ring, its
+    -- slanted part; the title (or grip) 8 past its right edge at the title's middle.
+    local inset = ns.Border.Extent({ style = S("borderStyle"), size = S("borderSize") })
+    local stripH = f.header:GetHeight() - inset
+    check("pitwall: red wedge as high and wide as the strip, flush inside the ring", wedge:IsShown() and wedgeColor()
+        .. " " .. wedge._w .. "x" .. wedge._h .. " " .. wedge._texCoord[2] .. " " .. table.concat(wedge._points.TOPLEFT, "/", 3),
+        "0.882/0.024/0 " .. stripH .. "x" .. stripH .. " 0.53 0/0")
+    local reach = math.floor(0.98 * stripH - 0.36 * (f.header:GetHeight() / 2 - inset) + 0.5)
+    local first = f.header.grip:IsShown() and f.header.grip._points.LEFT[3] or f.header.title._points.LEFT[3]
+    check("pitwall: 8 between the wedge and the title", first, inset + reach + 8)
+    check("pitwall: no corner ornament", box.ornaments[1]:IsShown(), false)
     check("pitwall: colours", table.concat(registry.Colors(), " "), "RED ORANGE TEAL SILVER")
     registry.SetColor("TEAL")
     check("pitwall teal: wedge", wedgeColor(), "0/0.631/0.612")
