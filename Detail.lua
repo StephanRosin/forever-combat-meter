@@ -261,7 +261,7 @@ local function layout(f, listCount)
     f.lock.icon:SetVertexColor(unpack(ns.ThemeArt.IconColor(S("locked") and IDLE or ACCENT)))
     f.close.label:SetTextColor(unpack(ns.ThemeArt.IconColor(IDLE)))
     h.title:ClearAllPoints()
-    h.title:SetPoint("LEFT", h, "LEFT", lk.glow and 8 or 4, 0)
+    h.title:SetPoint("LEFT", h, "LEFT", (lk.glow and 8 or 4) + (ns.Themes.Spec(S("theme")).titleIndent or 0), 0)
     h.title:SetPoint("RIGHT", f.lock, "LEFT", -4, 0)
     layoutRows(f, lk, count, width)
     for _, g in pairs(f.grips) do g:SetShown(not S("locked")) end

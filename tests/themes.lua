@@ -96,10 +96,11 @@ return function(ns, M, check, section)
             check(id .. ": named in the list", ns.L["THEME_" .. id] ~= "THEME_" .. id, true)
         end
     end
-    check("every theme listed", #Settings.THEMES, 9)
+    check("every theme listed", #Settings.THEMES, 12)
     -- Title in the theme's font; rows in a font that reads at row size.
     local BODY = { WOOD = "Friz Quadrata", TECH = "Space Grotesk", RUNESTONE = "Marcellus", PIXEL = "VT323",
-        PARCHMENT = "Friz Quadrata", FROST = "Friz Quadrata", GLASS = "Friz Quadrata", COMIC = "Friz Quadrata" }
+        PARCHMENT = "Friz Quadrata", FROST = "Friz Quadrata", GLASS = "Friz Quadrata", COMIC = "Friz Quadrata",
+        SWISS = "Inter Tight", CONSOLE = "IBM Plex Mono", PITWALL = "Titillium Web SemiBold" }
     for id, body in pairs(BODY) do
         Themes.Switch(id)
         Themes.Reset()   -- FROST is stored from the koKR run above
@@ -259,7 +260,8 @@ return function(ns, M, check, section)
             local p = f.themeBox._points
             check(id .. ": ring's outer edge on the window's edge", p.TOPLEFT[3] .. "," .. p.BOTTOMRIGHT[4],
                 extent .. "," .. extent)
-            check(id .. ": ring as thick as its inset", ns.Border.Pieces(f)[1]._h, extent)
+            local piece = ns.Border.Pieces(f)[1]
+            check(id .. ": ring as thick as its inset", piece:IsShown() and piece._h or 0, extent)
             check(id .. ": same width as Classic", f:GetWidth(), classicW)
             check(id .. ": same height as Classic", f:GetHeight(), classicH)
             for i, o in ipairs(f.themeBox.ornaments) do
@@ -276,6 +278,94 @@ return function(ns, M, check, section)
     check("Classic: its own border again (none by default)", ns.Border.Pieces(f)[1]:IsShown(), false)
     check("Classic: gold line", f.header.line._texColor[1], ns.ThemeArt.LINE[1])
     check("Classic: icons in their own colour", f.header.buttons.menu.icon._vertex[1], 0.73)
+
+    section("Themes: rings in the family's colours")
+    -- The same ring per theme and colour in every Forever addon (this table
+    -- in each of them, Forever Quest Log's Themes.lua the reference); only
+    -- Console's colours and Handheld tint the ring. Thickness is our own.
+    local RINGS = {
+        WOOD = "GOLD", TECH = "0.25/0.88/0.94/0.9", PARCHMENT = "0.29/0.2/0.12/1", RUNESTONE = "0.1/0.1/0.12/1",
+        GLASS = "0.07/0.06/0.05/1", COMIC = "0.07/0.07/0.07/1", FROST = "0.86/0.96/1/0.8", PIXEL = "1/0.95/0.91/1",
+        SWISS = "0.165/0.165/0.165/1", CONSOLE = "0.306/0.929/0.69/1", PITWALL = "0.043/0.047/0.055/1",
+    }
+    local RING_OVERRIDES = { CONSOLE = { AMBER = "1/0.69/0/1", PHOSPHOR = "0.224/1/0.078/1",
+        VIOLET = "0.627/0.471/1/1" }, PIXEL = { HANDHELD = "0.784/0.941/0.439/1" } }
+    local function drawnRing()
+        if S("borderStyle") == "GOLD" then return "GOLD" end
+        local piece = ns.Border.Pieces(f)[1]
+        return piece:IsShown() and table.concat(piece._vertex, "/") or "none"
+    end
+    for _, id in ipairs(Settings.THEMES) do
+        if id ~= "CLASSIC" then
+            Themes.Switch(id)
+            local before = registry.Color()
+            for _, colour in ipairs(registry.Colors()) do
+                registry.SetColor(colour)
+                check(id .. " " .. colour .. ": ring", drawnRing(), (RING_OVERRIDES[id] or {})[colour] or RINGS[id])
+            end
+            registry.SetColor(before)
+        end
+    end
+    Themes.Switch("CLASSIC")
+
+    section("Themes: Swiss, Console, Pitwall, Handheld")
+    local function ring() return table.concat(ns.Border.Pieces(f)[1]._vertex, "/", 1, 3) end
+    local wedge = box.ornaments[1]
+    local function wedgeColor() return table.concat(wedge._vertex, "/", 1, 3) end
+    local listed = {}
+    for _, c in ipairs(ns.Window.PAGES[1].rows()[3].choices()) do listed[#listed + 1] = c.value end
+    check("new: in the options' list, appended", table.concat(listed, " ", 10), "SWISS CONSOLE PITWALL")
+    Themes.Switch("SWISS")
+    check("swiss: display face for the title only", S("headerFont") .. "/" .. S("nameFont") .. "/" .. S("valueFont"),
+        "Inter Tight Bold/Inter Tight/Inter Tight")
+    check("swiss: no size growth", S("headerSize") .. "/" .. S("valueSize"),
+        Settings.DEFAULTS.headerSize .. "/" .. Settings.DEFAULTS.valueSize)
+    check("swiss: flat black", back() .. " " .. vertex(), "SwissBack 1/1/1/1")
+    check("swiss: hairline ring", ring(), "0.165/0.165/0.165")
+    check("swiss: white rule on top", box.band:IsShown() and box.band._h, 3)
+    check("swiss: red title", title(), "1/0.176/0.125")
+    check("swiss: colours", table.concat(registry.Colors(), " "), "RED BLUE YELLOW WHITE")
+    registry.SetColor("BLUE")
+    check("swiss blue: title", title(), "0.176/0.42/1")
+    check("swiss blue: backdrop and ring stay", back() .. " " .. vertex() .. " " .. ring(),
+        "SwissBack 1/1/1/1 0.165/0.165/0.165")
+    registry.SetColor("RED")
+    Themes.Switch("CONSOLE")
+    check("console: fonts", S("headerFont") .. "/" .. S("valueFont"), "IBM Plex Sans Condensed Bold/IBM Plex Mono")
+    check("console: mint ring", ring(), "0.306/0.929/0.69")
+    check("console: no band", box.band:IsShown(), false)
+    check("console: colours", table.concat(registry.Colors(), " "), "MINT AMBER PHOSPHOR VIOLET")
+    registry.SetColor("AMBER")
+    check("console amber: the ring follows the title", ring() .. " " .. title(), "1/0.69/0 1/0.69/0")
+    check("console amber: backdrop stays", back() .. " " .. vertex(), "ConsoleBack 1/1/1/1")
+    check("console amber: not stored", S("borderColor")[1], 0.306)
+    registry.SetColor("MINT")
+    check("console mint: ring as stored", ring(), "0.306/0.929/0.69")
+    Themes.Switch("PITWALL")
+    check("pitwall: fonts", S("headerFont") .. "/" .. S("nameFont"), "Titillium Web Bold Italic/Titillium Web SemiBold")
+    check("pitwall: carbon hairline", ring(), "0.043/0.047/0.055")
+    check("pitwall: title strip", f.header.dark:IsShown() and table.concat(f.header.dark._texColor, "/", 1, 3),
+        "0.137/0.149/0.173")
+    check("pitwall: red wedge as high as the strip", wedge:IsShown() and wedgeColor() .. " " .. wedge._w,
+        "0.882/0.024/0 " .. f.header:GetHeight())
+    check("pitwall: title right of the wedge", f.header.title._points.LEFT[3] >= 18, true)
+    check("pitwall: colours", table.concat(registry.Colors(), " "), "RED ORANGE TEAL SILVER")
+    registry.SetColor("TEAL")
+    check("pitwall teal: wedge", wedgeColor(), "0/0.631/0.612")
+    check("pitwall teal: title as stored", title(), table.concat(S("headerColor"), "/", 1, 3))
+    registry.SetColor("RED")
+    Themes.Switch("PIXEL")
+    check("pixel: handheld appended", registry.Colors()[9], "HANDHELD")
+    registry.SetColor("HANDHELD")
+    check("handheld: grey pixel at back / mean", back() .. " " .. vertex(),
+        "PixelBackGrey " .. (0.059 / 0.8) .. "/" .. (0.122 / 0.8) .. "/" .. (0.059 / 0.8) .. "/1")
+    check("handheld: green rim and title", ring() .. " " .. title(), "0.784/0.941/0.439 0.784/0.941/0.439")
+    registry.SetColor("NAVY")
+    check("navy: rim as stored", ring(), "1/0.95/0.91")
+    Themes.Switch("CLASSIC")
+    check("Classic: no band, plain dark strip", box.band:IsShown() and "band" or table.concat(f.header.dark._texColor, "/"),
+        "0/0/0/0.35")
+    check("Classic after the new themes", ns.Share.Export(), classic)
 
     section("Themes: combat, profile, export")
     M.state.combat = true
@@ -307,7 +397,7 @@ return function(ns, M, check, section)
     first[3].set("COMIC")
     check("colour under Comic", first[4].visible() and first[4].get(), "GREY")
     first[3].set("PIXEL")
-    check("colour: pixel's eight", #first[4].choices() .. " " .. first[4].choices()[8].label, "8 Purple")
+    check("colour: pixel's nine", #first[4].choices() .. " " .. first[4].choices()[9].label, "9 Handheld")
     first[4].set("TEAL")
     check("colour: set from the options", Themes.Color(), "TEAL")
     first[4].set("NAVY")

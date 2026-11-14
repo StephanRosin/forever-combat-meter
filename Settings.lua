@@ -11,7 +11,8 @@ ns.Settings = Settings
 Settings.TEXT_STYLES = { "header", "name", "value" }
 
 -- The themes (Themes.lua), in the order of the options' list.
-Settings.THEMES = { "CLASSIC", "WOOD", "TECH", "PARCHMENT", "RUNESTONE", "GLASS", "COMIC", "FROST", "PIXEL" }
+Settings.THEMES = { "CLASSIC", "WOOD", "TECH", "PARCHMENT", "RUNESTONE", "GLASS", "COMIC", "FROST", "PIXEL", "SWISS",
+    "CONSOLE", "PITWALL" }
 
 -- The windows themselves (position, size, mode, session) are a table per
 -- window in the profile, `windows`, owned by Windows.lua.

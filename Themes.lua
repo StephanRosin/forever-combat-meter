@@ -34,7 +34,10 @@ local LATIN_CLIENTS = { enUS = true, enGB = true, deDE = true, frFR = true, esES
 -- tint = its colour, ornament = corner piece, corners = which ones
 -- (Corners.POINTS order: 1 top left, 2 top right, 3 bottom left, 4 bottom
 -- right), ornamentInset = how far in from the window's corner, line =
--- colour of the title's line, darkTitle = a dark strip behind the title.
+-- colour of the title's line, darkTitle = a dark strip behind the title
+-- (true, or its colour), band = a strip { color, height } along the top
+-- edge; ornamentSize "HEADER": as high as the title strip.
+-- titleIndent: the title moved right (past an ornament).
 -- iconColor, iconHover: the title's icon buttons, every state (nil: their
 -- usual gold and blue).
 -- Old-style figures and small caps (or Bangers' weight) do not read at row
@@ -111,6 +114,38 @@ Themes.SPECS = {
             bgMode = "SOLID", bgColor = { 0, 0, 0 }, bgAlpha = 100, shadowEnabled = false },
         art = { back = "PixelBack", line = { 1, 0.95, 0.91, 0.6 } },
     },
+    -- Swiss style: flat black, a white rule along the top, grey hairlines,
+    -- one red accent.
+    SWISS = {
+        font = "Inter Tight Bold", bodyFont = "Inter Tight", bar = "FCM Swiss",
+        look = { borderStyle = "FLAT", borderSize = 1, borderColor = { 0.165, 0.165, 0.165, 1 }, cornerRadius = 0,
+            bgMode = "SOLID", bgColor = { 0.039, 0.039, 0.039 }, bgAlpha = 92, shadowEnabled = false,
+            headerColor = { 1, 0.176, 0.125 }, nameColor = { 0.949, 0.949, 0.949 },
+            valueColor = { 0.949, 0.949, 0.949 } },
+        art = { back = "SwissBack", line = { 0.165, 0.165, 0.165, 1 },
+            band = { color = { 0.949, 0.949, 0.949, 1 }, height = 3 } },
+    },
+    -- A terminal: near black, a mint line, monospaced figures.
+    CONSOLE = {
+        font = "IBM Plex Sans Condensed Bold", bodyFont = "IBM Plex Mono", bar = "FCM Console",
+        look = { borderStyle = "FLAT", borderSize = 1, borderColor = { 0.306, 0.929, 0.69, 1 }, cornerRadius = 0,
+            bgMode = "SOLID", bgColor = { 0.059, 0.059, 0.075 }, bgAlpha = 92, shadowEnabled = false,
+            headerColor = { 0.306, 0.929, 0.69 }, nameColor = { 0.902, 0.91, 0.933 },
+            valueColor = { 0.902, 0.91, 0.933 } },
+        art = { back = "ConsoleBack", line = { 0.545, 0.565, 0.627, 0.5 } },
+    },
+    -- A motorsport timing screen: carbon with a carbon hairline, a dark title strip with a red
+    -- wedge, the bars on a dark card.
+    PITWALL = {
+        font = "Titillium Web Bold Italic", bodyFont = "Titillium Web SemiBold", bar = "FCM Pitwall",
+        titleIndent = 10,
+        look = { borderStyle = "FLAT", borderSize = 1, borderColor = { 0.043, 0.047, 0.055, 1 }, cornerRadius = 0,
+            bgMode = "SOLID", bgColor = { 0.086, 0.094, 0.11 }, bgAlpha = 92, shadowEnabled = false, headerColor = { 0.949, 0.953, 0.961 },
+            nameColor = { 0.949, 0.953, 0.961 }, valueColor = { 0.949, 0.953, 0.961 } },
+        art = { back = "PitwallBack", darkTitle = { 0.137, 0.149, 0.173, 1 }, line = { 0.137, 0.149, 0.173, 1 },
+            ornament = "PitwallWedge", corners = { 1 }, ornamentSize = "HEADER", ornamentInset = 1,
+            ornamentColor = { 0.882, 0.024, 0, 1 } },
+    },
 }
 
 -- Raised whenever SPECS change a look: theme sets made before are made
@@ -168,10 +203,14 @@ end
 -- paper what is dark ink elsewhere is drawn light. back (every other
 -- theme): the mean colour the backdrop is drawn in, from a grey version of
 -- the theme's texture (<Name>BackGrey.tga). accent: the heading colour
--- instead of the theme's; none = the theme's.
+-- instead of the theme's; none = the theme's. rim: the border colour
+-- instead of the stored one (only Console's colours and Handheld: every
+-- Forever addon draws the same ring per theme and colour); ornament: the
+-- ornaments' colour.
 local YELLOW_ACCENT = { 1.00, 0.90, 0.10 }
 local BLUE_ACCENT = { 0.15, 0.45, 0.95 }
 local PICO_YELLOW = { 1, 0.93, 0.15 }
+local HANDHELD_GREEN = { 0.784, 0.941, 0.439, 1 }
 Themes.COLORS = {
     WOOD = {
         { id = "OAK" },
@@ -241,10 +280,33 @@ Themes.COLORS = {
         { id = "BLACK", back = { 0.03, 0.03, 0.04 }, accent = { 0, 0.89, 0.21 } },
         { id = "TEAL", back = { 0.02, 0.17, 0.22 }, accent = { 0.16, 0.68, 1 } },
         { id = "PURPLE", back = { 0.15, 0.10, 0.25 }, accent = { 1, 0.47, 0.66 } },
+        { id = "HANDHELD", back = { 0.059, 0.122, 0.059 }, accent = HANDHELD_GREEN, rim = HANDHELD_GREEN },
+    },
+    -- The backdrop stays in every colour of the last three.
+    SWISS = {
+        { id = "RED" },
+        { id = "BLUE", accent = { 0.176, 0.42, 1 } },
+        { id = "YELLOW", accent = { 1, 0.82, 0 } },
+        { id = "WHITE", accent = { 0.949, 0.949, 0.949 } },
+    },
+    -- The line follows the accent.
+    CONSOLE = {
+        { id = "MINT" },
+        { id = "AMBER", accent = { 1, 0.69, 0 }, rim = { 1, 0.69, 0, 1 } },
+        { id = "PHOSPHOR", accent = { 0.224, 1, 0.078 }, rim = { 0.224, 1, 0.078, 1 } },
+        { id = "VIOLET", accent = { 0.627, 0.471, 1 }, rim = { 0.627, 0.471, 1, 1 } },
+    },
+    -- The wedge's colour.
+    PITWALL = {
+        { id = "RED" },
+        { id = "ORANGE", ornament = { 1, 0.541, 0, 1 } },
+        { id = "TEAL", ornament = { 0, 0.631, 0.612, 1 } },
+        { id = "SILVER", ornament = { 0.788, 0.808, 0.839, 1 } },
     },
 }
 -- The mean grey of each <Name>BackGrey.tga: a backdrop colour is drawn as
--- vertex colour back / mean (at most 1).
+-- vertex colour back / mean (at most 1). Swiss, Console and Pitwall have
+-- no back colours, so no grey file.
 Themes.GREY_MEAN = { Wood = 0.800, Tech = 0.705, Parchment = 0.799, Stone = 0.800, Glass = 0.777, Frost = 0.796,
     Pixel = 0.800 }
 
@@ -325,6 +387,18 @@ end
 function Themes.Accent(color)
     local p = palette()
     return p and p.accent or color
+end
+
+-- The border colour to draw: the colour's rim, or color as stored.
+function Themes.Rim(color)
+    local p = palette()
+    return p and p.rim or color
+end
+
+-- The ornaments' colour to draw: the colour's, or color (the theme's).
+function Themes.Ornament(color)
+    local p = palette()
+    return p and p.ornament or color
 end
 
 -- A new theme's settings: the base set (CLASSIC) with the theme's look.

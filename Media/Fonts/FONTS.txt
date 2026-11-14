@@ -7,3 +7,7 @@ IMFeENsc28P.ttf: IM FELL English SC. © 2007 Igino Marini (www.iginomarini.com) 
 Marcellus-Regular.ttf: Marcellus. Copyright (c) 2012 by Brian J. Bonislawsky DBA Astigmatic (AOETI) (astigma@astigmatic.com), with ReservedFont Name "Marcellus"
 SpaceGrotesk-Bold.ttf: Space Grotesk Bold. Copyright 2020 The Space Grotesk Project Authors (https://github.com/floriankarsten/space-grotesk)
 VT323-Regular.ttf: VT323 Regular. Copyright 2011, The VT323 Project Authors (peter.hull@oikoi.com)
+IBMPlexMono-Regular.ttf: IBM Plex Mono Regular. Copyright 2017 IBM Corp. (https://github.com/IBM/plex), subset to Latin
+IBMPlexSansCondensed-Bold.ttf: IBM Plex Sans Condensed Bold. Copyright 2019 IBM Corp. (https://github.com/IBM/plex), subset to Latin
+InterTight-Bold.ttf, InterTight-Regular.ttf, InterTight-Light.ttf: Inter Tight Bold / Regular / Light, static instances (wght 700/400/300) of the variable font, subset to Latin. Copyright 2022 The Inter Project Authors (https://github.com/rsms/inter-tight)
+TitilliumWeb-BoldItalic.ttf, TitilliumWeb-SemiBold.ttf: Titillium Web Bold Italic / SemiBold, subset to Latin. Copyright (c) 2009-2011 by Accademia di Belle Arti di Urbino and students of MA course of Visual design

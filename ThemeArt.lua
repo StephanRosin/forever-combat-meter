@@ -17,6 +17,8 @@ ns.ThemeArt = ThemeArt
 local PATH = "Interface\\AddOns\\ForeverCombatMeter\\Media\\Themes\\"
 -- The title's line without a theme: the quest log's gold.
 ThemeArt.LINE = { 0.78, 0.59, 0.13, 0.45 }
+-- The title's dark strip (COMPACT, darkTitle = true).
+local DARK = { 0, 0, 0, 0.35 }
 local DEFAULT_ORNAMENT_SIZE = 12
 -- Above the header, the bars and their texts.
 local OVER_LEVELS = 12
@@ -33,6 +35,7 @@ local function build(f)
     box.over:SetFrameLevel(f:GetFrameLevel() + OVER_LEVELS)
     box.ornaments = {}
     for i = 1, 4 do box.ornaments[i] = box.over:CreateTexture(nil, "OVERLAY") end
+    box.band = box.over:CreateTexture(nil, "ARTWORK")
     f.themeBox = box
     return box
 end
@@ -52,7 +55,8 @@ local function placeOrnaments(f, box, art)
     local wanted = {}
     for _, i in ipairs(art.ornament and art.corners or {}) do wanted[i] = true end
     local size, inset = art.ornamentSize or DEFAULT_ORNAMENT_SIZE, math.max(art.ornamentInset or 0, 0)
-    local c = art.ornamentColor or { 1, 1, 1, 1 }
+    if size == "HEADER" then size = f.header and f.header:GetHeight() or DEFAULT_ORNAMENT_SIZE end
+    local c = ns.Themes.Ornament(art.ornamentColor or { 1, 1, 1, 1 })
     for i, piece in ipairs(box.ornaments) do
         piece:SetShown(wanted[i] == true)
         if wanted[i] then
@@ -70,10 +74,23 @@ local function placeOrnaments(f, box, art)
     end
 end
 
+local function placeBand(box, art)
+    local band = art.band
+    box.band:SetShown(band ~= nil)
+    if not band then return end
+    box.band:ClearAllPoints()
+    box.band:SetPoint("TOPLEFT", box, "TOPLEFT", 0, 0)
+    box.band:SetPoint("TOPRIGHT", box, "TOPRIGHT", 0, 0)
+    box.band:SetHeight(band.height)
+    box.band:SetColorTexture(band.color[1], band.color[2], band.color[3], band.color[4])
+end
+
 -- The title strip: no gold glow under a theme (its backdrop is the look),
 -- a dark strip where the theme wants one, the line in the theme's colour.
 local function styleHeader(h, art)
     h.shine:Hide()
+    local dark = type(art.darkTitle) == "table" and art.darkTitle or DARK
+    h.dark:SetColorTexture(dark[1], dark[2], dark[3], dark[4])
     if art.darkTitle then h.dark:Show() end
     local c = art.line
     if c then h.line:SetColorTexture(c[1], c[2], c[3], c[4]) end
@@ -100,7 +117,10 @@ function ThemeArt.Style(f, spec, radius, extent, padding)
     f.bg:ClearAllPoints()
     if not art then
         f.bg:SetAllPoints(f)
-        if f.header then f.header.line:SetColorTexture(unpack(ThemeArt.LINE)) end
+        if f.header then
+            f.header.line:SetColorTexture(unpack(ThemeArt.LINE))
+            f.header.dark:SetColorTexture(unpack(DARK))
+        end
         if f.themeBox then
             f.themeBox:Hide()
             f.themeBox.over:Hide()
@@ -120,6 +140,7 @@ function ThemeArt.Style(f, spec, radius, extent, padding)
     paintBack(box.back, art)
     ns.Corners.Fit(box.clip, box, radius, { box.back })
     placeOrnaments(f, box, art)
+    placeBand(box, art)
     if f.header then styleHeader(f.header, art) end
     return box
 end

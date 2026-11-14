@@ -257,7 +257,7 @@ local function applyLook(f, lk)
     local extent = ns.Border.Extent({ style = S("borderStyle"), size = S("borderSize") })
     local box = ns.ThemeArt.Style(f, ns.Themes.Spec(S("theme")), radius, extent, S("padding"))
     ns.Border.Draw(f, box, {
-        style = S("borderStyle"), size = S("borderSize"), color = S("borderColor"), radius = radius,
+        style = S("borderStyle"), size = S("borderSize"), color = ns.Themes.Rim(S("borderColor")), radius = radius,
         shadow = S("shadowEnabled"), shadowSize = S("shadowSize"), shadowAlpha = S("shadowAlpha") / 100,
     })
 end
@@ -298,7 +298,8 @@ local function layoutHeader(f, lk)
     local grip = ns.ThemeArt.IconColor(ACCENT)
     h.grip:SetVertexColor(grip[1], grip[2], grip[3])
     h.title:ClearAllPoints()
-    h.title:SetPoint("LEFT", h, "LEFT", lk.glow and (unlocked and 24 or 8) or 4, 0)
+    local indent = ns.Themes.Spec(S("theme")).titleIndent or 0
+    h.title:SetPoint("LEFT", h, "LEFT", (lk.glow and (unlocked and 24 or 8) or 4) + indent, 0)
     h.title:SetPoint("RIGHT", order[#order], "LEFT", -4, 0)
 end
 

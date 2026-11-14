@@ -25,6 +25,13 @@ Media.BLIZZARD = {
         { name = "Marcellus",          path = FONTS .. "Marcellus-Regular.ttf" },
         { name = "Space Grotesk",      path = FONTS .. "SpaceGrotesk-Bold.ttf" },
         { name = "VT323",              path = FONTS .. "VT323-Regular.ttf" },
+        { name = "Inter Tight Bold",   path = FONTS .. "InterTight-Bold.ttf" },
+        { name = "Inter Tight",        path = FONTS .. "InterTight-Regular.ttf" },
+        { name = "Inter Tight Light",  path = FONTS .. "InterTight-Light.ttf" },
+        { name = "IBM Plex Sans Condensed Bold", path = FONTS .. "IBMPlexSansCondensed-Bold.ttf" },
+        { name = "IBM Plex Mono",      path = FONTS .. "IBMPlexMono-Regular.ttf" },
+        { name = "Titillium Web Bold Italic", path = FONTS .. "TitilliumWeb-BoldItalic.ttf" },
+        { name = "Titillium Web SemiBold", path = FONTS .. "TitilliumWeb-SemiBold.ttf" },
     },
     background = {
         { name = "Blizzard Dialog Background Dark", path = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark" },
@@ -42,7 +49,8 @@ Media.BLIZZARD = {
     },
 }
 -- The themes' bar textures (made by Forever Unit Frames' tools/make_themes.py).
-for _, name in ipairs({ "Wood", "Tech", "Parchment", "Stone", "Glass", "Comic", "Frost", "Pixel" }) do
+for _, name in ipairs({ "Wood", "Tech", "Parchment", "Stone", "Glass", "Comic", "Frost", "Pixel", "Swiss", "Console",
+    "Pitwall" }) do
     table.insert(Media.BLIZZARD.statusbar, { name = "FCM " .. name, path = THEMES .. name .. "Bar.tga" })
 end
 Media.DEFAULT = {
