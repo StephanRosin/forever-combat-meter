@@ -163,11 +163,16 @@ end
 -- them (themeSets.comicColor), so switching themes never loses it and the
 -- stored looks stay as they are (applied when drawn). GREY is Comic as it
 -- was. Same ids and values in every Forever addon.
-Themes.COMIC_COLORS = { "GREY", "YELLOW", "BLUE", "RED", "GREEN", "PURPLE" }
+-- On a dark paper (dark: true) the dark-ink icons are drawn light.
+Themes.COMIC_COLORS = { "GREY", "DARKGREY", "BLACK", "WHITE", "YELLOW", "BLUE", "RED", "GREEN", "PURPLE" }
 local YELLOW_ACCENT = { 1.00, 0.90, 0.10 }
+local BLUE_ACCENT = { 0.15, 0.45, 0.95 }
 local COMIC_PALETTE = {
     GREY = { paper = { 0.70, 0.70, 0.70 } },
-    YELLOW = { paper = { 0.86, 0.76, 0.36 }, accent = { 0.15, 0.45, 0.95 } },
+    DARKGREY = { paper = { 0.38, 0.38, 0.38 }, accent = YELLOW_ACCENT, dark = true },
+    BLACK = { paper = { 0.16, 0.16, 0.16 }, accent = YELLOW_ACCENT, dark = true },
+    WHITE = { paper = { 1.00, 1.00, 1.00 }, accent = BLUE_ACCENT },
+    YELLOW = { paper = { 0.86, 0.76, 0.36 }, accent = BLUE_ACCENT },
     BLUE = { paper = { 0.45, 0.60, 0.86 }, accent = YELLOW_ACCENT },
     RED = { paper = { 0.86, 0.44, 0.40 }, accent = YELLOW_ACCENT },
     GREEN = { paper = { 0.50, 0.76, 0.46 }, accent = YELLOW_ACCENT },
@@ -200,6 +205,12 @@ function Themes.BackTint(art)
     local p = comicPalette()
     if not p then return art.tint end
     return { p.paper[1], p.paper[2], p.paper[3], 1 }
+end
+
+-- Whether COMIC is in use on a dark paper.
+function Themes.DarkPaper()
+    local p = comicPalette()
+    return p ~= nil and p.dark == true
 end
 
 -- The title colour to draw: the comic colour's accent, or color as stored.

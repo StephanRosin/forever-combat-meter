@@ -80,7 +80,11 @@ end
 
 -- The colour of a title icon: the theme's ink where it has one, else
 -- color (the button's usual one for its state).
+-- On a dark comic paper the ink is light instead.
+local LIGHT_IDLE, LIGHT_HOVER = { 0.85, 0.85, 0.85 }, { 1, 1, 1 }
+
 function ThemeArt.IconColor(color, hover)
+    if ns.Themes.DarkPaper() then return hover and LIGHT_HOVER or LIGHT_IDLE end
     local spec = ns.Themes.Spec(ns.Settings.Get("theme"))
     if not spec.iconColor then return color end
     return hover and spec.iconHover or spec.iconColor
