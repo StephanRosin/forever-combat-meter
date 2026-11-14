@@ -235,5 +235,10 @@ return function(ns, M, check, section)
     check("registry: unknown", select(2, entry.Switch("NOPE")), "UNKNOWN")
     entry.Switch("CLASSIC")
     check("registry: back to Classic as before", ns.Share.Export(), classic)
+    ns.DB().windows = { { width = 301 } }
+    entry.Refresh()
+    check("registry: refresh lays out the stored width", Windows.Frame(1):GetWidth(), 301)
+    ns.DB().windows = nil
+    entry.Refresh()
     Settings.ResetProfile()
 end
