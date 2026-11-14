@@ -25,8 +25,9 @@ local LATIN_CLIENTS = { enUS = true, enGB = true, deDE = true, frFR = true, esES
     ptBR = true }
 
 -- look: settings the theme sets. font, bar: its font and bar texture (Media
--- names); fontSizeAdd: how much larger its font must be to read like the
--- others. Text outline is the client's OUTLINE (never a hand-made soft
+-- names); font is for the title (DISPLAY), bodyFont for the rows' names and
+-- values (nil: font too); fontSizeAdd: how much larger the theme's font
+-- must be to read like the others (not for a standard bodyFont). Text outline is the client's OUTLINE (never a hand-made soft
 -- one: with these fonts that showed black text in Forever Unit Frames).
 -- art (ThemeArt.lua): pad = how far the backdrop reaches beyond the window
 -- (the border ring goes round it), back = backdrop file in Media/Themes,
@@ -35,6 +36,12 @@ local LATIN_CLIENTS = { enUS = true, enGB = true, deDE = true, frFR = true, esES
 -- right), ornamentInset = how far in from the ring's outer corner
 -- (negative: further out), hardShadow = offset of a solid shadow, line =
 -- colour of the title's line, darkTitle = a dark strip behind the title.
+-- Old-style figures and small caps (or Bangers' weight) do not read at row
+-- sizes: those themes keep the client's standard font in the rows.
+local STANDARD = "Friz Quadrata"
+-- Text styles that show the theme's own font; the others are body text.
+local DISPLAY = { header = true }
+
 Themes.SPECS = {
     CLASSIC = {},
     -- Oak boards round the bars, a gold rim, brass rivets.
@@ -55,9 +62,9 @@ Themes.SPECS = {
     },
     -- Parchment round the bars, a brown ink line, a wax seal.
     PARCHMENT = {
-        font = "IM Fell English SC", bar = "FCM Parchment", fontSizeAdd = 1,
+        font = "IM Fell English SC", bodyFont = STANDARD, bar = "FCM Parchment", fontSizeAdd = 1,
         look = { borderStyle = "FLAT", borderSize = 2, borderColor = { 0.29, 0.2, 0.12, 1 }, cornerRadius = 2,
-            bgMode = "SOLID", bgColor = { 0.22, 0.15, 0.07 }, bgAlpha = 60, shadowEnabled = true, shadowAlpha = 45,
+            bgMode = "SOLID", bgColor = { 0.22, 0.15, 0.07 }, bgAlpha = 72, shadowEnabled = true, shadowAlpha = 45,
             shadowSize = 5 },
         art = { pad = 4, back = "ParchmentBack", ornament = "Seal", corners = { 3 }, ornamentSize = 22,
             ornamentInset = -6, line = { 0.29, 0.2, 0.12, 0.8 } },
@@ -73,7 +80,7 @@ Themes.SPECS = {
     },
     -- A mosaic of coloured glass round the bars, dark lead, a dark title.
     GLASS = {
-        font = "Morpheus", bar = "FCM Glass", fontSizeAdd = 1,
+        font = "Morpheus", bodyFont = STANDARD, bar = "FCM Glass", fontSizeAdd = 1,
         look = { borderStyle = "FLAT", borderSize = 3, borderColor = { 0.07, 0.06, 0.05, 1 }, cornerRadius = 0,
             bgMode = "SOLID", bgColor = { 0.05, 0.04, 0.06 }, bgAlpha = 90, shadowEnabled = true, shadowAlpha = 55,
             shadowSize = 6 },
@@ -81,16 +88,16 @@ Themes.SPECS = {
     },
     -- Thick ink line, halftone paper, a solid shadow.
     COMIC = {
-        font = "Bangers", bar = "FCM Comic", fontSizeAdd = 2, outline = "THICKOUTLINE",
+        font = "Bangers", bodyFont = STANDARD, bar = "FCM Comic", fontSizeAdd = 2, outline = "THICKOUTLINE",
         look = { borderStyle = "FLAT", borderSize = 3, borderColor = { 0.07, 0.07, 0.07, 1 }, cornerRadius = 0,
-            bgMode = "SOLID", bgColor = { 1, 0.98, 0.94 }, bgAlpha = 100, shadowEnabled = false },
+            bgMode = "SOLID", bgColor = { 0.9, 0.87, 0.8 }, bgAlpha = 100, shadowEnabled = false },
         art = { pad = 0, back = "ComicBack", hardShadow = 5, line = { 0.07, 0.07, 0.07, 1 } },
     },
     -- Translucent ice, a pale rim, rounded.
     FROST = {
-        font = "Cormorant SC", bar = "FCM Frost", fontSizeAdd = 2,
+        font = "Cormorant SC", bodyFont = STANDARD, bar = "FCM Frost", fontSizeAdd = 2,
         look = { borderStyle = "FLAT", borderSize = 1, borderColor = { 0.86, 0.96, 1, 0.8 }, cornerRadius = 6,
-            bgMode = "SOLID", bgColor = { 0.04, 0.12, 0.22 }, bgAlpha = 60, shadowEnabled = true, shadowAlpha = 55,
+            bgMode = "SOLID", bgColor = { 0.04, 0.12, 0.22 }, bgAlpha = 75, shadowEnabled = true, shadowAlpha = 55,
             shadowSize = 8 },
         art = { pad = 2, back = "FrostBack", tint = { 1, 1, 1, 0.75 }, line = { 0.86, 0.96, 1, 0.5 } },
     },
@@ -106,7 +113,7 @@ Themes.SPECS = {
 -- Raised whenever SPECS change a look: theme sets made before are made
 -- anew from CLASSIC (Themes.Upgrade), so a changed theme shows as it is
 -- now. CLASSIC is never touched.
-Themes.REVISION = 1
+Themes.REVISION = 2
 
 local function copy(v)
     if type(v) ~= "table" then return v end
@@ -156,10 +163,12 @@ local function seed(id, base)
     p.barTexture = spec.bar
     local latin = LATIN_CLIENTS[GetLocale()]
     for _, name in ipairs(Settings.TEXT_STYLES) do
-        if latin then p[name .. "Font"] = spec.font end
+        local font = DISPLAY[name] and spec.font or spec.bodyFont or spec.font
+        if latin then p[name .. "Font"] = font end
         p[name .. "Flag"] = spec.outline or "OUTLINE"
         local size = p[name .. "Size"] or D[name .. "Size"]
-        p[name .. "Size"] = Settings.Clamp(name .. "Size", size + (spec.fontSizeAdd or 0))
+        local add = font == spec.font and spec.fontSizeAdd or 0
+        p[name .. "Size"] = Settings.Clamp(name .. "Size", size + add)
     end
     p.theme = id
     return p

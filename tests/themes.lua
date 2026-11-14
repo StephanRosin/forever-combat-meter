@@ -75,6 +75,7 @@ return function(ns, M, check, section)
     check("stale theme sets dropped", ns.DB().themeSets.TECH, nil)
     check("Classic kept", ns.DB().themeSets.CLASSIC ~= nil, true)
     check("revision stored", ns.DB().themeSets.revision, Themes.REVISION)
+    check("revision raised for the round-2 looks", Themes.REVISION, 2)
     Themes.Switch("CLASSIC")
     check("Classic after the upgrade as before", ns.Share.Export(), classic)
 
@@ -82,7 +83,8 @@ return function(ns, M, check, section)
     M.locale = "koKR"
     Themes.Switch("FROST")
     check("non-Latin client keeps its font", S("headerFont"), Settings.DEFAULTS.headerFont)
-    check("but takes the larger size", S("nameSize"), Settings.DEFAULTS.nameSize + 2)
+    check("but the title takes the larger size", S("headerSize"), Settings.DEFAULTS.headerSize + 2)
+    check("rows in the standard font keep their size", S("nameSize"), Settings.DEFAULTS.nameSize)
     Themes.Switch("CLASSIC")
     M.locale = "enUS"
     for id, spec in pairs(Themes.SPECS) do
@@ -95,6 +97,23 @@ return function(ns, M, check, section)
         end
     end
     check("every theme listed", #Settings.THEMES, 9)
+    -- Title in the theme's font; rows in a font that reads at row size.
+    local BODY = { WOOD = "Cinzel", TECH = "Space Grotesk", RUNESTONE = "Marcellus", PIXEL = "VT323",
+        PARCHMENT = "Friz Quadrata", FROST = "Friz Quadrata", GLASS = "Friz Quadrata", COMIC = "Friz Quadrata" }
+    for id, body in pairs(BODY) do
+        Themes.Switch(id)
+        Themes.Reset()   -- FROST is stored from the koKR run above
+        local spec = Themes.SPECS[id]
+        check(id .. ": title font", S("headerFont"), spec.font)
+        check(id .. ": name font", S("nameFont"), body)
+        check(id .. ": value font", S("valueFont"), body)
+        local add = body == spec.font and (spec.fontSizeAdd or 0) or 0
+        check(id .. ": name size", S("nameSize"), Settings.DEFAULTS.nameSize + add)
+        check(id .. ": title size", S("headerSize"), Settings.DEFAULTS.headerSize + (spec.fontSizeAdd or 0))
+        check(id .. ": outlined text", S("valueFlag") ~= "" and S("valueFlag") ~= "SHADOW", true)
+        Themes.Switch("CLASSIC")
+    end
+    check("comic paper toned down", Themes.SPECS.COMIC.look.bgColor[1] <= 0.9, true)
     do
         -- A refused font: the standard font meanwhile, then tried again.
         local fs = UIParent:CreateFontString()
