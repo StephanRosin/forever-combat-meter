@@ -47,7 +47,7 @@ Themes.SPECS = {
     CLASSIC = {},
     -- Oak boards round the bars, a gold rim, brass rivets.
     WOOD = {
-        font = "Cinzel", bar = "FCM Wood",
+        font = "Cinzel", bodyFont = STANDARD, bar = "FCM Wood",
         look = { borderStyle = "GOLD", borderSize = 3, cornerRadius = 3, bgMode = "SOLID",
             bgColor = { 0.1, 0.06, 0.02 }, bgAlpha = 85, shadowEnabled = true, shadowAlpha = 60, shadowSize = 6 },
         art = { back = "WoodBack", ornament = "Rivet", corners = { 1, 2, 3, 4 }, ornamentSize = 8,
@@ -116,7 +116,7 @@ Themes.SPECS = {
 -- Raised whenever SPECS change a look: theme sets made before are made
 -- anew from CLASSIC (Themes.Upgrade), so a changed theme shows as it is
 -- now. CLASSIC is never touched.
-Themes.REVISION = 4
+Themes.REVISION = 5
 
 local function copy(v)
     if type(v) ~= "table" then return v end

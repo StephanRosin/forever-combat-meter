@@ -75,7 +75,7 @@ return function(ns, M, check, section)
     check("stale theme sets dropped", ns.DB().themeSets.TECH, nil)
     check("Classic kept", ns.DB().themeSets.CLASSIC ~= nil, true)
     check("revision stored", ns.DB().themeSets.revision, Themes.REVISION)
-    check("revision raised for the plain comic outline", Themes.REVISION, 4)
+    check("revision raised for the Wood body font", Themes.REVISION, 5)
     Themes.Switch("CLASSIC")
     check("Classic after the upgrade as before", ns.Share.Export(), classic)
 
@@ -98,7 +98,7 @@ return function(ns, M, check, section)
     end
     check("every theme listed", #Settings.THEMES, 9)
     -- Title in the theme's font; rows in a font that reads at row size.
-    local BODY = { WOOD = "Cinzel", TECH = "Space Grotesk", RUNESTONE = "Marcellus", PIXEL = "VT323",
+    local BODY = { WOOD = "Friz Quadrata", TECH = "Space Grotesk", RUNESTONE = "Marcellus", PIXEL = "VT323",
         PARCHMENT = "Friz Quadrata", FROST = "Friz Quadrata", GLASS = "Friz Quadrata", COMIC = "Friz Quadrata" }
     for id, body in pairs(BODY) do
         Themes.Switch(id)
