@@ -556,3 +556,41 @@ _G.ForeverThemes["ForeverCombatMeter"] = {
     Color = function(themeId) return Themes.Color(themeId) end,
     SetColor = function(id, themeId) return Themes.SetColor(id, themeId) end,
 }
+
+-- "Apply to all Forever addons" (the options' theme rows): the other addons
+-- in the list above. Each Forever addon has its own copy of this.
+local function otherThemes()
+    local list = {}
+    for folder, entry in pairs(_G.ForeverThemes) do
+        if folder ~= "ForeverCombatMeter" and type(entry) == "table" and type(entry.Switch) == "function" then
+            list[#list + 1] = entry
+        end
+    end
+    return list
+end
+
+function Themes.HasOthers() return #otherThemes() > 0 end
+
+local function listed(ids, id)
+    for _, v in ipairs(ids or {}) do
+        if v == id then return true end
+    end
+    return false
+end
+
+-- Every other addon onto this theme and, where that theme has it, this
+-- colour (else it keeps its own). One without the theme refuses the switch
+-- and is skipped. Returns how many switched.
+function Themes.ApplyToAll()
+    local theme, color, switched = Themes.Current(), Themes.Color(), 0
+    for _, entry in ipairs(otherThemes()) do
+        if entry.Switch(theme) then
+            switched = switched + 1
+            if color and type(entry.Colors) == "function" and type(entry.SetColor) == "function"
+                and listed(entry.Colors(theme), color) then
+                entry.SetColor(color, theme)
+            end
+        end
+    end
+    return switched
+end

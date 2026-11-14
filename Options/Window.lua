@@ -173,6 +173,11 @@ local function themeRows()
         { type = "text", label = "OPT_THEME_HINT", height = 88 },
         theme,
         visibleIf(themeColorRow(), function() return #ns.Themes.Colors() > 0 end),
+        visibleIf({ type = "buttons", buttons = {
+            { label = "OPT_THEME_ALL", width = 240, onClick = function()
+                ns.Print(L.MSG_THEME_ALL, ns.Themes.ApplyToAll())
+            end },
+        } }, ns.Themes.HasOthers),
         themeCopyRow(),
         visibleIf({ type = "buttons", buttons = {
             { label = "OPT_THEME_RESET", width = 170, onClick = function() refused(ns.Themes.Reset()) end },

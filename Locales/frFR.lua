@@ -83,6 +83,8 @@ L.STYLE_COMPACT = "Compact"
 -- Themes (Themes.lua)
 L.OPT_THEME = "Thème (bêta)"
 L.OPT_THEME_HINT = "Bêta : chaque thème garde tous ses réglages, au départ ceux de Classique (vos fenêtres et positions). Les thèmes sont accordés aux autres addons Forever et rendent le mieux quand vous en utilisez plusieurs avec le même thème."
+L.OPT_THEME_ALL = "Appliquer à tous les addons Forever"
+L.MSG_THEME_ALL = "Thème appliqué à %d autres addons Forever."
 L.OPT_THEME_PICK = "Thème"
 L.THEME_CLASSIC = "Classique (votre apparence)"
 L.THEME_WOOD = "Plaque de bois"

@@ -50,6 +50,7 @@ Then `/reload` or restart the game.
   positions from" copies the window positions of another theme (with undo),
   "Reset theme" makes it anew from Classic. The theme fonts (SIL Open Font
   License, `Media/Fonts`) have Latin letters only; other clients keep their font.
+  "Apply to all Forever addons" puts the other Forever addons on the same theme and colour.
 - **Details**: hover a bar for the top five spells, click it for the breakdown
   panel with every spell; in deaths mode the death recap.
 - **Threat warning** (optional, off by default; switch it on in the options): a centred warning and an optional sound when you pass your
