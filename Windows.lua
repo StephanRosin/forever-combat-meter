@@ -275,6 +275,7 @@ local function layoutHeader(f, lk)
     h.line:SetShown(S("headerLine") and true or false)
     local style = Settings.TextStyle("header")
     style.size = math.max(8, style.size - lk.titleDelta)
+    style.color = ns.Themes.Accent(style.color)
     Media.ApplyText(h.title, style)
     local unlocked = not cfg.locked
     h.grip:SetShown(unlocked and lk.glow)

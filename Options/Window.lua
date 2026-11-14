@@ -148,6 +148,14 @@ local function themeCopyRow()
     }
 end
 
+-- Comic's paper and accent, kept apart from the theme sets.
+local function comicColorRow()
+    local row = choice(nil, "OPT_COMIC_COLOR", ns.Themes.COMIC_COLORS, "COMIC_COLOR_")
+    row.get = function() return ns.Themes.ComicColor() end
+    row.set = function(v) refused(ns.Themes.SetComicColor(v)) end
+    return row
+end
+
 -- The theme first: it swaps every other setting (Themes.lua).
 local function themeRows()
     local theme = choice("theme", "OPT_THEME_PICK", Settings.THEMES, "THEME_")
@@ -156,6 +164,7 @@ local function themeRows()
         { type = "header", label = "OPT_THEME" },
         { type = "text", label = "OPT_THEME_HINT", height = 40 },
         theme,
+        visibleIf(comicColorRow(), function() return ns.Themes.Current() == "COMIC" end),
         themeCopyRow(),
         visibleIf({ type = "buttons", buttons = {
             { label = "OPT_THEME_RESET", width = 170, onClick = function() refused(ns.Themes.Reset()) end },

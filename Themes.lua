@@ -158,6 +158,56 @@ function Themes.Spec(id)
     return Themes.SPECS[id] or Themes.SPECS.CLASSIC
 end
 
+-- Comic colours: the paper's tint and the accent (the window titles, the
+-- default gold) of COMIC, picked apart from the theme sets: kept next to
+-- them (themeSets.comicColor), so switching themes never loses it and the
+-- stored looks stay as they are (applied when drawn). GREY is Comic as it
+-- was. Same ids and values in every Forever addon.
+Themes.COMIC_COLORS = { "GREY", "YELLOW", "BLUE", "RED", "GREEN", "PURPLE" }
+local YELLOW_ACCENT = { 1.00, 0.90, 0.10 }
+local COMIC_PALETTE = {
+    GREY = { paper = { 0.70, 0.70, 0.70 } },
+    YELLOW = { paper = { 0.86, 0.76, 0.36 }, accent = { 0.15, 0.45, 0.95 } },
+    BLUE = { paper = { 0.45, 0.60, 0.86 }, accent = YELLOW_ACCENT },
+    RED = { paper = { 0.86, 0.44, 0.40 }, accent = YELLOW_ACCENT },
+    GREEN = { paper = { 0.50, 0.76, 0.46 }, accent = YELLOW_ACCENT },
+    PURPLE = { paper = { 0.70, 0.52, 0.84 }, accent = YELLOW_ACCENT },
+}
+
+function Themes.ComicColor()
+    local id = storedSets().comicColor
+    return COMIC_PALETTE[id] and id or "GREY"
+end
+
+-- Picks the comic colour; repaints at once while COMIC is in use. true, or
+-- nil and why not.
+function Themes.SetComicColor(id)
+    if not COMIC_PALETTE[id] then return nil, "UNKNOWN" end
+    storedSets().comicColor = id
+    if Themes.Current() == "COMIC" then Settings.Changed(nil) end
+    return true
+end
+
+-- The colour in use while COMIC is, else nil.
+local function comicPalette()
+    if Themes.Current() ~= "COMIC" then return nil end
+    return COMIC_PALETTE[Themes.ComicColor()]
+end
+
+-- The backdrop's tint { r, g, b, a } for art: the comic colour's paper
+-- under COMIC, else art.tint.
+function Themes.BackTint(art)
+    local p = comicPalette()
+    if not p then return art.tint end
+    return { p.paper[1], p.paper[2], p.paper[3], 1 }
+end
+
+-- The title colour to draw: the comic colour's accent, or color as stored.
+function Themes.Accent(color)
+    local p = comicPalette()
+    return p and p.accent or color
+end
+
 -- A new theme's settings: the base set (CLASSIC) with the theme's look.
 local function seed(id, base)
     local spec, D = Themes.Spec(id), Settings.DEFAULTS
@@ -309,4 +359,7 @@ _G.ForeverThemes["ForeverCombatMeter"] = {
     -- After another addon (the InfoPanel's right column) wrote the stored
     -- settings: apply them as after a change in the options.
     Refresh = function() Settings.Changed(nil) end,
+    ComicColors = Themes.COMIC_COLORS,
+    ComicColor = function() return Themes.ComicColor() end,
+    SetComicColor = function(id) return Themes.SetComicColor(id) end,
 }

@@ -41,7 +41,7 @@ local function paintBack(texture, art)
     texture:SetTexture(PATH .. art.back, "REPEAT", "REPEAT")
     texture:SetHorizTile(true)
     texture:SetVertTile(true)
-    local tint = art.tint or { 1, 1, 1, 1 }
+    local tint = ns.Themes.BackTint(art) or { 1, 1, 1, 1 }
     texture:SetVertexColor(tint[1], tint[2], tint[3], tint[4])
 end
 
