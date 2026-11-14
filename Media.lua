@@ -110,6 +110,25 @@ end
 -- How often, and how far apart, a refused font is tried again.
 local FONT_TRIES, FONT_RETRY_DELAY = 8, 0.25
 
+-- A font file used for the first time can leave a text blank although
+-- GetFont reports it (seen in game: empty texts until the theme was
+-- chosen a second time). Setting it again a little later, through another
+-- font, as that second choice did, draws them. Once per text and font.
+local REDRAW_DELAYS = { 0.5, 2 }
+local function redrawLater(fs, path, size, flags, wanted)
+    if fs.fontDrawn == wanted then return end
+    fs.fontDrawn = wanted
+    for _, delay in ipairs(REDRAW_DELAYS) do
+        C_Timer.After(delay, function()
+            if fs.fontWanted ~= wanted then return end
+            fs:SetFont("Fonts\\FRIZQT__.TTF", size, flags)
+            fs:SetFont(path, size, flags)
+            local text = fs:GetText()
+            if text then fs:SetText(""); fs:SetText(text) end
+        end)
+    end
+end
+
 -- A text style (Settings.TextStyle) on a font string. SHADOW is a drop
 -- shadow, the other flags are outlines. A font the client refuses (a file
 -- of ours on its first use) gives way to the standard font meanwhile and
@@ -120,7 +139,9 @@ function Media.ApplyText(fs, style, tries)
     local path = Media.FontPath(style.font)
     local wanted = path .. "|" .. style.size .. "|" .. outline
     fs.fontWanted = wanted
-    if not (fs:SetFont(path, style.size, outline) and hasFont(fs, path)) then
+    if fs:SetFont(path, style.size, outline) and hasFont(fs, path) then
+        redrawLater(fs, path, style.size, outline, wanted)
+    else
         fs:SetFont(Media.DEFAULT.font, style.size, outline)
         tries = tries or FONT_TRIES
         if tries > 0 then
