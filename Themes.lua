@@ -89,7 +89,7 @@ Themes.SPECS = {
     -- Thick ink line, halftone paper. The paper is the
     -- backdrop alone, grey as in the other Forever addons: no fill over it.
     COMIC = {
-        font = "Bangers", bodyFont = STANDARD, bar = "FCM Comic", fontSizeAdd = 2, outline = "THICKOUTLINE",
+        font = "Bangers", bodyFont = STANDARD, bar = "FCM Comic", fontSizeAdd = 2, outline = "OUTLINE",
         -- Light icons vanish on the grey paper: dark ink, lighter on hover.
         iconColor = { 0.1, 0.1, 0.1 }, iconHover = { 0.4, 0.4, 0.4 },
         look = { borderStyle = "FLAT", borderSize = 3, borderColor = { 0.07, 0.07, 0.07, 1 }, cornerRadius = 0,
@@ -116,7 +116,7 @@ Themes.SPECS = {
 -- Raised whenever SPECS change a look: theme sets made before are made
 -- anew from CLASSIC (Themes.Upgrade), so a changed theme shows as it is
 -- now. CLASSIC is never touched.
-Themes.REVISION = 3
+Themes.REVISION = 4
 
 local function copy(v)
     if type(v) ~= "table" then return v end
