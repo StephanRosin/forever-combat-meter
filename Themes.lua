@@ -52,13 +52,12 @@ Themes.SPECS = {
         art = { pad = 4, back = "WoodBack", ornament = "Rivet", corners = { 1, 2, 3, 4 }, ornamentSize = 11,
             ornamentInset = 1, line = { 0.85, 0.65, 0.3, 0.6 } },
     },
-    -- Dark navy with a faint grid, a thin cyan line, corner brackets.
+    -- Dark navy with a faint grid, a thin cyan line.
     TECH = {
         font = "Space Grotesk", bar = "FCM Tech",
         look = { borderStyle = "FLAT", borderSize = 1, borderColor = { 0.25, 0.88, 0.94, 0.9 }, cornerRadius = 0,
             bgMode = "SOLID", bgColor = { 0.02, 0.05, 0.08 }, bgAlpha = 92, shadowEnabled = false },
-        art = { pad = 3, back = "TechBack", ornament = "Bracket", corners = { 1, 2, 3, 4 }, ornamentSize = 12,
-            ornamentInset = -3, ornamentColor = { 0.25, 0.88, 0.94, 1 }, line = { 0.25, 0.88, 0.94, 0.6 } },
+        art = { pad = 3, back = "TechBack", line = { 0.25, 0.88, 0.94, 0.6 } },
     },
     -- Parchment round the bars, a brown ink line, a wax seal.
     PARCHMENT = {
@@ -86,12 +85,13 @@ Themes.SPECS = {
             shadowSize = 6 },
         art = { pad = 6, back = "GlassBack", darkTitle = true, line = { 0.07, 0.06, 0.05, 1 } },
     },
-    -- Thick ink line, halftone paper, a solid shadow.
+    -- Thick ink line, halftone paper, a solid shadow. The paper is the
+    -- backdrop alone, grey as in the other Forever addons: no fill over it.
     COMIC = {
         font = "Bangers", bodyFont = STANDARD, bar = "FCM Comic", fontSizeAdd = 2, outline = "THICKOUTLINE",
         look = { borderStyle = "FLAT", borderSize = 3, borderColor = { 0.07, 0.07, 0.07, 1 }, cornerRadius = 0,
-            bgMode = "SOLID", bgColor = { 0.9, 0.87, 0.8 }, bgAlpha = 100, shadowEnabled = false },
-        art = { pad = 0, back = "ComicBack", hardShadow = 5, line = { 0.07, 0.07, 0.07, 1 } },
+            bgAlpha = 0, shadowEnabled = false },
+        art = { pad = 0, back = "ComicBack", tint = { 0.7, 0.7, 0.7, 1 }, hardShadow = 5, line = { 0.07, 0.07, 0.07, 1 } },
     },
     -- Translucent ice, a pale rim, rounded.
     FROST = {
@@ -113,7 +113,7 @@ Themes.SPECS = {
 -- Raised whenever SPECS change a look: theme sets made before are made
 -- anew from CLASSIC (Themes.Upgrade), so a changed theme shows as it is
 -- now. CLASSIC is never touched.
-Themes.REVISION = 2
+Themes.REVISION = 3
 
 local function copy(v)
     if type(v) ~= "table" then return v end
