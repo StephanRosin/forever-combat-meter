@@ -111,7 +111,59 @@ local function textStyleRows(key, header)
     }
 end
 
--- General: style, update rate, Blizzard's meter, minimap, report.
+-- Theme refusals in the chat.
+local function refused(ok, why)
+    if not ok then ns.Print(L[("MSG_THEME_%s"):format(why)]) end
+    return ok
+end
+
+-- The positions another theme's set has, taken over into the current one;
+-- the list offers to undo that while the theme stays (this session only).
+local themeUndo
+local UNDO, NONE = "__undo", "__none"
+local function themeCopyRow()
+    return {
+        type = "select", label = "OPT_THEME_COPY", placeholder = "OPT_THEME_COPY_PICK",
+        choices = function()
+            local list = {}
+            if themeUndo and themeUndo.theme == ns.Themes.Current() then
+                list[1] = { label = L.OPT_THEME_UNDO, value = UNDO }
+            end
+            for _, id in ipairs(ns.Themes.Stored()) do list[#list + 1] = { label = L["THEME_" .. id], value = id } end
+            if #list == 0 then list[1] = { label = L.OPT_THEME_COPY_NONE, value = NONE } end
+            return list
+        end,
+        get = function() return nil end,
+        set = function(id)
+            if id == NONE then return end
+            if id == UNDO then
+                local undo = themeUndo
+                themeUndo = nil
+                if undo then ns.Themes.Restore(undo.saved) end
+                return
+            end
+            local saved, why = ns.Themes.CopyPlacement(id)
+            if refused(saved, why) then themeUndo = { theme = ns.Themes.Current(), saved = saved } end
+        end,
+    }
+end
+
+-- The theme first: it swaps every other setting (Themes.lua).
+local function themeRows()
+    local theme = choice("theme", "OPT_THEME_PICK", Settings.THEMES, "THEME_")
+    theme.set = function(v) refused(ns.Themes.Switch(v)) end
+    return {
+        { type = "header", label = "OPT_THEME" },
+        { type = "text", label = "OPT_THEME_HINT", height = 40 },
+        theme,
+        themeCopyRow(),
+        visibleIf({ type = "buttons", buttons = {
+            { label = "OPT_THEME_RESET", width = 170, onClick = function() refused(ns.Themes.Reset()) end },
+        } }, function() return ns.Themes.Current() ~= ns.Themes.CLASSIC end),
+    }
+end
+
+-- General: theme, style, update rate, Blizzard's meter, minimap, report.
 local function generalRows()
     local style = choice("style", "OPT_STYLE", { "FOREVER", "COMPACT" }, "STYLE_")
     -- Picking a style also takes its bar preset once (they stay editable).
@@ -119,7 +171,7 @@ local function generalRows()
         ns.Windows.ApplyStylePreset(v)
         Settings.Set("style", v)
     end
-    return {
+    return append(themeRows(), {
         { type = "header", label = "OPT_GENERAL" },
         style,
         num("refresh", "OPT_REFRESH", "s", Settings.STEPS.refresh),
@@ -131,7 +183,7 @@ local function generalRows()
         num("reportLines", "OPT_REPORT_LINES", ""),
         { type = "header", label = "OPT_MINIMAP" },
         check("minimapShow", "OPT_MINIMAP_SHOW"),
-    }
+    })
 end
 
 -- One window's setting as a row; the get/set go through Windows.
@@ -484,7 +536,8 @@ local function widgetFor(page, opt)
     elseif kind == "edit" then
         return editRow(page, opt)
     end
-    local o = { label = labelText(opt.label), get = opt.get, set = opt.set }
+    local o = { label = labelText(opt.label), get = opt.get, set = opt.set,
+        placeholder = opt.placeholder and labelText(opt.placeholder) }
     local row
     if kind == "check" then
         row = Widgets.Checkbox(page, o)

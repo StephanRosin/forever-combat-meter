@@ -252,8 +252,11 @@ local function applyLook(f, lk)
     local radius = lk.glow and S("cornerRadius") or (ns.DB().cornerRadius or 0)
     radius = ns.Corners.Clamp(radius, f:GetWidth(), f:GetHeight())
     ns.Corners.Fit(f.clip, f, radius, { f.bg, f.header.shine })
-    ns.Border.Draw(f, f, {
-        style = S("borderStyle"), size = S("borderSize"), color = S("borderColor"), radius = radius,
+    -- A theme's backdrop reaches beyond the window: the ring goes round it.
+    local extent = ns.Border.Extent({ style = S("borderStyle"), size = S("borderSize") })
+    local box, outer = ns.ThemeArt.Style(f, ns.Themes.Spec(S("theme")), radius, extent)
+    ns.Border.Draw(f, box, {
+        style = S("borderStyle"), size = S("borderSize"), color = S("borderColor"), radius = outer,
         shadow = S("shadowEnabled"), shadowSize = S("shadowSize"), shadowAlpha = S("shadowAlpha") / 100,
     })
 end
@@ -899,7 +902,7 @@ local function createHeader(f)
     h.line:SetHeight(1)
     h.line:SetPoint("BOTTOMLEFT")
     h.line:SetPoint("BOTTOMRIGHT")
-    h.line:SetColorTexture(0.78, 0.59, 0.13, 0.45)
+    h.line:SetColorTexture(unpack(ns.ThemeArt.LINE))
     h.grip = h:CreateTexture(nil, "OVERLAY")
     h.grip:SetSize(12, 12)
     h.grip:SetPoint("LEFT", 8, 0)

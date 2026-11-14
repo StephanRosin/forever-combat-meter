@@ -23,11 +23,13 @@ Core.lua
 Profiles.lua
 Settings.lua
 Share.lua
+Themes.lua
 Media.lua
 Position.lua
 Resize.lua
 Corners.lua
 Border.lua
+ThemeArt.lua
 Format.lua
 Meter.lua
 Threat.lua

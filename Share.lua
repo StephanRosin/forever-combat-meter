@@ -59,11 +59,19 @@ function encode(v, out)
     end
 end
 
+-- Stored beside the settings, never passed on: the other themes' sets
+-- (Themes.lua). They would also nest deeper than MAX_DEPTH.
+local KEEP = "themeSets"
+
 -- The active profile: everything it stores (only what differs from the
 -- defaults, so the string stays short).
 function Share.Export()
     local out = { Share.PREFIX }
-    encode(ns.DB(), out)
+    local own = {}
+    for k, v in pairs(ns.DB()) do
+        if k ~= KEEP then own[k] = v end
+    end
+    encode(own, out)
     return table.concat(out)
 end
 
@@ -122,11 +130,13 @@ end
 -- Settings that take one of a fixed set of values; anything else is skipped.
 local ENUMS = {
     style = { FOREVER = true, COMPACT = true },
+    theme = {},
     borderStyle = { NONE = true, FLAT = true, GOLD = true },
     bgMode = { SOLID = true, GRADIENT = true, TEXTURE = true },
     reportChannel = { AUTO = true, SAY = true, PARTY = true, RAID = true, INSTANCE_CHAT = true, GUILD = true,
                       WHISPER = true },
 }
+for _, id in ipairs(Settings.THEMES) do ENUMS.theme[id] = true end
 for _, name in ipairs(Settings.TEXT_STYLES) do
     ENUMS[name .. "Flag"] = { [""] = true, OUTLINE = true, THICKOUTLINE = true, SHADOW = true }
 end
@@ -180,7 +190,9 @@ function Share.Import(text)
     -- Written in one go, clamped as Settings.Set does, then one change for
     -- everything (as a profile switch), instead of a relayout per key.
     local db = ns.DB()
-    for k in pairs(db) do db[k] = nil end
+    for k in pairs(db) do
+        if k ~= KEEP then db[k] = nil end
+    end
     for key, v in pairs(clean) do
         if tables[key] or legacy[key] then
             db[key] = v

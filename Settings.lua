@@ -10,10 +10,14 @@ ns.Settings = Settings
 -- The text styles; each has <prefix>Font, Size, Flag and Color.
 Settings.TEXT_STYLES = { "header", "name", "value" }
 
+-- The themes (Themes.lua), in the order of the options' list.
+Settings.THEMES = { "CLASSIC", "WOOD", "TECH", "PARCHMENT", "RUNESTONE", "GLASS", "COMIC", "FROST", "PIXEL" }
+
 -- The windows themselves (position, size, mode, session) are a table per
 -- window in the profile, `windows`, owned by Windows.lua.
 Settings.DEFAULTS = {
     -- General
+    theme = "CLASSIC",      -- Themes.lua: each theme has a whole set of settings
     refresh = 0.2,          -- seconds between redraws
     style = "FOREVER",      -- FOREVER (quest log look) or COMPACT
     hideBlizzard = false,
@@ -184,7 +188,8 @@ function Settings.TextStyle(name)
     }
 end
 
--- Back to the defaults (the language is not in the profile).
+-- Back to the defaults (the language is not in the profile), the other
+-- themes' sets (Themes.lua) included.
 function Settings.ResetProfile()
     local db = ns.DB()
     for k in pairs(db) do db[k] = nil end

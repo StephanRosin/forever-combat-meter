@@ -56,7 +56,7 @@ check("Interface", io.open(ROOT .. "/" .. ADDON .. ".toc"):read("*l"), "## Inter
 for _, name in ipairs({ "L", "Locale", "On", "Print", "AfterCombat", "DB", "AccountDB", "ActiveProfile",
     "SwitchProfile", "DeleteProfile", "CopyProfileFrom", "ProfileList", "Settings", "Share", "Media",
     "Position", "Corners", "Border", "Window", "MinimapButton", "Style", "Widgets", "Format", "Meter", "Threat",
-    "Windows", "Detail", "Report" }) do
+    "Windows", "Detail", "Report", "Themes", "ThemeArt" }) do
     check("ns." .. name, ns[name] ~= nil, true)
 end
 check("saved variables (account)", type(ForeverCombatMeterProfiles), "table")
@@ -2753,6 +2753,8 @@ do
     UnitExists, UnitName, UnitIsPlayer, UnitIsFriend, IsInGuild, C_ChatInfo, UnitFactionGroup, GetUnitName = realUnitExists, realUnitName, nil, nil, nil, nil, nil, nil
     reset()
 end
+
+dofile("themes.lua")(ns, M, check, section)
 
 section("Secret lint")
 -- A cheap static check, because the mock cannot catch it: on the client even

@@ -583,7 +583,8 @@ function Widgets.Dropdown(parent, opts)
     function row:Refresh()
         local items = opts.items()
         local item = items[indexOf(items, opts.get()) or 0]
-        row.button.text:SetText(item and item.text or "")
+        -- No item for the value: the placeholder (a list of actions).
+        row.button.text:SetText(item and item.text or opts.placeholder or "")
         applyFont(row.button.text, item and item.font)
         if list.owner == row then renderList() end
         row:RefreshInherit()

@@ -42,6 +42,14 @@ Then `/reload` or restart the game.
   lock and bar colour. Corner arrows resize while unlocked.
 - **Two looks**: Forever (the Forever Quest Log header) and Compact (slim, bars
   edge to edge).
+- **Themes (beta)**: Classic (the look above, unchanged) or wooden plaque,
+  technology, parchment, runestone, stained glass, comic, frost and pixel, at
+  the top of the General page. Each theme keeps a whole set of settings of its
+  own and starts from your Classic one (windows, positions, sizes) with its
+  look on top; Classic always comes back exactly as you left it. "Take
+  positions from" copies the window positions of another theme (with undo),
+  "Reset theme" makes it anew from Classic. The theme fonts (SIL Open Font
+  License, `Media/Fonts`) have Latin letters only; other clients keep their font.
 - **Details**: hover a bar for the top five spells, click it for the breakdown
   panel with every spell; in deaths mode the death recap.
 - **Threat warning** (optional, off by default; switch it on in the options): a centred warning and an optional sound when you pass your
@@ -66,10 +74,11 @@ a lint for that.
 | Path | Purpose |
 | --- | --- |
 | `tests/run` | the test suite, Lua 5.1 against a client mock (`tests/wowmock.lua`) |
-| `./install <AddOns folder>` | copies exactly the TOC's files and `Media/*.tga` |
+| `./install <AddOns folder>` | copies exactly the TOC's files, `Media/*.tga` and the themes' `Media/Themes`, `Media/Fonts` |
 | `tools/package` | builds `dist/ForeverCombatMeter-<version>.zip` |
 | `tools/release <release\|beta\|alpha> "<changelog>"` | runs the tests, packages and uploads to CurseForge (token from `$CURSEFORGE_TOKEN` or `~/.config/curseforge-token`) |
 | `tools/make_icons.py` | regenerates the header icons and `Media/MinimapIcon.tga` |
+| `Media/Themes`, `Media/Fonts` | the themes' textures (from Forever Unit Frames' `tools/make_themes.py`) and fonts, as in that addon; copy them over when its themes change, and raise `Themes.REVISION` when a look changes |
 
 Bump `## Version` in the TOC before a release.
 
