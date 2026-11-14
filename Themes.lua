@@ -119,7 +119,7 @@ Themes.SPECS = {
     SWISS = {
         font = "Inter Tight Bold", bodyFont = "Inter Tight", bar = "FCM Swiss",
         look = { borderStyle = "FLAT", borderSize = 1, borderColor = { 0.165, 0.165, 0.165, 1 }, cornerRadius = 0,
-            bgMode = "SOLID", bgColor = { 0.039, 0.039, 0.039 }, bgAlpha = 92, shadowEnabled = false,
+            bgMode = "SOLID", bgColor = { 0.039, 0.039, 0.039 }, bgAlpha = 100, shadowEnabled = false,
             headerColor = { 1, 0.176, 0.125 }, nameColor = { 0.949, 0.949, 0.949 },
             valueColor = { 0.949, 0.949, 0.949 } },
         art = { back = "SwissBack", line = { 0.165, 0.165, 0.165, 1 },
@@ -134,15 +134,15 @@ Themes.SPECS = {
             valueColor = { 0.902, 0.91, 0.933 } },
         art = { back = "ConsoleBack", line = { 0.545, 0.565, 0.627, 0.5 } },
     },
-    -- A motorsport timing screen: carbon with a carbon hairline, a dark title strip with a red
-    -- wedge, the bars on a dark card.
+    -- A motorsport timing screen: flat black with a carbon hairline, a black title strip with
+    -- a red wedge, the bars on black.
     PITWALL = {
         font = "Titillium Web Bold Italic", bodyFont = "Titillium Web SemiBold", bar = "FCM Swiss",
         titleIndent = 10,
         look = { borderStyle = "FLAT", borderSize = 1, borderColor = { 0.043, 0.047, 0.055, 1 }, cornerRadius = 0,
-            bgMode = "SOLID", bgColor = { 0.086, 0.094, 0.11 }, bgAlpha = 92, shadowEnabled = false, headerColor = { 0.949, 0.953, 0.961 },
+            bgMode = "SOLID", bgColor = { 0.039, 0.039, 0.039 }, bgAlpha = 100, shadowEnabled = false, headerColor = { 0.949, 0.953, 0.961 },
             nameColor = { 0.949, 0.953, 0.961 }, valueColor = { 0.949, 0.953, 0.961 } },
-        art = { back = "PitwallBack", darkTitle = { 0.137, 0.149, 0.173, 1 }, line = { 0.137, 0.149, 0.173, 1 },
+        art = { back = "SwissBack", darkTitle = { 0, 0, 0, 1 }, line = { 0, 0, 0, 1 },
             ornament = "PitwallWedge", corners = { 1 }, ornamentSize = "HEADER", ornamentInset = 1,
             ornamentColor = { 0.882, 0.024, 0, 1 } },
     },
@@ -151,7 +151,7 @@ Themes.SPECS = {
 -- Raised whenever SPECS change a look: theme sets made before are made
 -- anew from CLASSIC (Themes.Upgrade), so a changed theme shows as it is
 -- now. CLASSIC is never touched.
-Themes.REVISION = 6
+Themes.REVISION = 7
 
 local function copy(v)
     if type(v) ~= "table" then return v end

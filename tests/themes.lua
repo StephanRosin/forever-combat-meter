@@ -75,7 +75,7 @@ return function(ns, M, check, section)
     check("stale theme sets dropped", ns.DB().themeSets.TECH, nil)
     check("Classic kept", ns.DB().themeSets.CLASSIC ~= nil, true)
     check("revision stored", ns.DB().themeSets.revision, Themes.REVISION)
-    check("revision raised for solid Console and Pitwall bars", Themes.REVISION, 6)
+    check("revision raised for Swiss and Pitwall in one black", Themes.REVISION, 7)
     Themes.Switch("CLASSIC")
     check("Classic after the upgrade as before", ns.Share.Export(), classic)
 
@@ -346,8 +346,8 @@ return function(ns, M, check, section)
     check("pitwall: fonts", S("headerFont") .. "/" .. S("nameFont"), "Titillium Web Bold Italic/Titillium Web SemiBold")
     check("pitwall: solid bars", S("barTexture"), "FCM Swiss")
     check("pitwall: carbon hairline", ring(), "0.043/0.047/0.055")
-    check("pitwall: title strip", f.header.dark:IsShown() and table.concat(f.header.dark._texColor, "/", 1, 3),
-        "0.137/0.149/0.173")
+    check("pitwall: black title strip", f.header.dark:IsShown() and table.concat(f.header.dark._texColor, "/", 1, 3),
+        "0/0/0")
     check("pitwall: red wedge as high as the strip", wedge:IsShown() and wedgeColor() .. " " .. wedge._w,
         "0.882/0.024/0 " .. f.header:GetHeight())
     check("pitwall: title right of the wedge", f.header.title._points.LEFT[3] >= 18, true)
@@ -356,6 +356,13 @@ return function(ns, M, check, section)
     check("pitwall teal: wedge", wedgeColor(), "0/0.631/0.612")
     check("pitwall teal: title as stored", title(), table.concat(S("headerColor"), "/", 1, 3))
     registry.SetColor("RED")
+    -- Swiss and Pitwall share one black with every Forever addon: the flat
+    -- backdrop untinted, the background #0a0a0a, opaque.
+    for _, id in ipairs({ "SWISS", "PITWALL" }) do
+        Themes.Switch(id)
+        check(id .. ": the shared black", back() .. " " .. vertex() .. " " .. S("bgMode") .. " "
+            .. table.concat(S("bgColor"), "/") .. " " .. S("bgAlpha"), "SwissBack 1/1/1/1 SOLID 0.039/0.039/0.039 100")
+    end
     Themes.Switch("PIXEL")
     check("pixel: handheld appended", registry.Colors()[9], "HANDHELD")
     registry.SetColor("HANDHELD")
