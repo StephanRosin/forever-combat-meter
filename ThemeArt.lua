@@ -87,6 +87,14 @@ local function styleHeader(h, art)
     if c then h.line:SetColorTexture(c[1], c[2], c[3], c[4]) end
 end
 
+-- The colour of a title icon: the theme's ink where it has one, else
+-- color (the button's usual one for its state).
+function ThemeArt.IconColor(color, hover)
+    local spec = ns.Themes.Spec(ns.Settings.Get("theme"))
+    if not spec.iconColor then return color end
+    return hover and spec.iconHover or spec.iconColor
+end
+
 -- Window f (a meter window or the breakdown panel) in theme spec, its
 -- background rounded by radius, its ring reaching out by extent. Returns
 -- the box the ring goes round and that box's radius: f itself under

@@ -160,11 +160,18 @@ return function(ns, M, check, section)
     check("comic: solid shadow", box.shadow:IsShown(), true)
     check("comic: paper grey as in the other addons", box.back._vertex[1] .. "/" .. box.back._vertex[4], "0.7/1")
     check("comic: background clear", S("bgAlpha"), 0)
+    local gear = f.header.buttons.menu
+    check("comic: header icons in dark ink", gear.icon._vertex[1], 0.1)
+    gear:GetScript("OnEnter")(gear)
+    check("comic: hover still visible", gear.icon._vertex[1], 0.4)
+    gear:GetScript("OnLeave")(gear)
+    check("comic: grip in ink", f.header.grip._vertex[1], 0.1)
     check("comic: thick outline", S("valueFlag"), "THICKOUTLINE")
     Themes.Switch("CLASSIC")
     check("Classic: no theme art", box:IsShown(), false)
     check("Classic: its own border again (none by default)", ns.Border.Pieces(f)[1]:IsShown(), false)
     check("Classic: gold line", f.header.line._texColor[1], ns.ThemeArt.LINE[1])
+    check("Classic: icons in their own colour", f.header.buttons.menu.icon._vertex[1], 0.73)
 
     section("Themes: combat, profile, export")
     M.state.combat = true

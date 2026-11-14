@@ -228,7 +228,8 @@ end
 
 -- Look -----------------------------------------------------------------------------
 
-local function paint(button, color)
+local function paint(button, color, hover)
+    color = ns.ThemeArt.IconColor(color, hover)
     button.icon:SetVertexColor(color[1], color[2], color[3])
 end
 
@@ -293,6 +294,8 @@ local function layoutHeader(f, lk)
     end
     b.lock.icon:SetTexture(Media.Icon(cfg.locked and "Lock" or "Unlock"))
     for _, button in pairs(b) do paint(button, buttonColor(button)) end
+    local grip = ns.ThemeArt.IconColor(ACCENT)
+    h.grip:SetVertexColor(grip[1], grip[2], grip[3])
     h.title:ClearAllPoints()
     h.title:SetPoint("LEFT", h, "LEFT", lk.glow and (unlocked and 24 or 8) or 4, 0)
     h.title:SetPoint("RIGHT", order[#order], "LEFT", -4, 0)
@@ -870,7 +873,7 @@ local function headerButton(f, icon, tip, onClick, active)
     b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     b:SetScript("OnClick", onClick)
     b:SetScript("OnEnter", function(self)
-        paint(self, HOVER)
+        paint(self, HOVER, true)
         tooltip(self, type(tip) == "function" and tip() or tip)
     end)
     b:SetScript("OnLeave", function(self)

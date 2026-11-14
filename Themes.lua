@@ -36,6 +36,8 @@ local LATIN_CLIENTS = { enUS = true, enGB = true, deDE = true, frFR = true, esES
 -- right), ornamentInset = how far in from the ring's outer corner
 -- (negative: further out), hardShadow = offset of a solid shadow, line =
 -- colour of the title's line, darkTitle = a dark strip behind the title.
+-- iconColor, iconHover: the title's icon buttons, every state (nil: their
+-- usual gold and blue).
 -- Old-style figures and small caps (or Bangers' weight) do not read at row
 -- sizes: those themes keep the client's standard font in the rows.
 local STANDARD = "Friz Quadrata"
@@ -89,6 +91,8 @@ Themes.SPECS = {
     -- backdrop alone, grey as in the other Forever addons: no fill over it.
     COMIC = {
         font = "Bangers", bodyFont = STANDARD, bar = "FCM Comic", fontSizeAdd = 2, outline = "THICKOUTLINE",
+        -- Light icons vanish on the grey paper: dark ink, lighter on hover.
+        iconColor = { 0.1, 0.1, 0.1 }, iconHover = { 0.4, 0.4, 0.4 },
         look = { borderStyle = "FLAT", borderSize = 3, borderColor = { 0.07, 0.07, 0.07, 1 }, cornerRadius = 0,
             bgAlpha = 0, shadowEnabled = false },
         art = { pad = 0, back = "ComicBack", tint = { 0.7, 0.7, 0.7, 1 }, hardShadow = 5, line = { 0.07, 0.07, 0.07, 1 } },
