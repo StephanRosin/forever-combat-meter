@@ -127,7 +127,7 @@ Themes.SPECS = {
     },
     -- A terminal: near black, a mint line, monospaced figures.
     CONSOLE = {
-        font = "IBM Plex Sans Condensed Bold", bodyFont = "IBM Plex Mono", bar = "FCM Console",
+        font = "IBM Plex Sans Condensed Bold", bodyFont = "IBM Plex Mono", bar = "FCM Swiss",
         look = { borderStyle = "FLAT", borderSize = 1, borderColor = { 0.306, 0.929, 0.69, 1 }, cornerRadius = 0,
             bgMode = "SOLID", bgColor = { 0.059, 0.059, 0.075 }, bgAlpha = 92, shadowEnabled = false,
             headerColor = { 0.306, 0.929, 0.69 }, nameColor = { 0.902, 0.91, 0.933 },
@@ -137,7 +137,7 @@ Themes.SPECS = {
     -- A motorsport timing screen: carbon with a carbon hairline, a dark title strip with a red
     -- wedge, the bars on a dark card.
     PITWALL = {
-        font = "Titillium Web Bold Italic", bodyFont = "Titillium Web SemiBold", bar = "FCM Pitwall",
+        font = "Titillium Web Bold Italic", bodyFont = "Titillium Web SemiBold", bar = "FCM Swiss",
         titleIndent = 10,
         look = { borderStyle = "FLAT", borderSize = 1, borderColor = { 0.043, 0.047, 0.055, 1 }, cornerRadius = 0,
             bgMode = "SOLID", bgColor = { 0.086, 0.094, 0.11 }, bgAlpha = 92, shadowEnabled = false, headerColor = { 0.949, 0.953, 0.961 },
@@ -151,7 +151,7 @@ Themes.SPECS = {
 -- Raised whenever SPECS change a look: theme sets made before are made
 -- anew from CLASSIC (Themes.Upgrade), so a changed theme shows as it is
 -- now. CLASSIC is never touched.
-Themes.REVISION = 5
+Themes.REVISION = 6
 
 local function copy(v)
     if type(v) ~= "table" then return v end

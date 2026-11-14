@@ -48,9 +48,9 @@ Media.BLIZZARD = {
         { name = "Blizzard Raid Bar", path = "Interface\\RaidFrame\\Raid-Bar-Hp-Fill" },
     },
 }
--- The themes' bar textures (made by Forever Unit Frames' tools/make_themes.py).
-for _, name in ipairs({ "Wood", "Tech", "Parchment", "Stone", "Glass", "Comic", "Frost", "Pixel", "Swiss", "Console",
-    "Pitwall" }) do
+-- The themes' bar textures (made by Forever Unit Frames' tools/make_themes.py). Console and
+-- Pitwall use Swiss's: their dashed and LED bars looked broken in the meter.
+for _, name in ipairs({ "Wood", "Tech", "Parchment", "Stone", "Glass", "Comic", "Frost", "Pixel", "Swiss" }) do
     table.insert(Media.BLIZZARD.statusbar, { name = "FCM " .. name, path = THEMES .. name .. "Bar.tga" })
 end
 Media.DEFAULT = {
