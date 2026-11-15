@@ -75,7 +75,7 @@ return function(ns, M, check, section)
     check("stale theme sets dropped", ns.DB().themeSets.TECH, nil)
     check("Classic kept", ns.DB().themeSets.CLASSIC ~= nil, true)
     check("revision stored", ns.DB().themeSets.revision, Themes.REVISION)
-    check("revision raised for Swiss and Pitwall in one black", Themes.REVISION, 7)
+    check("revision raised for Frost's shadowed text", Themes.REVISION, 8)
     Themes.Switch("CLASSIC")
     check("Classic after the upgrade as before", ns.Share.Export(), classic)
 
@@ -92,7 +92,11 @@ return function(ns, M, check, section)
             check(id .. ": font shipped", ns.Media.FontPath(spec.font) ~= ns.Media.DEFAULT.font, true)
             check(id .. ": bar texture known", ns.Media.Path("statusbar", spec.bar) ~= ns.Media.DEFAULT.statusbar, true)
             local flag = spec.outline or "OUTLINE"
-            check(id .. ": client outline", flag == "OUTLINE" or flag == "THICKOUTLINE", true)
+            if id == "FROST" then
+                check(id .. ": a drop shadow, no outline", flag, "SHADOW")
+            else
+                check(id .. ": client outline", flag == "OUTLINE" or flag == "THICKOUTLINE", true)
+            end
             check(id .. ": named in the list", ns.L["THEME_" .. id] ~= "THEME_" .. id, true)
         end
     end
@@ -111,7 +115,16 @@ return function(ns, M, check, section)
         local add = body == spec.font and (spec.fontSizeAdd or 0) or 0
         check(id .. ": name size", S("nameSize"), Settings.DEFAULTS.nameSize + add)
         check(id .. ": title size", S("headerSize"), Settings.DEFAULTS.headerSize + (spec.fontSizeAdd or 0))
-        check(id .. ": outlined text", S("valueFlag") ~= "" and S("valueFlag") ~= "SHADOW", true)
+        if id == "FROST" then
+            check(id .. ": shadowed text", S("headerFlag") .. " " .. S("nameFlag") .. " " .. S("valueFlag"),
+                "SHADOW SHADOW SHADOW")
+            local fs = UIParent:CreateFontString()
+            ns.Media.ApplyText(fs, Settings.TextStyle("header"))
+            check(id .. ": drawn with a 1 px shadow, no outline", select(3, fs:GetFont()) .. " "
+                .. table.concat({ fs:GetShadowOffset() }, ","), " 1,-1")
+        else
+            check(id .. ": outlined text", S("valueFlag") ~= "" and S("valueFlag") ~= "SHADOW", true)
+        end
         Themes.Switch("CLASSIC")
     end
     check("comic: no fill over the paper", Themes.SPECS.COMIC.look.bgAlpha, 0)

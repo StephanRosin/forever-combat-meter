@@ -28,7 +28,8 @@ local LATIN_CLIENTS = { enUS = true, enGB = true, deDE = true, frFR = true, esES
 -- names); font is for the title (DISPLAY), bodyFont for the rows' names and
 -- values (nil: font too); fontSizeAdd: how much larger the theme's font
 -- must be to read like the others (not for a standard bodyFont). Text outline is the client's OUTLINE (never a hand-made soft
--- one: with these fonts that showed black text in Forever Unit Frames).
+-- one: with these fonts that showed black text in Forever Unit Frames); Frost's is
+-- a drop shadow (SHADOW): Cormorant's hairlines drowned in an outline.
 -- art (ThemeArt.lua, all of it inside the window's edge): back = backdrop
 -- file in Media/Themes,
 -- tint = its colour, ornament = corner piece, corners = which ones
@@ -101,7 +102,7 @@ Themes.SPECS = {
     },
     -- Translucent ice, a pale rim, rounded.
     FROST = {
-        font = "Cormorant SC", bodyFont = STANDARD, bar = "FCM Frost", fontSizeAdd = 2,
+        font = "Cormorant SC", bodyFont = STANDARD, bar = "FCM Frost", fontSizeAdd = 2, outline = "SHADOW",
         look = { borderStyle = "FLAT", borderSize = 1, borderColor = { 0.86, 0.96, 1, 0.8 }, cornerRadius = 6,
             bgMode = "SOLID", bgColor = { 0.04, 0.12, 0.22 }, bgAlpha = 75, shadowEnabled = true, shadowAlpha = 55,
             shadowSize = 8 },
@@ -149,7 +150,7 @@ Themes.SPECS = {
 -- Raised whenever SPECS change a look: theme sets made before are made
 -- anew from CLASSIC (Themes.Upgrade), so a changed theme shows as it is
 -- now. CLASSIC is never touched.
-Themes.REVISION = 7
+Themes.REVISION = 8
 
 local function copy(v)
     if type(v) ~= "table" then return v end
