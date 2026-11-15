@@ -126,16 +126,22 @@ local function styleHeader(h, art)
     if c then h.line:SetColorTexture(c[1], c[2], c[3], c[4]) end
 end
 
--- The colour of a title icon: the theme's ink where it has one, else
--- color (the button's usual one for its state).
--- On a dark comic paper the ink is light instead.
+-- The colour of a title icon: the theme's ink where it has one (COMIC; on
+-- a dark comic paper the ink is light instead), under every other theme
+-- the colour's accent (Themes.IconAccent), under a hover half way to white
+-- as in every Forever addon; CLASSIC color (the button's usual one for its
+-- state).
 local LIGHT_IDLE, LIGHT_HOVER = { 0.85, 0.85, 0.85 }, { 1, 1, 1 }
+local ICON_HOVER = 0.5
 
 function ThemeArt.IconColor(color, hover)
     if ns.Themes.DarkPaper() then return hover and LIGHT_HOVER or LIGHT_IDLE end
     local spec = ns.Themes.Spec(ns.Settings.Get("theme"))
-    if not spec.iconColor then return color end
-    return hover and spec.iconHover or spec.iconColor
+    if spec.iconColor then return hover and spec.iconHover or spec.iconColor end
+    local a = ns.Themes.IconAccent()
+    if not a then return color end
+    if not hover then return a end
+    return { a[1] + (1 - a[1]) * ICON_HOVER, a[2] + (1 - a[2]) * ICON_HOVER, a[3] + (1 - a[3]) * ICON_HOVER }
 end
 
 -- Window f (a meter window or the breakdown panel) in theme spec, rounded

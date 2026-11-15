@@ -40,8 +40,8 @@ local LATIN_CLIENTS = { enUS = true, enGB = true, deDE = true, frFR = true, esES
 -- (true, or its colour), band = a strip { color, height } along the top
 -- edge. wedge = a piece at the title strip's start in wedgeColor (the
 -- title begins after it, ThemeArt.TitleIndent).
--- iconColor, iconHover: the title's icon buttons, every state (nil: their
--- usual gold and blue).
+-- iconColor, iconHover: the title's icon buttons in ink, every state (nil:
+-- the colour's accent, Themes.IconAccent).
 -- Old-style figures and small caps (or Bangers' weight) do not read at row
 -- sizes: those themes keep the client's standard font in the rows.
 local STANDARD = "Friz Quadrata"
@@ -399,6 +399,17 @@ end
 function Themes.Ornament(color)
     local p = palette()
     return p and p.ornament or color
+end
+
+-- The colour the title's icons take (ThemeArt.IconColor): the colour's
+-- accent (the title's), on Pitwall the wedge's, as the colour changes it
+-- there; nil under CLASSIC.
+function Themes.IconAccent()
+    local id = Themes.Current()
+    if id == Themes.CLASSIC then return nil end
+    local art = Themes.Spec(id).art or {}
+    local c = art.wedge and Themes.Ornament(art.wedgeColor) or Themes.Accent(Settings.Get("headerColor"))
+    return { c[1], c[2], c[3] }
 end
 
 -- A new theme's settings: the base set (CLASSIC) with the theme's look.

@@ -361,8 +361,25 @@ return function(ns, M, check, section)
     check("console amber: the ring follows the title", ring() .. " " .. title(), "1/0.69/0 1/0.69/0")
     check("console amber: backdrop stays", back() .. " " .. vertex(), "ConsoleBack 1/1/1/1")
     check("console amber: not stored", S("borderColor")[1], 0.306)
+    check("console amber: title icons in the accent", table.concat(gear.icon._vertex, "/", 1, 3), "1/0.69/0")
     registry.SetColor("MINT")
     check("console mint: ring as stored", ring(), "0.306/0.929/0.69")
+    check("console mint: title icons in the title's colour", table.concat(gear.icon._vertex, "/", 1, 3), "0.306/0.929/0.69")
+    -- Every icon accent readable on its backdrop (back, else the black
+    -- title strip): at least 3:1, the contrast WCAG asks of icons.
+    local function luminance(c)
+        local function lin(v) return v <= 0.03928 and v / 12.92 or ((v + 0.055) / 1.055) ^ 2.4 end
+        return 0.2126 * lin(c[1]) + 0.7152 * lin(c[2]) + 0.0722 * lin(c[3])
+    end
+    for id, colours in pairs(Themes.COLORS) do
+        for _, c in ipairs(id ~= "COMIC" and colours or {}) do
+            local a = c.accent or c.ornament
+            if a then
+                local ratio = (luminance(a) + 0.05) / (luminance(c.back or { 0, 0, 0 }) + 0.05)
+                check(id .. " " .. c.id .. ": icon accent readable", ratio >= 3, true)
+            end
+        end
+    end
     Themes.Switch("PITWALL")
     check("pitwall: fonts", S("headerFont") .. "/" .. S("nameFont"), "Titillium Web Bold Italic/Titillium Web SemiBold")
     check("pitwall: solid bars", S("barTexture"), "FCM Swiss")
@@ -384,7 +401,14 @@ return function(ns, M, check, section)
     registry.SetColor("TEAL")
     check("pitwall teal: wedge", wedgeColor(), "0/0.631/0.612")
     check("pitwall teal: title as stored", title(), table.concat(S("headerColor"), "/", 1, 3))
+    local function icon3(t) return table.concat(t._vertex, "/", 1, 3) end
+    check("pitwall teal: title icons and grip follow the wedge", icon3(gear.icon) .. " " .. icon3(f.header.grip),
+        "0/0.631/0.612 0/0.631/0.612")
+    gear:GetScript("OnEnter")(gear)
+    check("pitwall teal: hover half way to white", icon3(gear.icon), "0.5/0.8155/0.806")
+    gear:GetScript("OnLeave")(gear)
     registry.SetColor("RED")
+    check("pitwall red: title icons in the wedge's red", icon3(gear.icon), "0.882/0.024/0")
     -- Swiss and Pitwall share one black with every Forever addon: the flat
     -- backdrop untinted, the background #0a0a0a, opaque.
     for _, id in ipairs({ "SWISS", "PITWALL" }) do
