@@ -168,32 +168,11 @@ end
 
 -- True while the hub addon "Forever Themes" sets this addon's theme; asked
 -- on every refresh, as the player can change it while the game runs.
-local function followsHub()
-    local hub = LibForeverThemes.Hub()
-    return hub ~= nil and hub.Follows(ADDON) == true
-end
-
+local function followsHub() return LibForeverThemes.Follows(ADDON) end
 local function ownTheme() return not followsHub() end
 local function noHub() return LibForeverThemes.Hub() == nil end
-
--- WoW opens no browser: the hub's download link in Blizzard's text popup,
--- selected for copying (as in Forever Data Bar).
-local HUB_URL = "https://www.curseforge.com/wow/addons/forever-themes"
-StaticPopupDialogs.FOREVERCOMBATMETER_HUB_LINK = {
-    text = "", button1 = OKAY or "OK", hasEditBox = 1, editBoxWidth = 350,
-    maxLetters = 0,   -- the edit box is shared; another dialog may leave its limit behind
-    OnShow = function(dialog)
-        local box = dialog.GetEditBox and dialog:GetEditBox()
-        if box then box:SetText(HUB_URL); box:HighlightText(); box:SetFocus() end
-    end,
-    EditBoxOnEnterPressed = function(box) box:GetParent():Hide() end,
-    EditBoxOnEscapePressed = function(box) box:GetParent():Hide() end,
-    timeout = 0, whileDead = true, hideOnEscape = true,
-}
-local function showHubLink()
-    StaticPopupDialogs.FOREVERCOMBATMETER_HUB_LINK.text = L.POPUP_HUB_LINK
-    StaticPopup_Show("FOREVERCOMBATMETER_HUB_LINK")
-end
+-- The hub's texts are the family's, in the client's language.
+local function hubText(key) return function() return LibForeverThemes.Text(key) end end
 
 -- Greys the row out while cond() is false (value still shown).
 local function enabledIf(row, cond)
@@ -203,20 +182,20 @@ end
 
 -- The theme first: it swaps every other setting (Themes.lua).
 local function themeRows()
-    local theme = choice("theme", "OPT_THEME_PICK", Settings.THEMES, "THEME_")
+    local theme = choice("theme", "OPT_THEME_PICK", LibForeverThemes.SpecIds(ns.Themes.SPECS), "THEME_")
     theme.set = function(v) refused(ns.Themes.Switch(v)) end
     return {
         { type = "header", label = "OPT_THEME" },
         { type = "text", label = "OPT_THEME_HINT", height = 88 },
         enabledIf(theme, ownTheme),
         enabledIf(visibleIf(themeColorRow(), function() return #ns.Themes.Colors() > 0 end), ownTheme),
-        visibleIf({ type = "text", label = "OPT_THEME_HUB" }, followsHub),
+        visibleIf({ type = "text", label = hubText("HUB_FOLLOWS") }, followsHub),
         visibleIf({ type = "buttons", buttons = {
-            { label = "OPT_THEME_HUB_OPEN", width = 240, onClick = function() LibForeverThemes.Hub().OpenOptions() end },
+            { label = hubText("HUB_OPEN"), width = 240, onClick = function() LibForeverThemes.Hub().OpenOptions() end },
         } }, followsHub),
-        visibleIf({ type = "text", label = "OPT_THEME_HUB_GET" }, noHub),
+        visibleIf({ type = "text", label = hubText("HUB_MISSING") }, noHub),
         visibleIf({ type = "buttons", buttons = {
-            { label = "OPT_THEME_HUB_LINK", width = 240, onClick = showHubLink },
+            { label = hubText("HUB_LINK"), width = 240, onClick = function() LibForeverThemes.ShowHubLink() end },
         } }, noHub),
         visibleIf({ type = "buttons", buttons = {
             { label = "OPT_THEME_ALL", width = 240, onClick = function()

@@ -2048,7 +2048,9 @@ for code, strings in pairs(ns.Locales) do
         if page.rows then
             for _, r in ipairs(page.rows()) do
                 if type(r.label) == "string" then check(code .. ": label " .. r.label, strings[r.label] ~= nil, true) end
-                for _, b in ipairs(r.buttons or {}) do check(code .. ": button " .. b.label, strings[b.label] ~= nil, true) end
+                for _, b in ipairs(r.buttons or {}) do
+                    if type(b.label) == "string" then check(code .. ": button " .. b.label, strings[b.label] ~= nil, true) end
+                end
                 if r.choices then
                     for _, c in ipairs(r.choices()) do
                         check(code .. ": choice " .. tostring(c.label), type(c.label) == "string" and not c.label:match(RAW), true)

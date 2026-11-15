@@ -20,15 +20,14 @@ Not to be confused with _G.ForeverThemes: that is the registry of the
 addons for the cross-addon theme menu (Lib.Register fills it).
 ---------------------------------------------------------------------------]]
 local FOLDER = ...
-local MINOR = 2
+local MINOR = 3
 
-local lib = _G.LibForeverThemes
-if lib and lib.MINOR >= MINOR then return end
--- The same table, emptied: an addon that captured it gets this copy.
-lib = lib or {}
-for k in pairs(lib) do lib[k] = nil end
-_G.LibForeverThemes = lib
-lib.MINOR = MINOR
+local shared = _G.LibForeverThemes
+-- `or 0`: a copy before MINOR 3 could throw half way and leave no MINOR.
+if shared and (shared.MINOR or 0) >= MINOR then return end
+-- Filled here first and moved into the shared table only at the end of the
+-- file: a copy that throws on the way leaves the loaded one untouched.
+local lib = {}
 lib.FOLDER = FOLDER
 
 -- This copy's media, in the addon folder that loaded it.
@@ -36,10 +35,25 @@ local MEDIA = "Interface\\AddOns\\" .. FOLDER .. "\\Libs\\LibForeverThemes\\Medi
 function lib.Texture(name) return MEDIA .. "Themes\\" .. name end
 
 -- Raised when a value addons copy into their theme sets (fonts, sizes,
--- ring colour) changes: an addon adds SEED_REVISION * SEED_STEP to its own
--- REVISION, so its stored sets are made anew.
+-- ring colour) changes, so their stored sets are made anew (NeedsReseed).
+-- SEED_STEP: only for addons before MINOR 3, which add SEED_REVISION *
+-- SEED_STEP to their own REVISION at load.
 lib.SEED_REVISION = 0
 lib.SEED_STEP = 1000
+
+-- Whether an addon's stored theme sets must be made anew: older than its
+-- own revision or than the library's seeded values. Both kept apart and
+-- compared with `<`, at call time: which copy won, or an addon with the
+-- newest copy being turned off, does not reseed again and again.
+function lib.NeedsReseed(sets, ownRevision)
+    return (tonumber(sets.revision) or 0) < ownRevision
+        or (tonumber(sets.seedRevision) or 0) < lib.SEED_REVISION
+end
+
+-- Notes on sets that they are made for ownRevision and this library.
+function lib.MarkSeeded(sets, ownRevision)
+    sets.revision, sets.seedRevision = ownRevision, lib.SEED_REVISION
+end
 
 lib.CLASSIC = "CLASSIC"
 -- In the options' order; new themes go at the end.
@@ -79,25 +93,33 @@ local FONT_ALIASES = {
 lib.FONTS = {}
 for i, f in ipairs(FONT_FILES) do lib.FONTS[i] = { name = f[1], path = MEDIA .. "Fonts\\" .. f[2] } end
 
--- The name a stored font name stands for (an alias's file's name).
-function lib.FontName(name) return FONT_ALIASES[name] or name end
-
--- The file of one of our fonts, or nil for any other name.
-function lib.FontPath(name)
-    name = lib.FontName(name)
+local function ourFont(name)
     for _, f in ipairs(lib.FONTS) do
-        if f.name == name then return f.path end
+        if f.name == name then return f end
     end
     return nil
 end
 
--- Our font files loaded while the addons load: a file used for the first
--- time can be refused, so the first restyle should not be its first use.
--- Each winning copy loads its own files (their paths are its folder's).
-do
-    local holder = CreateFrame("Frame")
-    holder:Hide()
-    for _, f in ipairs(lib.FONTS) do holder:CreateFontString():SetFont(f.path, 12, "") end
+-- A font LibSharedMedia knows under name (someone's own font of an alias's
+-- name must not be swapped for ours).
+local function sharedFont(name)
+    local lsm = LibStub and LibStub("LibSharedMedia-3.0", true)
+    return type(lsm) == "table" and type(lsm.Fetch) == "function" and lsm:Fetch("font", name, true) ~= nil
+end
+
+-- The name a stored font name stands for: an alias's file's name, unless
+-- the name is otherwise known (LibSharedMedia). An addon with own fonts of
+-- such a name looks them up first and asks this only as a fallback.
+function lib.FontName(name)
+    local alias = FONT_ALIASES[name]
+    if alias and not sharedFont(name) then return alias end
+    return name
+end
+
+-- The file of one of our fonts (an alias as FontName), or nil for any other.
+function lib.FontPath(name)
+    local f = ourFont(name) or ourFont(lib.FontName(name))
+    return f and f.path or nil
 end
 
 -- Each theme's identity, the same in every Forever addon; an addon puts
@@ -136,25 +158,42 @@ lib.THEMES = {
         rim = { 0.043, 0.047, 0.055, 1 }, font = "Titillium Web Bold Italic", bodyFont = "Titillium Web SemiBold" },
 }
 
+-- One spec: the addon's part over theme id's identity.
+local function withIdentity(spec, id)
+    if id ~= lib.CLASSIC then
+        spec.art = setmetatable(spec.art or {}, { __index = function(_, k) return lib.THEMES[id][k] end })
+    end
+    return setmetatable(spec, { __index = function(_, k)
+        if k == "art" then return nil end
+        return lib.THEMES[id][k]
+    end })
+end
+
 -- An addon's SPECS: its own part of each theme (look, art geometry, any
 -- override) over the theme's identity. own[id].art falls back to the
 -- identity's fields the same way; `false` in own drops an identity field.
 -- Looked up at use, not copied: a newer copy loading later is seen.
 -- pairs() over a spec or its art lists the addon's own fields only.
+-- Only CLASSIC and the themes in own: a theme added to the library after
+-- the addon was written has no look there, so the addon must not offer it.
 function lib.Specs(own)
     local specs = {}
     for _, id in ipairs(lib.IDS) do
-        local spec = own[id] or {}
-        if id ~= lib.CLASSIC then
-            spec.art = setmetatable(spec.art or {}, { __index = function(_, k) return lib.THEMES[id][k] end })
-        end
-        specs[id] = setmetatable(spec, { __index = function(_, k)
-            if k == "art" then return nil end
-            return lib.THEMES[id][k]
-        end })
+        local spec = own[id] or (id == lib.CLASSIC and {} or nil)
+        if spec then specs[id] = withIdentity(spec, id) end
     end
     return specs
 end
+
+-- The theme ids specs has, in the library's order (an addon's theme menu).
+function lib.SpecIds(specs)
+    local ids = {}
+    for _, id in ipairs(lib.IDS) do
+        if specs[id] then ids[#ids + 1] = id end
+    end
+    return ids
+end
+
 
 -- The font for other addons' and Blizzard's texts under spec: its body
 -- font, but where that is Friz (Blizzard's own) its title font, else such
@@ -307,11 +346,30 @@ function lib.Paint(themeId, colorId)
     return c and c ~= lib.COLORS[themeId][1] and c or nil
 end
 
--- The backdrop's texture name (art: the spec's): the grey one under a
--- colour that tints it.
-function lib.Back(art, themeId, colorId)
+-- A copy of colour c: what the helpers return is the caller's to change,
+-- the library's tables stay as they are.
+local function copy(c)
+    return c and { c[1], c[2], c[3], c[4] } or c
+end
+
+-- The vertex colour { r, g, b } that turns the grey backdrop of back (a
+-- file name in GREY_MEAN) into colour rgb, or nil for a back without one.
+function lib.GreyTint(back, rgb)
+    local mean = back and lib.GREY_MEAN[back]
+    if not (mean and rgb) then return nil end
+    return { math.min(1, rgb[1] / mean), math.min(1, rgb[2] / mean), math.min(1, rgb[3] / mean) }
+end
+
+-- The colour's back where it can be drawn on art (its grey exists), else nil.
+local function greyBack(art, themeId, colorId)
     local c = lib.Paint(themeId, colorId)
-    return c and c.back and art.back .. "Grey" or art.back
+    return c and c.back and art.back and lib.GREY_MEAN[art.back] and c.back or nil
+end
+
+-- The backdrop's texture name (art: the spec's; nil or false: none): the
+-- grey one under a colour that tints it.
+function lib.Back(art, themeId, colorId)
+    return greyBack(art, themeId, colorId) and art.back .. "Grey" or art.back
 end
 
 -- The backdrop's tint { r, g, b, a } (art: the spec's; nil: none): the
@@ -322,31 +380,31 @@ function lib.Tint(art, themeId, colorId)
         local p = (lib.Colour(themeId, colorId) or lib.COLORS.COMIC[1]).paper
         return { p[1], p[2], p[3], art.tint[4] }
     end
-    local c = lib.Paint(themeId, colorId)
-    if c and c.back then
-        local mean = lib.GREY_MEAN[art.back]
-        return { math.min(1, c.back[1] / mean), math.min(1, c.back[2] / mean), math.min(1, c.back[3] / mean),
-            art.tint and art.tint[4] or 1 }
+    local back = greyBack(art, themeId, colorId)
+    if back then
+        local t = lib.GreyTint(art.back, back)
+        t[4] = art.tint and art.tint[4] or 1
+        return t
     end
-    return art.tint
+    return copy(art.tint)
 end
 
 -- The titles' colour the theme's colour sets, else nil (the addon's own).
 function lib.Accent(themeId, colorId)
     local c = lib.Paint(themeId, colorId)
-    return c and c.accent
+    return copy(c and c.accent)
 end
 
 -- The ring's colour the theme's colour sets, else nil (the addon's own).
 function lib.Rim(themeId, colorId)
     local c = lib.Paint(themeId, colorId)
-    return c and c.rim
+    return copy(c and c.rim)
 end
 
 -- The wedge's colour (art: the spec's): the colour's, else the theme's.
 function lib.WedgeColor(art, themeId, colorId)
     local c = lib.Paint(themeId, colorId)
-    return c and c.wedge or art.wedgeColor
+    return copy(c and c.wedge or art.wedgeColor)
 end
 
 -- Whether the comic's paper in use is dark (light ink on it).
@@ -392,16 +450,29 @@ function lib.Register(folder, entry)
     _G.ForeverThemes[folder] = entry
 end
 
--- The registered addons other than folder.
-function lib.Others(folder)
+-- The registered addons other than folder that can switch: { folder,
+-- entry } by folder. Entries without Current and Switch (or no table) are
+-- not addons to switch.
+local function others(folder)
     local list = {}
     for name, entry in pairs(_G.ForeverThemes or {}) do
-        if name ~= folder and type(entry) == "table" and type(entry.Switch) == "function" then
-            list[#list + 1] = entry
+        if name ~= folder and type(entry) == "table" and type(entry.Current) == "function"
+            and type(entry.Switch) == "function" then
+            list[#list + 1] = { folder = name, entry = entry }
         end
     end
+    table.sort(list, function(a, b) return tostring(a.folder) < tostring(b.folder) end)
     return list
 end
+
+-- The registered addons other than folder (their entries).
+function lib.Others(folder)
+    local list = {}
+    for i, o in ipairs(others(folder)) do list[i] = o.entry end
+    return list
+end
+
+local function titleOf(o) return tostring(o.entry.title or o.folder) end   -- plain: an addon's title
 
 local function listed(ids, id)
     for _, v in ipairs(ids or {}) do
@@ -410,21 +481,36 @@ local function listed(ids, id)
     return false
 end
 
+-- One other addon onto theme and, where it has it, color. Its error stops
+-- no other addon; it goes to the error handler (shown, not swallowed).
+local function applyTo(o, theme, color)
+    local e = o.entry
+    local ok, switched = pcall(e.Switch, theme)
+    if ok and switched and color and type(e.Colors) == "function" and type(e.SetColor) == "function" then
+        ok, switched = pcall(function()
+            if listed(e.Colors(theme), color) then e.SetColor(color, theme) end
+            return true
+        end)
+    end
+    if not ok then geterrorhandler()(("%s: %s"):format(titleOf(o), tostring(switched))) end
+    return ok, ok and switched
+end
+
 -- "Apply to all Forever addons": every other addon onto theme and, where
 -- that theme has it, color (else it keeps its own). One without the theme
--- refuses the switch and is skipped. Returns how many switched.
+-- refuses the switch and is skipped; one that follows the hub is the hub's
+-- to theme (it would switch it back) and is skipped too. Returns how many
+-- switched and the titles of those that raised an error.
 function lib.ApplyToAll(folder, theme, color)
-    local switched = 0
-    for _, entry in ipairs(lib.Others(folder)) do
-        if entry.Switch(theme) then
-            switched = switched + 1
-            if color and type(entry.Colors) == "function" and type(entry.SetColor) == "function"
-                and listed(entry.Colors(theme), color) then
-                entry.SetColor(color, theme)
-            end
+    local switched, failed = 0, {}
+    for _, o in ipairs(others(folder)) do
+        if not lib.Follows(o.folder) then
+            local ok, done = applyTo(o, theme, color)
+            if not ok then failed[#failed + 1] = titleOf(o) end
+            if done then switched = switched + 1 end
         end
     end
-    return switched
+    return switched, failed
 end
 
 -- The optional addon Forever Themes (the hub): one theme and colour for
@@ -435,9 +521,90 @@ end
 --   Theme(), Color()   the central theme id and colour id (nil: none)
 --   OpenMenu(anchor)   the theme and colour menu at anchor
 --   OpenOptions()      the hub's options window
+--   Sync()             (optional) every following addon onto the hub's theme
 -- While the hub is loaded it owns the theme font on Blizzard's texts and on
 -- Platynator's nameplates; an addon's own bridge for those stands down.
 -- Kept in a global of its own, not in this table: a newer copy loading
 -- after the hub empties this table.
 function lib.SetHub(api) _G.ForeverThemesHub = api end
 function lib.Hub() return _G.ForeverThemesHub end
+
+-- Whether the hub is there and sets folder's theme.
+function lib.Follows(folder)
+    local hub = lib.Hub()
+    return hub ~= nil and type(hub.Follows) == "function" and hub.Follows(folder) == true
+end
+
+-- The hub puts its theme on the following addons again (after an addon's
+-- profile switch, reset or import replaced its theme). Nothing without it.
+function lib.HubSync()
+    local hub = lib.Hub()
+    if hub and type(hub.Sync) == "function" then hub.Sync() end
+end
+
+-- The texts every addon shows about the hub, in the client's language.
+local TEXTS = {
+    enUS = { HUB_FOLLOWS = "Follows Forever Themes", HUB_OPEN = "Open Forever Themes",
+        HUB_MISSING = "Theme all Forever addons at once: Forever Themes", HUB_LINK = "Download link",
+        HUB_COPY = "Copy the link (Ctrl+C) and open it in your browser:" },
+    deDE = { HUB_FOLLOWS = "Folgt Forever Themes", HUB_OPEN = "Forever Themes öffnen",
+        HUB_MISSING = "Alle Forever-Addons auf einmal einstellen: Forever Themes", HUB_LINK = "Download-Link",
+        HUB_COPY = "Link kopieren (Strg+C) und im Browser öffnen:" },
+    esES = { HUB_FOLLOWS = "Sigue a Forever Themes", HUB_OPEN = "Abrir Forever Themes",
+        HUB_MISSING = "Ajusta todos los addons Forever a la vez: Forever Themes", HUB_LINK = "Enlace de descarga",
+        HUB_COPY = "Copia el enlace (Ctrl+C) y ábrelo en tu navegador:" },
+    frFR = { HUB_FOLLOWS = "Suit Forever Themes", HUB_OPEN = "Ouvrir Forever Themes",
+        HUB_MISSING = "Réglez tous les addons Forever d’un coup : Forever Themes",
+        HUB_LINK = "Lien de téléchargement",
+        HUB_COPY = "Copiez le lien (Ctrl+C) et ouvrez-le dans votre navigateur :" },
+    koKR = { HUB_FOLLOWS = "Forever Themes를 따름", HUB_OPEN = "Forever Themes 열기",
+        HUB_MISSING = "모든 Forever 애드온을 한 번에: Forever Themes", HUB_LINK = "다운로드 링크",
+        HUB_COPY = "링크를 복사(Ctrl+C)해 브라우저에서 여세요:" },
+}
+TEXTS.esMX = TEXTS.esES
+
+-- A hub text (HUB_FOLLOWS, HUB_OPEN, HUB_MISSING, HUB_LINK, HUB_COPY) in
+-- the client's language, else English.
+function lib.Text(key)
+    local texts = TEXTS[GetLocale()] or TEXTS.enUS
+    return texts[key] or TEXTS.enUS[key]
+end
+
+lib.HUB_URL = "https://www.curseforge.com/wow/addons/forever-themes"
+local HUB_POPUP = "LIBFOREVERTHEMES_HUB_LINK"
+
+-- The hub's download link in Blizzard's text popup, selected for copying
+-- (WoW opens no browser). text: the prompt, default Text("HUB_COPY").
+-- Defined at use: the newest copy's dialog is the one shown.
+function lib.ShowHubLink(text)
+    StaticPopupDialogs[HUB_POPUP] = {
+        text = text or lib.Text("HUB_COPY"), button1 = OKAY or "OK", hasEditBox = 1, editBoxWidth = 350,
+        maxLetters = 0,   -- the edit box is shared; another dialog may leave its limit behind
+        OnShow = function(dialog)
+            local box = dialog.GetEditBox and dialog:GetEditBox() or dialog.editBox
+            if box then box:SetText(lib.HUB_URL); box:HighlightText(); box:SetFocus() end
+        end,
+        EditBoxOnEnterPressed = function(box) box:GetParent():Hide() end,
+        EditBoxOnEscapePressed = function(box) box:GetParent():Hide() end,
+        timeout = 0, whileDead = true, hideOnEscape = true,
+    }
+    return StaticPopup_Show(HUB_POPUP)
+end
+
+-- Complete: into the one shared table, emptied first, so an addon that
+-- captured it (local Lib = LibForeverThemes) gets this copy. MINOR last.
+shared = shared or {}
+for k in pairs(shared) do shared[k] = nil end
+for k, v in pairs(lib) do shared[k] = v end
+lib = shared   -- the functions above read through the shared table from now on
+_G.LibForeverThemes = shared
+shared.MINOR = MINOR
+
+-- Our font files loaded while the addons load: a file used for the first
+-- time can be refused, so the first restyle should not be its first use.
+-- Each winning copy loads its own files (their paths are its folder's).
+do
+    local holder = CreateFrame("Frame")
+    holder:Hide()
+    for _, f in ipairs(lib.FONTS) do holder:CreateFontString():SetFont(f.path, 12, "") end
+end

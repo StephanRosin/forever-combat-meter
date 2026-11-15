@@ -20,6 +20,8 @@ ThemeArt.LINE = { 0.78, 0.59, 0.13, 0.45 }
 -- The title's dark strip (COMPACT, art.darkTitle).
 local DARK = { 0, 0, 0, 0.35 }
 local DEFAULT_ORNAMENT_SIZE = 12
+-- Ornaments keep their colour: the theme colours paint only the wedge.
+local WHITE = { 1, 1, 1, 1 }
 -- Above the header, the bars and their texts.
 local OVER_LEVELS = 12
 
@@ -56,7 +58,7 @@ local function placeOrnaments(f, box, art)
     local wanted = {}
     for _, i in ipairs(art.ornament and art.corners or {}) do wanted[i] = true end
     local size, inset = art.ornamentSize or DEFAULT_ORNAMENT_SIZE, math.max(art.ornamentInset or 0, 0)
-    local c = ns.Themes.Ornament(art.ornamentColor or { 1, 1, 1, 1 })
+    local c = art.ornamentColor or WHITE
     for i, piece in ipairs(box.ornaments) do
         piece:SetShown(wanted[i] == true)
         if wanted[i] then
@@ -99,7 +101,7 @@ local function placeWedge(f, box, art, inset)
     box.wedge:SetSize(h, h)
     box.wedge:SetTexture(Lib.Texture(art.wedge))
     box.wedge:SetTexCoord(0, Lib.WEDGE_PART, 0, 1)
-    local c = ns.Themes.Ornament(art.wedgeColor)
+    local c = Lib.WedgeColor(art, ns.Themes.Current(), ns.Themes.Color())
     box.wedge:SetVertexColor(c[1], c[2], c[3], c[4])
 end
 

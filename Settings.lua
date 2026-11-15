@@ -10,10 +10,6 @@ ns.Settings = Settings
 -- The text styles; each has <prefix>Font, Size, Flag and Color.
 Settings.TEXT_STYLES = { "header", "name", "value" }
 
--- The themes (Themes.lua), in the order of the options' list: the family's
--- (LibForeverThemes).
-Settings.THEMES = LibForeverThemes.IDS
-
 -- The windows themselves (position, size, mode, session) are a table per
 -- window in the profile, `windows`, owned by Windows.lua.
 Settings.DEFAULTS = {
@@ -195,4 +191,5 @@ function Settings.ResetProfile()
     local db = ns.DB()
     for k in pairs(db) do db[k] = nil end
     Settings.Changed(nil)
+    LibForeverThemes.HubSync()   -- a follower takes the hub's theme again
 end

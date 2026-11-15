@@ -75,8 +75,11 @@ function ns.ProfileList()
     return list
 end
 
+-- The profile's look, then the hub's theme again where the addon follows
+-- it (the profile brought its own).
 local function applyLook()
     if ns.Settings then ns.Settings.Changed(nil) end
+    LibForeverThemes.HubSync()
 end
 
 -- Switches to a profile. A name that does not exist yet is created from the

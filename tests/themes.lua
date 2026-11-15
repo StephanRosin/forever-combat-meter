@@ -69,13 +69,13 @@ return function(ns, M, check, section)
 
     section("Themes: revision upgrade")
     Windows.SetConfig(1, { x = 444 })
-    ns.DB().themeSets.revision = Themes.REVISION - 1
+    ns.DB().themeSets.revision = 14
     Themes.Upgrade()
     check("theme in use made anew from Classic", x1(), 111)
     check("stale theme sets dropped", ns.DB().themeSets.TECH, nil)
     check("Classic kept", ns.DB().themeSets.CLASSIC ~= nil, true)
-    check("revision stored", ns.DB().themeSets.revision, Themes.REVISION)
-    check("revision raised for Console's condensed rows again", Themes.REVISION, 15)
+    check("revision stored (raised for Console's condensed rows again)", ns.DB().themeSets.revision, 15)
+    check("library's seed revision stored", ns.DB().themeSets.seedRevision, LibForeverThemes.SEED_REVISION)
     Themes.Switch("CLASSIC")
     check("Classic after the upgrade as before", ns.Share.Export(), classic)
 
@@ -100,7 +100,7 @@ return function(ns, M, check, section)
             check(id .. ": named in the list", ns.L["THEME_" .. id] ~= "THEME_" .. id, true)
         end
     end
-    check("every theme listed", #Settings.THEMES, 12)
+    check("every theme listed", #LibForeverThemes.SpecIds(Themes.SPECS), 12)
     -- Title in the theme's font; rows in a font that reads at row size.
     local BODY = { WOOD = "Friz Quadrata", TECH = "Space Grotesk", RUNESTONE = "Marcellus", PIXEL = "VT323",
         PARCHMENT = "Friz Quadrata", FROST = "Julius Sans One", GLASS = "Friz Quadrata", COMIC = "Friz Quadrata",
@@ -246,7 +246,7 @@ return function(ns, M, check, section)
     check("colour: ice as frost was", back() .. " " .. vertex() .. " " .. title(),
         "FrostBack 0.55/0.55/0.55/0.85 " .. table.concat(S("headerColor"), "/", 1, 3))
     -- Every theme's first colour draws as before (art.tint, else white).
-    for _, id in ipairs(Themes.IDS) do
+    for _, id in ipairs(LibForeverThemes.SpecIds(Themes.SPECS)) do
         if id ~= "CLASSIC" then
             Themes.Switch(id)
             local picked = registry.Color()
@@ -275,7 +275,7 @@ return function(ns, M, check, section)
     -- Players stack windows edge to edge: no theme reaches past the window
     -- Classic draws (soft shadow aside), and none changes its size.
     local classicW, classicH = f:GetWidth(), f:GetHeight()
-    for _, id in ipairs(Settings.THEMES) do
+    for _, id in ipairs(LibForeverThemes.SpecIds(Themes.SPECS)) do
         if id ~= "CLASSIC" then
             Themes.Switch(id)
             Themes.Reset()
@@ -318,7 +318,7 @@ return function(ns, M, check, section)
         local piece = ns.Border.Pieces(f)[1]
         return piece:IsShown() and table.concat(piece._vertex, "/") or "none"
     end
-    for _, id in ipairs(Settings.THEMES) do
+    for _, id in ipairs(LibForeverThemes.SpecIds(Themes.SPECS)) do
         if id ~= "CLASSIC" then
             Themes.Switch(id)
             local before = registry.Color()
@@ -373,7 +373,7 @@ return function(ns, M, check, section)
         local function lin(v) return v <= 0.03928 and v / 12.92 or ((v + 0.055) / 1.055) ^ 2.4 end
         return 0.2126 * lin(c[1]) + 0.7152 * lin(c[2]) + 0.0722 * lin(c[3])
     end
-    for id, colours in pairs(Themes.COLORS) do
+    for id, colours in pairs(LibForeverThemes.COLORS) do
         for _, c in ipairs(id ~= "COMIC" and colours or {}) do
             local a = c.accent or c.ornament
             if a then
@@ -538,7 +538,7 @@ return function(ns, M, check, section)
     -- A set stored before (as 1.2.0 made it): unchanged after login.
     Settings.ResetProfile()
     local before = { barTexture = "FCM Comic", barBgAlpha = 40, theme = "COMIC" }
-    ns.DB().themeSets = { revision = Themes.REVISION, CLASSIC = {}, COMIC = before }
+    ns.DB().themeSets = { revision = 15, CLASSIC = {}, COMIC = before }
     Themes.Upgrade()
     check("stored comic: untouched at login", ns.DB().themeSets.COMIC.barBgAlpha, 40)
     check("stored comic: nothing added at login", ns.DB().themeSets.COMIC.detailClassColor, nil)
@@ -547,6 +547,22 @@ return function(ns, M, check, section)
     check("stored comic: class colours", S("detailClassColor"), true)
     check("stored comic: first colour, not the author's", Themes.Color(), "GREY")
     Themes.Switch("CLASSIC")
+    Settings.ResetProfile()
+    -- Comic worn before the author's BLACK, its colour never stored: pinned
+    -- GREY once, so a later reseed (Comic made anew) keeps the grey paper.
+    ns.DB().themeSets = { revision = 15, CLASSIC = {} }
+    ns.DB().theme = "COMIC"
+    check("implicit comic grey: pinned", Themes.Color("COMIC"), "GREY")
+    check("implicit comic grey: stored", ns.DB().themeSets.themeColors.COMIC, "GREY")
+    Themes.Switch("CLASSIC")
+    ns.DB().themeSets.revision = 14
+    Themes.Switch("COMIC")
+    check("implicit comic grey: survives a reseed", Themes.Color(), "GREY")
+    Themes.Switch("CLASSIC")
+    Settings.ResetProfile()
+    ns.DB().themeSets = { revision = 15, CLASSIC = {}, TECH = {} }
+    Themes.Color("COMIC")
+    check("never on comic: nothing pinned", ns.DB().themeSets.themeColors.COMIC, nil)
     Settings.ResetProfile()
 
     -- The hub "Forever Themes": while it is followed the pickers grey out,
@@ -572,9 +588,9 @@ return function(ns, M, check, section)
     ns.Window.Open("general")
     check("hub follow: theme picker greyed", themePickerOn(), false)
     check("hub follow: still shows the theme", shownText(L.THEME_CLASSIC) ~= nil, true)
-    check("hub follow: the line", shownText(L.OPT_THEME_HUB) ~= nil, true)
+    check("hub follow: the line", shownText(LibForeverThemes.Text("HUB_FOLLOWS")) ~= nil, true)
     check("hub follow: no apply to all", shownText(L.OPT_THEME_ALL), nil)
-    shownText(L.OPT_THEME_HUB_OPEN):GetParent():GetScript("OnClick")()
+    shownText(LibForeverThemes.Text("HUB_OPEN")):GetParent():GetScript("OnClick")()
     check("hub follow: button opens the hub", opened, 1)
     Themes.Switch("PIXEL")
     check("hub follow: colour picker greyed", shownText(L.OPT_THEME_COLOR):GetParent().button:IsEnabled(), false)
@@ -582,24 +598,36 @@ return function(ns, M, check, section)
     ns.Window.Refresh()
     check("hub own theme: picker back", themePickerOn(), true)
     check("hub own theme: colour back", shownText(L.OPT_THEME_COLOR):GetParent().button:IsEnabled(), true)
-    check("hub own theme: no line", shownText(L.OPT_THEME_HUB), nil)
+    check("hub own theme: no line", shownText(LibForeverThemes.Text("HUB_FOLLOWS")), nil)
     check("hub own theme: apply to all", shownText(L.OPT_THEME_ALL) ~= nil, true)
     LibForeverThemes.SetHub(nil)
     follows = true
     ns.Window.Refresh()
     check("no hub: picker on", themePickerOn(), true)
-    check("no hub: no line, no button", (shownText(L.OPT_THEME_HUB) or shownText(L.OPT_THEME_HUB_OPEN)), nil)
+    check("no hub: no line, no button", (shownText(LibForeverThemes.Text("HUB_FOLLOWS")) or shownText(LibForeverThemes.Text("HUB_OPEN"))), nil)
     check("no hub: apply to all", shownText(L.OPT_THEME_ALL) ~= nil, true)
-    check("no hub: the hint to get it", shownText(L.OPT_THEME_HUB_GET) ~= nil, true)
+    check("no hub: the hint to get it", shownText(LibForeverThemes.Text("HUB_MISSING")) ~= nil, true)
     M.popups = {}
-    shownText(L.OPT_THEME_HUB_LINK):GetParent():GetScript("OnClick")()
-    check("hub link: Blizzard's text popup", M.popups[1] and M.popups[1].which, "FOREVERCOMBATMETER_HUB_LINK")
+    shownText(LibForeverThemes.Text("HUB_LINK")):GetParent():GetScript("OnClick")()
+    check("hub link: Blizzard's text popup", M.popups[1] and M.popups[1].which, "LIBFOREVERTHEMES_HUB_LINK")
     local box = { SetText = function(self, t) self.text = t end, HighlightText = function() end, SetFocus = function() end }
-    StaticPopupDialogs.FOREVERCOMBATMETER_HUB_LINK.OnShow({ GetEditBox = function() return box end })
+    StaticPopupDialogs.LIBFOREVERTHEMES_HUB_LINK.OnShow({ GetEditBox = function() return box end })
     check("hub link: the hub's CurseForge page", box.text, "https://www.curseforge.com/wow/addons/forever-themes")
     LibForeverThemes.SetHub { Follows = function() return false end }
     ns.Window.Refresh()
-    check("hub own theme: no hint to get it", shownText(L.OPT_THEME_HUB_GET), nil)
+    check("hub own theme: no hint to get it", shownText(LibForeverThemes.Text("HUB_MISSING")), nil)
+    -- A profile switch, reset or import brings its own theme: the hub puts
+    -- a follower back on the central one.
+    local synced = 0
+    LibForeverThemes.SetHub { Follows = function() return true end, Sync = function() synced = synced + 1 end }
+    ns.SwitchProfile("Hub sync")
+    check("hub sync: after a profile switch", synced, 1)
+    Settings.ResetProfile()
+    check("hub sync: after a reset", synced, 2)
+    check("hub sync: after an import", ns.Share.Import(ns.Share.Export()), true)
+    check("hub sync: after an import", synced, 3)
+    ns.SwitchProfile("Default")
+    ns.DeleteProfile("Hub sync")
     LibForeverThemes.SetHub(nil)
     ns.Window.Toggle()
     _G.ForeverThemes.FakeOther = nil

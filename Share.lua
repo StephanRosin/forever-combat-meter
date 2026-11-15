@@ -130,13 +130,11 @@ end
 -- Settings that take one of a fixed set of values; anything else is skipped.
 local ENUMS = {
     style = { FOREVER = true, COMPACT = true },
-    theme = {},
     borderStyle = { NONE = true, FLAT = true, GOLD = true },
     bgMode = { SOLID = true, GRADIENT = true, TEXTURE = true },
     reportChannel = { AUTO = true, SAY = true, PARTY = true, RAID = true, INSTANCE_CHAT = true, GUILD = true,
                       WHISPER = true },
 }
-for _, id in ipairs(Settings.THEMES) do ENUMS.theme[id] = true end
 for _, name in ipairs(Settings.TEXT_STYLES) do
     ENUMS[name .. "Flag"] = { [""] = true, OUTLINE = true, THICKOUTLINE = true, SHADOW = true }
 end
@@ -155,6 +153,8 @@ function Share.RegisterLegacy(key, clean)
 end
 
 local function allowed(key, value)
+    -- Themes.lua loads after this file: its themes asked at use.
+    if key == "theme" then return ns.Themes.SPECS[value] ~= nil end
     local enum = ENUMS[key]
     return not enum or enum[value] == true
 end
@@ -202,5 +202,6 @@ function Share.Import(text)
         end
     end
     Settings.Changed(nil)
+    LibForeverThemes.HubSync()   -- a follower takes the hub's theme again
     return true
 end

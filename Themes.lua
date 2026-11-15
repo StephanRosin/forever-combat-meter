@@ -1,4 +1,4 @@
-local _, ns = ...
+local ADDON, ns = ...
 local Settings = ns.Settings
 
 -- Themes: a look for the meter, and a whole set of settings each, as in
@@ -17,7 +17,6 @@ ns.Themes = Themes
 
 local Lib = LibForeverThemes
 Themes.CLASSIC = Lib.CLASSIC
-Themes.IDS = Settings.THEMES
 local SETS = "themeSets"
 
 -- Each theme's identity (backdrop, tint, ornament, rule, strip, wedge, ring
@@ -44,7 +43,6 @@ local SETS = "themeSets"
 -- Text styles that show the theme's own font; the others are body text.
 local DISPLAY = { header = true }
 
-local T = Lib.THEMES
 Themes.SPECS = Lib.Specs({
     -- Oak boards round the bars, a gold rim, brass rivets.
     WOOD = {
@@ -56,14 +54,14 @@ Themes.SPECS = Lib.Specs({
     -- Dark navy with a faint grid, a thin cyan line.
     TECH = {
         bar = "FCM Tech",
-        look = { borderStyle = "FLAT", borderSize = 1, borderColor = T.TECH.rim, cornerRadius = 0,
+        look = { borderStyle = "FLAT", borderSize = 1, borderColor = Lib.THEMES.TECH.rim, cornerRadius = 0,
             bgMode = "SOLID", bgColor = { 0.02, 0.05, 0.08 }, bgAlpha = 0, shadowEnabled = false },
         art = { line = { 0.25, 0.88, 0.94, 0.6 } },
     },
     -- Parchment round the bars, a brown ink line, a wax seal.
     PARCHMENT = {
         bar = "FCM Parchment",
-        look = { borderStyle = "FLAT", borderSize = 2, borderColor = T.PARCHMENT.rim, cornerRadius = 2,
+        look = { borderStyle = "FLAT", borderSize = 2, borderColor = Lib.THEMES.PARCHMENT.rim, cornerRadius = 2,
             bgMode = "SOLID", bgColor = { 0.22, 0.15, 0.07 }, bgAlpha = 0, shadowEnabled = true, shadowAlpha = 45,
             shadowSize = 5 },
         art = { ornamentSize = 12, ornamentInset = 0, line = { 0.29, 0.2, 0.12, 0.8 } },
@@ -71,7 +69,7 @@ Themes.SPECS = Lib.Specs({
     -- Grey granite, a dark chiselled edge, glowing runes.
     RUNESTONE = {
         bar = "FCM Stone", bodyOutline = "OUTLINESHADOW",
-        look = { borderStyle = "FLAT", borderSize = 2, borderColor = T.RUNESTONE.rim, cornerRadius = 0,
+        look = { borderStyle = "FLAT", borderSize = 2, borderColor = Lib.THEMES.RUNESTONE.rim, cornerRadius = 0,
             bgMode = "SOLID", bgColor = { 0.04, 0.05, 0.06 }, bgAlpha = 0, shadowEnabled = true, shadowAlpha = 70,
             shadowSize = 6 },
         art = { ornamentSize = 9, ornamentInset = 1, line = { 0.35, 0.95, 0.85, 0.5 } },
@@ -79,7 +77,7 @@ Themes.SPECS = Lib.Specs({
     -- A mosaic of coloured glass round the bars, dark lead, a dark title.
     GLASS = {
         bar = "FCM Glass",
-        look = { borderStyle = "FLAT", borderSize = 3, borderColor = T.GLASS.rim, cornerRadius = 0,
+        look = { borderStyle = "FLAT", borderSize = 3, borderColor = Lib.THEMES.GLASS.rim, cornerRadius = 0,
             bgMode = "SOLID", bgColor = { 0.05, 0.04, 0.06 }, bgAlpha = 90, shadowEnabled = true, shadowAlpha = 55,
             shadowSize = 6 },
         art = { darkTitle = true, line = { 0.07, 0.06, 0.05, 1 } },
@@ -89,14 +87,14 @@ Themes.SPECS = Lib.Specs({
     -- Light icons vanish on the grey paper: the library's dark ink.
     COMIC = {
         bar = "FCM Comic", outline = "OUTLINE",
-        look = { borderStyle = "FLAT", borderSize = 3, borderColor = T.COMIC.rim, cornerRadius = 0,
+        look = { borderStyle = "FLAT", borderSize = 3, borderColor = Lib.THEMES.COMIC.rim, cornerRadius = 0,
             bgAlpha = 0, shadowEnabled = false },
         art = { line = { 0.07, 0.07, 0.07, 1 } },
     },
     -- Translucent ice, a pale rim, rounded.
     FROST = {
         bar = "FCM Frost", outline = "SHADOW",
-        look = { borderStyle = "FLAT", borderSize = 1, borderColor = T.FROST.rim, cornerRadius = 6,
+        look = { borderStyle = "FLAT", borderSize = 1, borderColor = Lib.THEMES.FROST.rim, cornerRadius = 6,
             bgMode = "SOLID", bgColor = { 0.02, 0.07, 0.15 }, bgAlpha = 45, shadowEnabled = true, shadowAlpha = 55,
             shadowSize = 8 },
         art = { line = { 0.86, 0.96, 1, 0.5 } },
@@ -104,7 +102,7 @@ Themes.SPECS = Lib.Specs({
     -- A light pixel frame, scan lines.
     PIXEL = {
         bar = "FCM Pixel",
-        look = { borderStyle = "FLAT", borderSize = 3, borderColor = T.PIXEL.rim, cornerRadius = 0,
+        look = { borderStyle = "FLAT", borderSize = 3, borderColor = Lib.THEMES.PIXEL.rim, cornerRadius = 0,
             bgMode = "SOLID", bgColor = { 0, 0, 0 }, bgAlpha = 0, shadowEnabled = false },
         art = { line = { 1, 0.95, 0.91, 0.6 } },
     },
@@ -112,7 +110,7 @@ Themes.SPECS = Lib.Specs({
     -- one red accent.
     SWISS = {
         bar = "FCM Swiss",
-        look = { borderStyle = "FLAT", borderSize = 1, borderColor = T.SWISS.rim, cornerRadius = 0,
+        look = { borderStyle = "FLAT", borderSize = 1, borderColor = Lib.THEMES.SWISS.rim, cornerRadius = 0,
             bgMode = "SOLID", bgColor = { 0.039, 0.039, 0.039 }, bgAlpha = 100, shadowEnabled = false,
             headerColor = { 1, 0.176, 0.125 }, nameColor = { 0.949, 0.949, 0.949 },
             valueColor = { 0.949, 0.949, 0.949 } },
@@ -122,7 +120,7 @@ Themes.SPECS = Lib.Specs({
     -- face, not the library's monospaced body font: more of a name fits.
     CONSOLE = {
         bodyFont = "IBM Plex Sans Condensed Bold", bar = "FCM Swiss",
-        look = { borderStyle = "FLAT", borderSize = 1, borderColor = T.CONSOLE.rim, cornerRadius = 0,
+        look = { borderStyle = "FLAT", borderSize = 1, borderColor = Lib.THEMES.CONSOLE.rim, cornerRadius = 0,
             bgMode = "SOLID", bgColor = { 0.059, 0.059, 0.075 }, bgAlpha = 0, shadowEnabled = false,
             headerColor = { 0.306, 0.929, 0.69 }, nameColor = { 0.902, 0.91, 0.933 },
             valueColor = { 0.902, 0.91, 0.933 } },
@@ -132,7 +130,7 @@ Themes.SPECS = Lib.Specs({
     -- a red wedge, the bars on black.
     PITWALL = {
         bar = "FCM Swiss",
-        look = { borderStyle = "FLAT", borderSize = 1, borderColor = T.PITWALL.rim, cornerRadius = 0,
+        look = { borderStyle = "FLAT", borderSize = 1, borderColor = Lib.THEMES.PITWALL.rim, cornerRadius = 0,
             bgMode = "SOLID", bgColor = { 0.039, 0.039, 0.039 }, bgAlpha = 100, shadowEnabled = false, headerColor = { 0.949, 0.953, 0.961 },
             nameColor = { 0.949, 0.953, 0.961 }, valueColor = { 0.949, 0.953, 0.961 } },
         art = { line = { 0, 0, 0, 1 } },
@@ -144,7 +142,6 @@ Themes.SPECS = Lib.Specs({
 -- now. CLASSIC is never touched. The library's part counts too: a change
 -- there to what seeding copies (fonts, sizes, ring colour) raises it.
 local OWN_REVISION = 15
-Themes.REVISION = OWN_REVISION + Lib.SEED_REVISION * Lib.SEED_STEP
 
 local function copy(v)
     if type(v) ~= "table" then return v end
@@ -162,17 +159,30 @@ local function settingsOf(db)
     return t
 end
 
--- The active profile's stored theme sets; stale ones (an older REVISION)
+-- Comic's first colour was GREY before new Comic sets started in BLACK
+-- (AUTHOR_COLORS): a profile that wears or keeps a Comic set without a
+-- stored colour has it pinned to GREY once, so a later reseed (which makes
+-- the Comic set anew) never turns its paper black.
+local function pinComicGrey(db, sets)
+    if sets.comicGreyPinned then return end
+    sets.themeColors = sets.themeColors or {}
+    local colors = sets.themeColors
+    if not (colors.COMIC or sets.comicColor) and (db.theme == "COMIC" or sets.COMIC) then colors.COMIC = "GREY" end
+    sets.comicGreyPinned = true
+end
+
+-- The active profile's stored theme sets; stale ones (an older revision)
 -- dropped.
 local function storedSets()
     local db = ns.DB()
     if type(db[SETS]) ~= "table" then db[SETS] = {} end
     local sets = db[SETS]
-    if sets.revision ~= Themes.REVISION then
-        for _, id in ipairs(Themes.IDS) do
+    pinComicGrey(db, sets)
+    if Lib.NeedsReseed(sets, OWN_REVISION) then
+        for _, id in ipairs(Lib.SpecIds(Themes.SPECS)) do
             if id ~= Themes.CLASSIC then sets[id] = nil end
         end
-        sets.revision = Themes.REVISION
+        Lib.MarkSeeded(sets, OWN_REVISION)
     end
     return sets
 end
@@ -192,7 +202,6 @@ end
 -- colour id }), so switching themes never loses them and the stored looks
 -- stay as they are (applied when drawn). The first colour of each theme is
 -- the theme as it was (nothing applied).
-Themes.COLORS = Lib.COLORS
 
 -- The colour ids of themeId (default the current theme) in menu order;
 -- none for CLASSIC.
@@ -253,11 +262,6 @@ function Themes.Rim(color)
     return Lib.Rim(Themes.Current(), Themes.Color()) or color
 end
 
--- The wedge's colour to draw: the colour's, or color (the theme's).
-function Themes.Ornament(color)
-    return Lib.WedgeColor({ wedgeColor = color }, Themes.Current(), Themes.Color())
-end
-
 -- The colour the title's icons take (ThemeArt.IconColor): the colour's
 -- accent (the title's), on Pitwall the wedge's, as the colour changes it
 -- there; nil under CLASSIC and the comic (its own ink).
@@ -270,7 +274,7 @@ end
 -- The author's look in every theme on top of the specs' (new in 1.3.0):
 -- bars without a track, the breakdown's bars in one grey. Only for theme
 -- sets made from now on; CLASSIC keeps the defaults. Not counted in
--- REVISION: sets made before stay as they are.
+-- the revision: sets made before stay as they are.
 local AUTHOR_LOOK = { barBgAlpha = 0, detailClassColor = false, detailBarColor = { 0.329, 0.322, 0.318 } }
 -- The colour a theme starts in the first time where the author's differs
 -- from the theme's first (Themes.Switch).
@@ -348,10 +352,10 @@ function Themes.Reset()
     return true
 end
 
--- The themes with stored settings to copy from, in IDS order.
+-- The themes with stored settings to copy from, in the menu's order.
 function Themes.Stored()
     local sets, list = storedSets(), {}
-    for _, id in ipairs(Themes.IDS) do
+    for _, id in ipairs(Lib.SpecIds(Themes.SPECS)) do
         if sets[id] and id ~= Themes.Current() then list[#list + 1] = id end
     end
     return list
@@ -406,10 +410,10 @@ function Themes.Restore(undo)
 end
 
 -- At login, before any window exists: a theme in use made under an older
--- REVISION is made anew from CLASSIC, quietly (nothing listens yet).
+-- revision is made anew from CLASSIC, quietly (nothing listens yet).
 function Themes.Upgrade()
     local sets = ns.DB()[SETS]
-    if type(sets) == "table" and sets.revision == Themes.REVISION then return end
+    if type(sets) == "table" and not Lib.NeedsReseed(sets, OWN_REVISION) then return end
     local base = type(sets) == "table" and sets[Themes.CLASSIC] or nil
     storedSets()
     local current = Themes.Current()
@@ -422,7 +426,7 @@ ns.On("PLAYER_LOGIN", Themes.Upgrade)
 
 -- For a theme picker in another addon: the same as choosing a theme in the
 -- options (the options window follows through Settings.Changed).
-Lib.Register("ForeverCombatMeter", {
+Lib.Register(ADDON, {
     title = "Forever Combat Meter",
     Current = function() return Themes.Current() end,
     Switch = function(id) return Themes.Switch(id) end,
@@ -436,10 +440,10 @@ Lib.Register("ForeverCombatMeter", {
 
 -- "Apply to all Forever addons" (the options' theme rows): the other addons
 -- registered above.
-function Themes.HasOthers() return #Lib.Others("ForeverCombatMeter") > 0 end
+function Themes.HasOthers() return #Lib.Others(ADDON) > 0 end
 
 -- Every other addon onto this theme and, where that theme has it, this
 -- colour. Returns how many switched.
 function Themes.ApplyToAll()
-    return Lib.ApplyToAll("ForeverCombatMeter", Themes.Current(), Themes.Color())
+    return Lib.ApplyToAll(ADDON, Themes.Current(), Themes.Color())
 end
