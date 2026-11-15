@@ -49,7 +49,7 @@ Then `/reload` or restart the game.
   look on top; Classic always comes back exactly as you left it. "Take
   positions from" copies the window positions of another theme (with undo),
   "Reset theme" makes it anew from Classic. The theme fonts (SIL Open Font
-  License, `Media/Fonts`) have Latin letters only; other clients keep their font.
+  License, in `Libs/LibForeverThemes/Media/Fonts`) have Latin letters only; other clients keep their font.
   "Apply to all Forever addons" puts the other Forever addons on the same theme and colour.
 - **Details**: hover a bar for the top five spells, click it for the breakdown
   panel with every spell; in deaths mode the death recap.
@@ -75,15 +75,20 @@ a lint for that.
 | Path | Purpose |
 | --- | --- |
 | `tests/run` | the test suite, Lua 5.1 against a client mock (`tests/wowmock.lua`) |
-| `./install <AddOns folder>` | copies exactly the TOC's files, `Media/*.tga` and the themes' `Media/Themes`, `Media/Fonts` |
+| `./install <AddOns folder>` | copies exactly the TOC's files, `Media/*.tga` and the embedded library's `Libs/LibForeverThemes/Media` |
 | `tools/package` | builds `dist/ForeverCombatMeter-<version>.zip` |
 | `tools/release <release\|beta\|alpha> "<changelog>"` | runs the tests, packages and uploads to CurseForge (token from `$CURSEFORGE_TOKEN` or `~/.config/curseforge-token`) |
 | `tools/make_icons.py` | regenerates the header icons and `Media/MinimapIcon.tga` |
-| `Media/Themes`, `Media/Fonts` | the themes' textures (from Forever Unit Frames' `tools/make_themes.py`) and fonts, as in that addon; copy them over when its themes change, and raise `Themes.REVISION` when a look changes |
+| `Libs/LibForeverThemes` | the themes' identities, colours, textures and fonts, copied from the ForeverThemes repository with its `tools/sync` (never edited here); raise `Themes.REVISION` when the meter's own look changes |
 
 Bump `## Version` in the TOC before a release.
 
 ## License note
+
+The themes (textures, fonts, colours) come from the embedded library LibForeverThemes in
+`Libs/LibForeverThemes` (source: https://github.com/StephanRosin/ForeverThemes, copied in with
+its `tools/sync`). Its fonts in `Media/Fonts` are under the SIL Open Font License (see `OFL.txt`
+and `FONTS.txt` there).
 
 Forever Combat Meter is written from scratch. It contains no code from
 ForeverMeter or other meter addons.

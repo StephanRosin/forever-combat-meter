@@ -59,7 +59,8 @@ local function media(key, label, kind)
             end
             return list
         end,
-        get = function() return S(key) end,
+        -- A font stored under an older name shows under the one listed.
+        get = function() return kind == "font" and LibForeverThemes.FontName(S(key)) or S(key) end,
         set = function(v) Settings.Set(key, v) end,
     }
 end

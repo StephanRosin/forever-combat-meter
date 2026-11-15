@@ -14,10 +14,10 @@ local _, ns = ...
 local ThemeArt = {}
 ns.ThemeArt = ThemeArt
 
-local PATH = "Interface\\AddOns\\ForeverCombatMeter\\Media\\Themes\\"
+local Lib = LibForeverThemes
 -- The title's line without a theme: the quest log's gold.
 ThemeArt.LINE = { 0.78, 0.59, 0.13, 0.45 }
--- The title's dark strip (COMPACT, darkTitle = true).
+-- The title's dark strip (COMPACT, art.darkTitle).
 local DARK = { 0, 0, 0, 0.35 }
 local DEFAULT_ORNAMENT_SIZE = 12
 -- Above the header, the bars and their texts.
@@ -43,7 +43,7 @@ end
 
 local function paintBack(texture, art)
     local back, tint = ns.Themes.Backdrop(art)
-    texture:SetTexture(PATH .. back, "REPEAT", "REPEAT")
+    texture:SetTexture(Lib.Texture(back), "REPEAT", "REPEAT")
     texture:SetHorizTile(true)
     texture:SetVertTile(true)
     tint = tint or { 1, 1, 1, 1 }
@@ -66,7 +66,7 @@ local function placeOrnaments(f, box, art)
             piece:ClearAllPoints()
             piece:SetPoint(point, f, point, dx, dy)
             piece:SetSize(size, size)
-            piece:SetTexture(PATH .. art.ornament)
+            piece:SetTexture(Lib.Texture(art.ornament))
             local m = ns.Corners.COORDS[i]
             piece:SetTexCoord(m[1], m[2], m[3], m[4])
             piece:SetVertexColor(c[1], c[2], c[3], c[4])
@@ -74,23 +74,21 @@ local function placeOrnaments(f, box, art)
     end
 end
 
+-- Swiss's rule along the top (the library's rule, ruleSize thick).
 local function placeBand(box, art)
-    local band = art.band
-    box.band:SetShown(band ~= nil)
-    if not band then return end
+    local rule = art.rule
+    box.band:SetShown(rule ~= nil)
+    if not rule then return end
     box.band:ClearAllPoints()
     box.band:SetPoint("TOPLEFT", box, "TOPLEFT", 0, 0)
     box.band:SetPoint("TOPRIGHT", box, "TOPRIGHT", 0, 0)
-    box.band:SetHeight(band.height)
-    box.band:SetColorTexture(band.color[1], band.color[2], band.color[3], band.color[4])
+    box.band:SetHeight(art.ruleSize)
+    box.band:SetColorTexture(rule[1], rule[2], rule[3], rule[4])
 end
 
 -- The wedge texture is square with the slanted piece in its left part:
--- that part only, as wide as high, as in every Forever addon. Its right
--- edge runs from 0.98 of the width at the top to 0.62 at the bottom; the
--- title starts TITLE_GAP past it at the title's middle.
-local WEDGE_PART, TITLE_GAP = 0.53, 8
-
+-- that part only (Lib.WEDGE_PART), as wide as high, as in every Forever
+-- addon; the title starts Lib.TITLE_GAP past it at the title's middle.
 -- The wedge in the title strip inside the ring (inset by the ring's extent).
 local function placeWedge(f, box, art, inset)
     box.wedge:SetShown(art.wedge ~= nil and f.header ~= nil)
@@ -99,8 +97,8 @@ local function placeWedge(f, box, art, inset)
     box.wedge:ClearAllPoints()
     box.wedge:SetPoint("TOPLEFT", box, "TOPLEFT", 0, 0)
     box.wedge:SetSize(h, h)
-    box.wedge:SetTexture(PATH .. art.wedge)
-    box.wedge:SetTexCoord(0, WEDGE_PART, 0, 1)
+    box.wedge:SetTexture(Lib.Texture(art.wedge))
+    box.wedge:SetTexCoord(0, Lib.WEDGE_PART, 0, 1)
     local c = ns.Themes.Ornament(art.wedgeColor)
     box.wedge:SetVertexColor(c[1], c[2], c[3], c[4])
 end
@@ -112,16 +110,17 @@ function ThemeArt.TitleIndent(header)
     if not (art and art.wedge) then return 0 end
     local inset = ns.Border.Extent({ style = ns.Settings.Get("borderStyle"), size = ns.Settings.Get("borderSize") })
     local h, mid = header - inset, header / 2 - inset
-    return inset + math.floor(0.98 * h - 0.36 * mid + 0.5) + TITLE_GAP
+    return inset + Lib.WedgeReach(h, mid) + Lib.TITLE_GAP
 end
 
 -- The title strip: no gold glow under a theme (its backdrop is the look),
--- a dark strip where the theme wants one, the line in the theme's colour.
+-- a dark strip where the theme wants one (Pitwall's in the library's strip
+-- colour), the line in the theme's colour.
 local function styleHeader(h, art)
     h.shine:Hide()
-    local dark = type(art.darkTitle) == "table" and art.darkTitle or DARK
+    local dark = art.strip or DARK
     h.dark:SetColorTexture(dark[1], dark[2], dark[3], dark[4])
-    if art.darkTitle then h.dark:Show() end
+    if art.strip or art.darkTitle then h.dark:Show() end
     local c = art.line
     if c then h.line:SetColorTexture(c[1], c[2], c[3], c[4]) end
 end
@@ -129,19 +128,17 @@ end
 -- The colour of a title icon: the theme's ink where it has one (COMIC; on
 -- a dark comic paper the ink is light instead), under every other theme
 -- the colour's accent (Themes.IconAccent), under a hover half way to white
--- as in every Forever addon; CLASSIC color (the button's usual one for its
--- state).
+-- as in every Forever addon (Lib.IconTones); CLASSIC color (the button's
+-- usual one for its state).
 local LIGHT_IDLE, LIGHT_HOVER = { 0.85, 0.85, 0.85 }, { 1, 1, 1 }
-local ICON_HOVER = 0.5
 
 function ThemeArt.IconColor(color, hover)
     if ns.Themes.DarkPaper() then return hover and LIGHT_HOVER or LIGHT_IDLE end
     local spec = ns.Themes.Spec(ns.Settings.Get("theme"))
-    if spec.iconColor then return hover and spec.iconHover or spec.iconColor end
+    if spec.iconColor then return hover and spec.iconHoverColor or spec.iconColor end
     local a = ns.Themes.IconAccent()
     if not a then return color end
-    if not hover then return a end
-    return { a[1] + (1 - a[1]) * ICON_HOVER, a[2] + (1 - a[2]) * ICON_HOVER, a[3] + (1 - a[3]) * ICON_HOVER }
+    return hover and Lib.IconTones(a).hover or a
 end
 
 -- Window f (a meter window or the breakdown panel) in theme spec, rounded

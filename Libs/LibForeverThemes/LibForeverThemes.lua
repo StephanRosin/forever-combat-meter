@@ -1,0 +1,428 @@
+--[[---------------------------------------------------------------------------
+LibForeverThemes -- the Forever addons' themes in one place (DESIGN.md).
+
+Embedded in every themed Forever addon under Libs/LibForeverThemes, listed
+in its TOC before the addon's own files. Every copy is the same file; the
+newest loaded (MINOR) wins: it fills the one table _G.LibForeverThemes in
+place, so an addon that keeps `local Lib = LibForeverThemes` uses the
+newest code and data even when that copy loads after it. An older copy
+loading later does nothing.
+
+What lives here: the theme ids, each theme's identity (backdrop, tint,
+ornaments, wedge, ring colour, fonts), the theme colours, the textures and
+fonts (Media/, under the winning copy's folder) and the helpers that turn a
+theme and a colour into what to draw. What stays in each addon: its
+settings per theme (look), its geometry (padding, ornament sizes), its
+saved variables, theme sets, REVISION and seeding, and its options.
+Nothing here keeps state; every helper takes the theme and colour ids.
+
+Not to be confused with _G.ForeverThemes: that is the registry of the
+addons for the cross-addon theme menu (Lib.Register fills it).
+---------------------------------------------------------------------------]]
+local FOLDER = ...
+local MINOR = 1
+
+local lib = _G.LibForeverThemes
+if lib and lib.MINOR >= MINOR then return end
+-- The same table, emptied: an addon that captured it gets this copy.
+lib = lib or {}
+for k in pairs(lib) do lib[k] = nil end
+_G.LibForeverThemes = lib
+lib.MINOR = MINOR
+lib.FOLDER = FOLDER
+
+-- This copy's media, in the addon folder that loaded it.
+local MEDIA = "Interface\\AddOns\\" .. FOLDER .. "\\Libs\\LibForeverThemes\\Media\\"
+function lib.Texture(name) return MEDIA .. "Themes\\" .. name end
+
+-- Raised when a value addons copy into their theme sets (fonts, sizes,
+-- ring colour) changes: an addon adds SEED_REVISION * SEED_STEP to its own
+-- REVISION, so its stored sets are made anew.
+lib.SEED_REVISION = 0
+lib.SEED_STEP = 1000
+
+lib.CLASSIC = "CLASSIC"
+-- In the options' order; new themes go at the end.
+lib.IDS = { "CLASSIC", "WOOD", "TECH", "PARCHMENT", "RUNESTONE", "GLASS", "COMIC", "FROST", "PIXEL", "SWISS",
+    "CONSOLE", "PITWALL" }
+
+-- The theme fonts have Latin letters only: on a client whose names are
+-- written otherwise a text keeps its font.
+local LATIN_CLIENTS = { enUS = true, enGB = true, deDE = true, frFR = true, esES = true, esMX = true, itIT = true,
+    ptBR = true }
+function lib.LatinClient() return LATIN_CLIENTS[GetLocale()] == true end
+
+-- Fonts (SIL Open Font License, Media/Fonts/OFL.txt and FONTS.txt), by the
+-- name settings store. Names stay forever: saved variables hold them.
+local FONT_FILES = {
+    { "Bangers", "Bangers-Regular.ttf" },
+    { "Cinzel", "Cinzel-Bold.ttf" },
+    { "IBM Plex Mono", "IBMPlexMono-Regular.ttf" },
+    { "IBM Plex Sans Condensed Bold", "IBMPlexSansCondensed-Bold.ttf" },
+    { "IM Fell English SC", "IMFeENsc28P.ttf" },
+    { "Inter Tight", "InterTight-Regular.ttf" },
+    { "Inter Tight Bold", "InterTight-Bold.ttf" },
+    { "Inter Tight Light", "InterTight-Light.ttf" },
+    { "Julius Sans One", "JuliusSansOne-Regular.ttf" },
+    { "Marcellus", "Marcellus-Regular.ttf" },
+    { "Space Grotesk", "SpaceGrotesk-Bold.ttf" },
+    { "Titillium Web Bold Italic", "TitilliumWeb-BoldItalic.ttf" },
+    { "Titillium Web SemiBold", "TitilliumWeb-SemiBold.ttf" },
+    { "VT323", "VT323-Regular.ttf" },
+}
+-- Older names some addons stored for the same files.
+local FONT_ALIASES = {
+    ["IBM Plex Sans Condensed"] = "IBM Plex Sans Condensed Bold",
+    ["Titillium Web"] = "Titillium Web SemiBold",
+}
+-- { name, path } in the list's order, for an addon's font menu.
+lib.FONTS = {}
+for i, f in ipairs(FONT_FILES) do lib.FONTS[i] = { name = f[1], path = MEDIA .. "Fonts\\" .. f[2] } end
+
+-- The name a stored font name stands for (an alias's file's name).
+function lib.FontName(name) return FONT_ALIASES[name] or name end
+
+-- The file of one of our fonts, or nil for any other name.
+function lib.FontPath(name)
+    name = lib.FontName(name)
+    for _, f in ipairs(lib.FONTS) do
+        if f.name == name then return f.path end
+    end
+    return nil
+end
+
+-- Our font files loaded while the addons load: a file used for the first
+-- time can be refused, so the first restyle should not be its first use.
+-- Each winning copy loads its own files (their paths are its folder's).
+do
+    local holder = CreateFrame("Frame")
+    holder:Hide()
+    for _, f in ipairs(lib.FONTS) do holder:CreateFontString():SetFont(f.path, 12, "") end
+end
+
+-- Each theme's identity, the same in every Forever addon; an addon puts
+-- its own settings (look) and geometry on top (lib.Specs).
+-- back: backdrop file in Media/Themes, tinted `tint` (light papers toned
+-- down, Frost dimmed at alpha 0.85); ornament: corner piece (corners in
+-- the order top left, top right, bottom left, bottom right), tinted
+-- ornamentColor; rule: a line ruleSize thick along the top (Swiss);
+-- strip: the title's colour over the backdrop, wedge: a slanted band at its
+-- left in wedgeColor (Pitwall); rim: the ring's colour (the same in every
+-- addon, Quest Log's; Wood draws its gold ring instead); font: titles and
+-- headings, fontSizeAdd: how much larger they must be to read like the
+-- others; bodyFont: every other text's (nil: as it is); iconColor /
+-- iconHoverColor: dark ink for icons on a light paper.
+lib.THEMES = {
+    CLASSIC = {},
+    WOOD = { back = "WoodBack", tint = { 0.5, 0.5, 0.5, 1 }, ornament = "Rivet", corners = { 1, 2, 3, 4 },
+        rim = { 0.906, 0.702, 0.161, 1 }, font = "Cinzel", bodyFont = "Friz Quadrata" },
+    TECH = { back = "TechBack", rim = { 0.25, 0.88, 0.94, 0.9 }, font = "Space Grotesk" },
+    PARCHMENT = { back = "ParchmentBack", tint = { 0.45, 0.45, 0.45, 1 }, ornament = "Seal", corners = { 3 },
+        rim = { 0.29, 0.2, 0.12, 1 }, font = "IM Fell English SC", fontSizeAdd = 1, bodyFont = "Friz Quadrata" },
+    RUNESTONE = { back = "StoneBack", tint = { 0.55, 0.55, 0.55, 1 }, ornament = "Rune", corners = { 1, 2 },
+        ornamentColor = { 0.35, 0.95, 0.85, 1 }, rim = { 0.1, 0.1, 0.12, 1 }, font = "Marcellus", fontSizeAdd = 1 },
+    GLASS = { back = "GlassBack", rim = { 0.07, 0.06, 0.05, 1 }, font = "Morpheus", fontSizeAdd = 1,
+        bodyFont = "Friz Quadrata" },
+    COMIC = { back = "ComicBack", tint = { 0.7, 0.7, 0.7, 1 }, rim = { 0.07, 0.07, 0.07, 1 }, font = "Bangers",
+        fontSizeAdd = 2, bodyFont = "Friz Quadrata", iconColor = { 0.1, 0.1, 0.1 }, iconHoverColor = { 0.4, 0.4, 0.4 } },
+    FROST = { back = "FrostBack", tint = { 0.55, 0.55, 0.55, 0.85 }, rim = { 0.86, 0.96, 1, 0.8 },
+        font = "Julius Sans One", bodyFont = "Julius Sans One" },
+    PIXEL = { back = "PixelBack", rim = { 1, 0.95, 0.91, 1 }, font = "VT323", fontSizeAdd = 4 },
+    SWISS = { back = "SwissBack", rule = { 0.949, 0.949, 0.949, 1 }, ruleSize = 3, rim = { 0.165, 0.165, 0.165, 1 },
+        font = "Inter Tight Bold", bodyFont = "Inter Tight" },
+    CONSOLE = { back = "ConsoleBack", rim = { 0.306, 0.929, 0.69, 1 }, font = "IBM Plex Sans Condensed Bold",
+        bodyFont = "IBM Plex Mono" },
+    PITWALL = { back = "SwissBack", strip = { 0, 0, 0, 1 }, wedge = "PitwallWedge", wedgeColor = { 0.882, 0.024, 0, 1 },
+        rim = { 0.043, 0.047, 0.055, 1 }, font = "Titillium Web Bold Italic", bodyFont = "Titillium Web SemiBold" },
+}
+
+-- An addon's SPECS: its own part of each theme (look, art geometry, any
+-- override) over the theme's identity. own[id].art falls back to the
+-- identity's fields the same way; `false` in own drops an identity field.
+-- Looked up at use, not copied: a newer copy loading later is seen.
+-- pairs() over a spec or its art lists the addon's own fields only.
+function lib.Specs(own)
+    local specs = {}
+    for _, id in ipairs(lib.IDS) do
+        local spec = own[id] or {}
+        if id ~= lib.CLASSIC then
+            spec.art = setmetatable(spec.art or {}, { __index = function(_, k) return lib.THEMES[id][k] end })
+        end
+        specs[id] = setmetatable(spec, { __index = function(_, k)
+            if k == "art" then return nil end
+            return lib.THEMES[id][k]
+        end })
+    end
+    return specs
+end
+
+-- The font for other addons' and Blizzard's texts under spec: its body
+-- font, but where that is Friz (Blizzard's own) its title font, else such
+-- a switch would show nothing.
+function lib.ForeignFont(spec)
+    local body = spec.bodyFont
+    return body and body ~= "Friz Quadrata" and body or spec.font
+end
+
+-- Each theme's colours (none for CLASSIC). The first is the theme as it
+-- is. back: the backdrop drawn from the grey texture (<back>Grey) tinted so
+-- its mean lands on back; accent: the titles' and icons' colour; rim: the
+-- ring's (only Console's and Pixel's Handheld); wedge: Pitwall's wedge;
+-- paper / dark: the comic's paper tint, dark = light ink on it.
+local function colour(id, back, accent, rim, wedge)
+    return { id = id, back = back, accent = accent, rim = rim, wedge = wedge }
+end
+local function paper(id, tint, accent, dark)
+    return { id = id, paper = tint, accent = accent, dark = dark }
+end
+local PICO_YELLOW = { 1, 0.93, 0.15 }
+local HANDHELD = { 0.784, 0.941, 0.439 }
+local COMIC_YELLOW = { 1, 0.9, 0.1 }
+local COMIC_BLUE = { 0.15, 0.45, 0.95 }
+lib.COLORS = {
+    WOOD = {
+        colour("OAK"),
+        colour("WALNUT", { 0.15, 0.09, 0.06 }),
+        colour("BIRCH", { 0.38, 0.32, 0.22 }),
+        colour("CHERRY", { 0.3, 0.12, 0.08 }),
+        colour("EBONY", { 0.08, 0.07, 0.07 }),
+        colour("DRIFTWOOD", { 0.25, 0.24, 0.22 }),
+    },
+    TECH = {
+        colour("CYAN"),
+        colour("GREEN", { 0.02, 0.1, 0.05 }, { 0.3, 0.95, 0.45 }),
+        colour("AMBER", { 0.1, 0.07, 0.02 }, { 1, 0.75, 0.2 }),
+        colour("MAGENTA", { 0.09, 0.03, 0.1 }, { 0.95, 0.4, 0.95 }),
+        colour("BLUE", { 0.03, 0.05, 0.13 }, { 0.45, 0.65, 1 }),
+        colour("GREY", { 0.07, 0.07, 0.08 }, { 0.85, 0.88, 0.9 }),
+    },
+    PARCHMENT = {
+        colour("CLASSIC"),
+        colour("AGED", { 0.32, 0.25, 0.15 }),
+        colour("ASH", { 0.33, 0.33, 0.31 }),
+        colour("SEA", { 0.25, 0.3, 0.33 }),
+        colour("ROSE", { 0.36, 0.27, 0.26 }),
+        colour("DARK", { 0.2, 0.17, 0.13 }),
+    },
+    RUNESTONE = {
+        colour("GRANITE"),
+        colour("SANDSTONE", { 0.33, 0.27, 0.18 }, { 1, 0.8, 0.35 }),
+        colour("SLATE", { 0.15, 0.18, 0.25 }, { 0.55, 0.75, 1 }),
+        colour("MOSS", { 0.15, 0.22, 0.14 }, { 0.5, 1, 0.45 }),
+        colour("OBSIDIAN", { 0.07, 0.06, 0.09 }, { 0.75, 0.5, 1 }),
+    },
+    GLASS = {
+        colour("CATHEDRAL"),
+        colour("BLUE", { 0.08, 0.12, 0.28 }),
+        colour("GREEN", { 0.07, 0.2, 0.1 }),
+        colour("AMBER", { 0.28, 0.17, 0.05 }),
+        colour("VIOLET", { 0.18, 0.08, 0.26 }),
+        colour("RUBY", { 0.26, 0.05, 0.08 }),
+    },
+    COMIC = {
+        paper("GREY", { 0.7, 0.7, 0.7 }),
+        paper("DARKGREY", { 0.38, 0.38, 0.38 }, COMIC_YELLOW, true),
+        paper("BLACK", { 0.16, 0.16, 0.16 }, COMIC_YELLOW, true),
+        paper("WHITE", { 1, 1, 1 }, COMIC_BLUE),
+        paper("YELLOW", { 0.86, 0.76, 0.36 }, COMIC_BLUE),
+        paper("BLUE", { 0.45, 0.6, 0.86 }, COMIC_YELLOW),
+        paper("RED", { 0.86, 0.44, 0.4 }, COMIC_YELLOW),
+        paper("GREEN", { 0.5, 0.76, 0.46 }, COMIC_YELLOW),
+        paper("PURPLE", { 0.7, 0.52, 0.84 }, COMIC_YELLOW),
+    },
+    FROST = {
+        colour("ICE"),
+        colour("DEEP", { 0.1, 0.18, 0.32 }, { 0.6, 0.85, 1 }),
+        colour("AURORA", { 0.1, 0.27, 0.24 }, { 0.55, 1, 0.8 }),
+        colour("VIOLET", { 0.22, 0.18, 0.33 }, { 0.85, 0.75, 1 }),
+        colour("SILVER", { 0.3, 0.31, 0.33 }, { 0.92, 0.92, 0.95 }),
+        colour("NIGHT", { 0.06, 0.08, 0.14 }, { 0.7, 0.85, 1 }),
+    },
+    -- PICO-8's palette.
+    PIXEL = {
+        colour("NAVY"),
+        colour("PLUM", { 0.23, 0.08, 0.16 }, PICO_YELLOW),
+        colour("FOREST", { 0, 0.2, 0.12 }, PICO_YELLOW),
+        colour("BROWN", { 0.2, 0.12, 0.08 }, { 1, 0.64, 0 }),
+        colour("GREY", { 0.18, 0.17, 0.16 }),
+        colour("BLACK", { 0.03, 0.03, 0.04 }, { 0, 0.89, 0.21 }),
+        colour("TEAL", { 0.02, 0.17, 0.22 }, { 0.16, 0.68, 1 }),
+        colour("PURPLE", { 0.15, 0.1, 0.25 }, { 1, 0.47, 0.66 }),
+        colour("HANDHELD", { 0.059, 0.122, 0.059 }, HANDHELD, { HANDHELD[1], HANDHELD[2], HANDHELD[3], 1 }),
+    },
+    -- One dark backdrop in every colour: only the accent changes.
+    SWISS = {
+        colour("RED"),
+        colour("BLUE", nil, { 0.176, 0.42, 1 }),
+        colour("YELLOW", nil, { 1, 0.82, 0 }),
+        colour("WHITE", nil, { 0.949, 0.949, 0.949 }),
+    },
+    -- The ring follows the accent.
+    CONSOLE = {
+        colour("MINT"),
+        colour("AMBER", nil, { 1, 0.69, 0 }, { 1, 0.69, 0, 1 }),
+        colour("PHOSPHOR", nil, { 0.224, 1, 0.078 }, { 0.224, 1, 0.078, 1 }),
+        colour("VIOLET", nil, { 0.627, 0.471, 1 }, { 0.627, 0.471, 1, 1 }),
+    },
+    -- The wedge's colour.
+    PITWALL = {
+        colour("RED"),
+        colour("ORANGE", nil, nil, nil, { 1, 0.541, 0, 1 }),
+        colour("TEAL", nil, nil, nil, { 0, 0.631, 0.612, 1 }),
+        colour("SILVER", nil, nil, nil, { 0.788, 0.808, 0.839, 1 }),
+    },
+}
+
+-- The mean grey of each <back>Grey.tga: a colour's back is drawn as vertex
+-- colour back / mean (at most 1).
+lib.GREY_MEAN = { WoodBack = 0.800, TechBack = 0.705, ParchmentBack = 0.799, StoneBack = 0.800, GlassBack = 0.777,
+    FrostBack = 0.796, PixelBack = 0.800 }
+
+-- A theme's colour ids in order (none for CLASSIC or an unknown theme).
+function lib.Colors(themeId)
+    local list = {}
+    for i, c in ipairs(lib.COLORS[themeId] or {}) do list[i] = c.id end
+    return list
+end
+
+-- A theme's colour entry, or nil for an id it does not have.
+function lib.Colour(themeId, colorId)
+    for _, c in ipairs(lib.COLORS[themeId] or {}) do
+        if c.id == colorId then return c end
+    end
+    return nil
+end
+
+-- The colour id that stands: a known one, else the theme's first; nil for
+-- a theme without colours.
+function lib.ValidColor(themeId, colorId)
+    local colours = lib.COLORS[themeId]
+    if not colours then return nil end
+    return lib.Colour(themeId, colorId) and colorId or colours[1].id
+end
+
+-- The colour entry in use when it is not the theme's own look, else nil.
+function lib.Paint(themeId, colorId)
+    local c = lib.Colour(themeId, colorId)
+    return c and c ~= lib.COLORS[themeId][1] and c or nil
+end
+
+-- The backdrop's texture name (art: the spec's): the grey one under a
+-- colour that tints it.
+function lib.Back(art, themeId, colorId)
+    local c = lib.Paint(themeId, colorId)
+    return c and c.back and art.back .. "Grey" or art.back
+end
+
+-- The backdrop's tint { r, g, b, a } (art: the spec's; nil: none): the
+-- comic's paper in its colour, or the grey texture tinted to the colour at
+-- the theme's alpha.
+function lib.Tint(art, themeId, colorId)
+    if themeId == "COMIC" and art.tint then
+        local p = (lib.Colour(themeId, colorId) or lib.COLORS.COMIC[1]).paper
+        return { p[1], p[2], p[3], art.tint[4] }
+    end
+    local c = lib.Paint(themeId, colorId)
+    if c and c.back then
+        local mean = lib.GREY_MEAN[art.back]
+        return { math.min(1, c.back[1] / mean), math.min(1, c.back[2] / mean), math.min(1, c.back[3] / mean),
+            art.tint and art.tint[4] or 1 }
+    end
+    return art.tint
+end
+
+-- The titles' colour the theme's colour sets, else nil (the addon's own).
+function lib.Accent(themeId, colorId)
+    local c = lib.Paint(themeId, colorId)
+    return c and c.accent
+end
+
+-- The ring's colour the theme's colour sets, else nil (the addon's own).
+function lib.Rim(themeId, colorId)
+    local c = lib.Paint(themeId, colorId)
+    return c and c.rim
+end
+
+-- The wedge's colour (art: the spec's): the colour's, else the theme's.
+function lib.WedgeColor(art, themeId, colorId)
+    local c = lib.Paint(themeId, colorId)
+    return c and c.wedge or art.wedgeColor
+end
+
+-- Whether the comic's paper in use is dark (light ink on it).
+function lib.DarkPaper(themeId, colorId)
+    local c = themeId == "COMIC" and lib.Paint(themeId, colorId)
+    return c and c.dark == true or false
+end
+
+-- Pitwall's wedge, as in every Forever addon: the texture's left
+-- WEDGE_PART, as wide as the strip is high; its right edge runs from 0.98
+-- of that width at the top to 0.62 at the bottom. The grip or title starts
+-- TITLE_GAP past it.
+lib.WEDGE_PART, lib.TITLE_GAP = 0.53, 8
+-- How far the wedge reaches at height y of a strip h high.
+function lib.WedgeReach(h, y) return math.floor(0.98 * h - 0.36 * y + 0.5) end
+
+-- Icons in the accent c: idle and on in it, hovered half way to white,
+-- off 40 % darker, as in every Forever addon.
+local ICON_HOVER, ICON_OFF = 0.5, 0.4
+local function mix(c, to, f)
+    return { c[1] + (to - c[1]) * f, c[2] + (to - c[2]) * f, c[3] + (to - c[3]) * f }
+end
+function lib.IconTones(c)
+    local a = { c[1], c[2], c[3] }
+    return { idle = a, on = a, hover = mix(a, 1, ICON_HOVER), off = mix(a, 0, ICON_OFF) }
+end
+
+-- The icons' colour under a theme (spec: its spec; title: the addon's
+-- title colour): the wedge's on Pitwall (the colour changes it there),
+-- else the colour's accent, else title. nil under CLASSIC and a theme with
+-- its own ink (iconColor).
+function lib.IconColor(spec, themeId, colorId, title)
+    if themeId == lib.CLASSIC or spec.iconColor then return nil end
+    local art = spec.art or {}
+    return art.wedge and lib.WedgeColor(art, themeId, colorId) or lib.Accent(themeId, colorId) or title
+end
+
+-- The cross-addon theme menu: _G.ForeverThemes[folder] = { title, Current,
+-- Switch, Colors, Color, SetColor }. Addons that do not use this library
+-- yet write the same entries themselves; both read each other's.
+function lib.Register(folder, entry)
+    _G.ForeverThemes = _G.ForeverThemes or {}
+    _G.ForeverThemes[folder] = entry
+end
+
+-- The registered addons other than folder.
+function lib.Others(folder)
+    local list = {}
+    for name, entry in pairs(_G.ForeverThemes or {}) do
+        if name ~= folder and type(entry) == "table" and type(entry.Switch) == "function" then
+            list[#list + 1] = entry
+        end
+    end
+    return list
+end
+
+local function listed(ids, id)
+    for _, v in ipairs(ids or {}) do
+        if v == id then return true end
+    end
+    return false
+end
+
+-- "Apply to all Forever addons": every other addon onto theme and, where
+-- that theme has it, color (else it keeps its own). One without the theme
+-- refuses the switch and is skipped. Returns how many switched.
+function lib.ApplyToAll(folder, theme, color)
+    local switched = 0
+    for _, entry in ipairs(lib.Others(folder)) do
+        if entry.Switch(theme) then
+            switched = switched + 1
+            if color and type(entry.Colors) == "function" and type(entry.SetColor) == "function"
+                and listed(entry.Colors(theme), color) then
+                entry.SetColor(color, theme)
+            end
+        end
+    end
+    return switched
+end

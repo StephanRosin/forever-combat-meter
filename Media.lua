@@ -7,7 +7,6 @@ local Media = {}
 ns.Media = Media
 
 local ICONS = "Interface\\AddOns\\ForeverCombatMeter\\Media\\"
-local FONTS, THEMES = ICONS .. "Fonts\\", ICONS .. "Themes\\"
 function Media.Icon(name) return ICONS .. "Icon" .. name .. ".tga" end
 
 Media.BLIZZARD = {
@@ -16,22 +15,6 @@ Media.BLIZZARD = {
         { name = "Arial Narrow",  path = "Fonts\\ARIALN.TTF" },
         { name = "Skurri",        path = "Fonts\\SKURRI.TTF" },
         { name = "Morpheus",      path = "Fonts\\MORPHEUS.TTF" },
-        -- The themes' fonts (Themes.lua), shipped with the addon, Latin
-        -- letters only; licences in Media/Fonts.
-        { name = "Bangers",            path = FONTS .. "Bangers-Regular.ttf" },
-        { name = "Cinzel",             path = FONTS .. "Cinzel-Bold.ttf" },
-        { name = "IM Fell English SC", path = FONTS .. "IMFeENsc28P.ttf" },
-        { name = "Julius Sans One",    path = FONTS .. "JuliusSansOne-Regular.ttf" },
-        { name = "Marcellus",          path = FONTS .. "Marcellus-Regular.ttf" },
-        { name = "Space Grotesk",      path = FONTS .. "SpaceGrotesk-Bold.ttf" },
-        { name = "VT323",              path = FONTS .. "VT323-Regular.ttf" },
-        { name = "Inter Tight Bold",   path = FONTS .. "InterTight-Bold.ttf" },
-        { name = "Inter Tight",        path = FONTS .. "InterTight-Regular.ttf" },
-        { name = "Inter Tight Light",  path = FONTS .. "InterTight-Light.ttf" },
-        { name = "IBM Plex Sans Condensed Bold", path = FONTS .. "IBMPlexSansCondensed-Bold.ttf" },
-        { name = "IBM Plex Mono",      path = FONTS .. "IBMPlexMono-Regular.ttf" },
-        { name = "Titillium Web Bold Italic", path = FONTS .. "TitilliumWeb-BoldItalic.ttf" },
-        { name = "Titillium Web SemiBold", path = FONTS .. "TitilliumWeb-SemiBold.ttf" },
     },
     background = {
         { name = "Blizzard Dialog Background Dark", path = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark" },
@@ -48,39 +31,41 @@ Media.BLIZZARD = {
         { name = "Blizzard Raid Bar", path = "Interface\\RaidFrame\\Raid-Bar-Hp-Fill" },
     },
 }
--- The themes' bar textures (made by Forever Unit Frames' tools/make_themes.py). Console and
--- Pitwall use Swiss's: their dashed and LED bars looked broken in the meter.
-for _, name in ipairs({ "Wood", "Tech", "Parchment", "Stone", "Glass", "Comic", "Frost", "Pixel", "Swiss" }) do
-    table.insert(Media.BLIZZARD.statusbar, { name = "FCM " .. name, path = THEMES .. name .. "Bar.tga" })
-end
+-- The themes' fonts (Latin letters only; SIL Open Font License, see its
+-- Media/Fonts) and bar textures come with the embedded LibForeverThemes,
+-- which also loads the fonts early. Read at use: a newer copy of the
+-- library loading after us has other paths. Console and Pitwall use
+-- Swiss's bar: their dashed and LED bars looked broken in the meter.
+local Lib = LibForeverThemes
+local BARS = { "Wood", "Tech", "Parchment", "Stone", "Glass", "Comic", "Frost", "Pixel", "Swiss" }
+Media.OWN = setmetatable({ background = {} }, { __index = function(_, kind)
+    if kind == "font" then return Lib.FONTS end
+    if kind == "statusbar" then
+        local list = {}
+        for i, name in ipairs(BARS) do list[i] = { name = "FCM " .. name, path = Lib.Texture(name .. "Bar") } end
+        return list
+    end
+end })
+local SOURCES = { Media.BLIZZARD, Media.OWN }
 Media.DEFAULT = {
     font = "Fonts\\FRIZQT__.TTF",
     background = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
     statusbar = "Interface\\Buttons\\WHITE8X8",
 }
 
--- Our own font files loaded while the addon loads: a file used for the
--- first time can be refused (ApplyText tries again), so the first theme
--- switch should not be its first use.
-do
-    local holder = CreateFrame("Frame")
-    holder:Hide()
-    for _, f in ipairs(Media.BLIZZARD.font) do
-        if f.path:find(FONTS, 1, true) then holder:CreateFontString():SetFont(f.path, 12, "") end
-    end
-end
-
 local function sharedMedia()
     return LibStub and LibStub("LibSharedMedia-3.0", true)
 end
 
 -- Every name of a kind ("font", "background", "statusbar"), Blizzard's
--- first, then LibSharedMedia's sorted.
+-- first, then ours, then LibSharedMedia's sorted.
 function Media.Names(kind)
     local names, seen = {}, {}
-    for _, f in ipairs(Media.BLIZZARD[kind]) do
-        names[#names + 1] = f.name
-        seen[f.name] = true
+    for _, source in ipairs(SOURCES) do
+        for _, f in ipairs(source[kind]) do
+            names[#names + 1] = f.name
+            seen[f.name] = true
+        end
     end
     local lsm = sharedMedia()
     if lsm then
@@ -94,10 +79,14 @@ function Media.Names(kind)
     return names
 end
 
--- The file for a name; unknown names get the kind's default.
+-- The file for a name; unknown names get the kind's default. A font stored
+-- under an older name (LibForeverThemes' aliases) finds its file.
 function Media.Path(kind, name)
-    for _, f in ipairs(Media.BLIZZARD[kind]) do
-        if f.name == name then return f.path end
+    if kind == "font" then name = Lib.FontName(name) end
+    for _, source in ipairs(SOURCES) do
+        for _, f in ipairs(source[kind]) do
+            if f.name == name then return f.path end
+        end
     end
     local lsm = sharedMedia()
     local path = lsm and lsm:Fetch(kind, name, true)

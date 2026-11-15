@@ -2802,6 +2802,26 @@ for _, f in ipairs(LINT_FILES) do
     end
 end
 
+section("Embedded LibForeverThemes")
+-- The copy in Libs/ is the library's own (ForeverThemes, tools/sync there):
+-- checked when that repository sits next to this one (not in CI).
+do
+local LIBREPO = ROOT .. "/../ForeverThemes"
+if io.open(LIBREPO .. "/LibForeverThemes.lua") then
+    local diff = io.popen("diff -rq '" .. LIBREPO .. "/LibForeverThemes.lua' '" .. ROOT
+        .. "/Libs/LibForeverThemes/LibForeverThemes.lua' && diff -rq '" .. LIBREPO .. "/Media' '" .. ROOT
+        .. "/Libs/LibForeverThemes/Media' 2>&1"):read("*a")
+    check("copy equals ForeverThemes (run its tools/sync)", diff, "")
+else
+    print("  (skipped: ForeverThemes not next to this addon)")
+end
+end
+check("library loaded from our copy", LibForeverThemes.FOLDER, ADDON)
+check("bar textures from the library", ns.Media.Path("statusbar", "FCM Stone"),
+    "Interface\\AddOns\\ForeverCombatMeter\\Libs\\LibForeverThemes\\Media\\Themes\\StoneBar")
+check("an old font name finds its file", ns.Media.Path("font", "IBM Plex Sans Condensed"),
+    LibForeverThemes.FontPath("IBM Plex Sans Condensed Bold"))
+
 section("No accidental globals")
 local allowed = { SLASH_FOREVERCOMBATMETER1 = true, SLASH_FOREVERCOMBATMETER2 = true, ForeverCombatMeterProfiles = true,
     ForeverCombatMeterChar = true, ForeverCombatMeter_OnAddonCompartmentClick = true,
