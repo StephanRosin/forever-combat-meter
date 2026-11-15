@@ -20,7 +20,7 @@ Not to be confused with _G.ForeverThemes: that is the registry of the
 addons for the cross-addon theme menu (Lib.Register fills it).
 ---------------------------------------------------------------------------]]
 local FOLDER = ...
-local MINOR = 3
+local MINOR = 4
 
 local shared = _G.LibForeverThemes
 -- `or 0`: a copy before MINOR 3 could throw half way and leave no MINOR.
@@ -564,9 +564,10 @@ local TEXTS = {
 TEXTS.esMX = TEXTS.esES
 
 -- A hub text (HUB_FOLLOWS, HUB_OPEN, HUB_MISSING, HUB_LINK, HUB_COPY) in
--- the client's language, else English.
-function lib.Text(key)
-    local texts = TEXTS[GetLocale()] or TEXTS.enUS
+-- locale (an addon's own language setting, e.g. "deDE"), else the client's
+-- language, else English.
+function lib.Text(key, locale)
+    local texts = TEXTS[locale] or TEXTS[GetLocale()] or TEXTS.enUS
     return texts[key] or TEXTS.enUS[key]
 end
 
@@ -574,11 +575,11 @@ lib.HUB_URL = "https://www.curseforge.com/wow/addons/forever-themes"
 local HUB_POPUP = "LIBFOREVERTHEMES_HUB_LINK"
 
 -- The hub's download link in Blizzard's text popup, selected for copying
--- (WoW opens no browser). text: the prompt, default Text("HUB_COPY").
+-- (WoW opens no browser). text: the prompt, default Text("HUB_COPY", locale).
 -- Defined at use: the newest copy's dialog is the one shown.
-function lib.ShowHubLink(text)
+function lib.ShowHubLink(text, locale)
     StaticPopupDialogs[HUB_POPUP] = {
-        text = text or lib.Text("HUB_COPY"), button1 = OKAY or "OK", hasEditBox = 1, editBoxWidth = 350,
+        text = text or lib.Text("HUB_COPY", locale), button1 = OKAY or "OK", hasEditBox = 1, editBoxWidth = 350,
         maxLetters = 0,   -- the edit box is shared; another dialog may leave its limit behind
         OnShow = function(dialog)
             local box = dialog.GetEditBox and dialog:GetEditBox() or dialog.editBox

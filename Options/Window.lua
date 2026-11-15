@@ -172,7 +172,7 @@ local function followsHub() return LibForeverThemes.Follows(ADDON) end
 local function ownTheme() return not followsHub() end
 local function noHub() return LibForeverThemes.Hub() == nil end
 -- The hub's texts are the family's, in the client's language.
-local function hubText(key) return function() return LibForeverThemes.Text(key) end end
+local function hubText(key) return function() return LibForeverThemes.Text(key, ns.Locale.Current()) end end
 
 -- Greys the row out while cond() is false (value still shown).
 local function enabledIf(row, cond)
@@ -195,7 +195,7 @@ local function themeRows()
         } }, followsHub),
         visibleIf({ type = "text", label = hubText("HUB_MISSING") }, noHub),
         visibleIf({ type = "buttons", buttons = {
-            { label = hubText("HUB_LINK"), width = 240, onClick = function() LibForeverThemes.ShowHubLink() end },
+            { label = hubText("HUB_LINK"), width = 240, onClick = function() LibForeverThemes.ShowHubLink(nil, ns.Locale.Current()) end },
         } }, noHub),
         visibleIf({ type = "buttons", buttons = {
             { label = "OPT_THEME_ALL", width = 240, onClick = function()
