@@ -20,7 +20,6 @@ Media.BLIZZARD = {
         -- letters only; licences in Media/Fonts.
         { name = "Bangers",            path = FONTS .. "Bangers-Regular.ttf" },
         { name = "Cinzel",             path = FONTS .. "Cinzel-Bold.ttf" },
-        { name = "Cormorant SC",       path = FONTS .. "CormorantSC-Bold.ttf" },
         { name = "IM Fell English SC", path = FONTS .. "IMFeENsc28P.ttf" },
         { name = "Marcellus",          path = FONTS .. "Marcellus-Regular.ttf" },
         { name = "Space Grotesk",      path = FONTS .. "SpaceGrotesk-Bold.ttf" },
