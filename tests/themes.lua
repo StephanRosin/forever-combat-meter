@@ -180,6 +180,8 @@ return function(ns, M, check, section)
     Themes.Switch("GLASS")
     check("glass: mosaic at full brightness", box.back._vertex[1], 1)
     Themes.Switch("COMIC")
+    -- A first pick starts in the author's black; the grey paper is the first colour.
+    Themes.SetColor("GREY")
     check("comic: paper grey as in the other addons", box.back._vertex[1] .. "/" .. box.back._vertex[4], "0.7/1")
     check("comic: background clear", S("bgAlpha"), 0)
     local gear = f.header.buttons.menu
@@ -196,7 +198,7 @@ return function(ns, M, check, section)
     local function back() return box.back:GetTexture():match("[^\\]+$") end
     local function vertex() return table.concat(box.back._vertex, "/") end
     local greyTitle, stored = title(), ns.Share.Export()
-    check("comic colour: grey by default", registry.Color(), "GREY")
+    check("comic colour: grey is the first", registry.Colors()[1], "GREY")
     check("comic colour: the nine", table.concat(registry.Colors(), " "),
         "GREY DARKGREY BLACK WHITE YELLOW BLUE RED GREEN PURPLE")
     check("colour: by theme", table.concat(registry.Colors("TECH"), " "), "CYAN GREEN AMBER MAGENTA BLUE GREY")
@@ -446,15 +448,15 @@ return function(ns, M, check, section)
     check("theme choice", first[3].key, "theme")
     first[3].set("PIXEL")
     check("options switch the theme", Themes.Current(), "PIXEL")
-    local copyItems = first[8].choices()
+    local copyItems = first[10].choices()
     check("copy list offers Classic", copyItems[1].value, "CLASSIC")
-    first[8].set("CLASSIC")
-    check("copy list offers undo", first[8].choices()[1].label, ns.L.OPT_THEME_UNDO)
-    first[8].set(first[8].choices()[1].value)
-    check("undo from the list", first[8].choices()[1].value, "CLASSIC")
-    check("reset only for a theme", first[9].visible(), true)
+    first[10].set("CLASSIC")
+    check("copy list offers undo", first[10].choices()[1].label, ns.L.OPT_THEME_UNDO)
+    first[10].set(first[10].choices()[1].value)
+    check("undo from the list", first[10].choices()[1].value, "CLASSIC")
+    check("reset only for a theme", first[11].visible(), true)
     first[3].set("CLASSIC")
-    check("no reset for Classic", first[9].visible(), false)
+    check("no reset for Classic", first[11].visible(), false)
     check("no colour under Classic", first[4].visible(), false)
     first[3].set("COMIC")
     check("colour under Comic", first[4].visible() and first[4].get(), "GREY")
@@ -512,6 +514,41 @@ return function(ns, M, check, section)
     Themes.Switch("CLASSIC")
     Settings.ResetProfile()
 
+    -- A theme picked the first time looks as the author plays it (values
+    -- from his saved settings, positions left out); sets stored before
+    -- stay as they were.
+    section("Themes: the author's look for first picks")
+    Settings.ResetProfile()
+    Themes.Switch("PITWALL")
+    local function rgb(key) return table.concat(S(key), "/", 1, 3) end
+    check("pitwall: title font", S("headerFont"), "Titillium Web Bold Italic")
+    check("pitwall: row font", S("nameFont"), "Titillium Web SemiBold")
+    check("pitwall: no bar track", S("barBgAlpha"), 0)
+    check("pitwall: breakdown in grey", S("detailClassColor"), false)
+    check("pitwall: the grey", rgb("detailBarColor"), "0.329/0.322/0.318")
+    check("pitwall: black ground", rgb("bgColor"), "0.039/0.039/0.039")
+    check("pitwall: red", Themes.Color(), "RED")
+    Themes.Switch("COMIC")
+    check("comic: black paper", Themes.Color(), "BLACK")
+    check("comic: Bangers title", S("headerFont"), "Bangers")
+    check("comic: no bar track", S("barBgAlpha"), 0)
+    Themes.Switch("CLASSIC")
+    check("Classic keeps the default track", S("barBgAlpha"), Settings.DEFAULTS.barBgAlpha)
+    check("Classic keeps class colours", S("detailClassColor"), true)
+    -- A set stored before (as 1.2.0 made it): unchanged after login.
+    Settings.ResetProfile()
+    local before = { barTexture = "FCM Comic", barBgAlpha = 40, theme = "COMIC" }
+    ns.DB().themeSets = { revision = Themes.REVISION, CLASSIC = {}, COMIC = before }
+    Themes.Upgrade()
+    check("stored comic: untouched at login", ns.DB().themeSets.COMIC.barBgAlpha, 40)
+    check("stored comic: nothing added at login", ns.DB().themeSets.COMIC.detailClassColor, nil)
+    Themes.Switch("COMIC")
+    check("stored comic: its track", S("barBgAlpha"), 40)
+    check("stored comic: class colours", S("detailClassColor"), true)
+    check("stored comic: first colour, not the author's", Themes.Color(), "GREY")
+    Themes.Switch("CLASSIC")
+    Settings.ResetProfile()
+
     -- The hub "Forever Themes": while it is followed the pickers grey out,
     -- a line and a button lead to it and "Apply to all" goes; with an own
     -- theme or without the hub the section is as before.
@@ -553,6 +590,17 @@ return function(ns, M, check, section)
     check("no hub: picker on", themePickerOn(), true)
     check("no hub: no line, no button", (shownText(L.OPT_THEME_HUB) or shownText(L.OPT_THEME_HUB_OPEN)), nil)
     check("no hub: apply to all", shownText(L.OPT_THEME_ALL) ~= nil, true)
+    check("no hub: the hint to get it", shownText(L.OPT_THEME_HUB_GET) ~= nil, true)
+    M.popups = {}
+    shownText(L.OPT_THEME_HUB_LINK):GetParent():GetScript("OnClick")()
+    check("hub link: Blizzard's text popup", M.popups[1] and M.popups[1].which, "FOREVERCOMBATMETER_HUB_LINK")
+    local box = { SetText = function(self, t) self.text = t end, HighlightText = function() end, SetFocus = function() end }
+    StaticPopupDialogs.FOREVERCOMBATMETER_HUB_LINK.OnShow({ GetEditBox = function() return box end })
+    check("hub link: the hub's CurseForge page", box.text, "https://www.curseforge.com/wow/addons/forever-themes")
+    LibForeverThemes.SetHub { Follows = function() return false end }
+    ns.Window.Refresh()
+    check("hub own theme: no hint to get it", shownText(L.OPT_THEME_HUB_GET), nil)
+    LibForeverThemes.SetHub(nil)
     ns.Window.Toggle()
     _G.ForeverThemes.FakeOther = nil
     Themes.Switch("CLASSIC")

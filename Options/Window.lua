@@ -174,6 +174,26 @@ local function followsHub()
 end
 
 local function ownTheme() return not followsHub() end
+local function noHub() return LibForeverThemes.Hub() == nil end
+
+-- WoW opens no browser: the hub's download link in Blizzard's text popup,
+-- selected for copying (as in Forever Data Bar).
+local HUB_URL = "https://www.curseforge.com/wow/addons/forever-themes"
+StaticPopupDialogs.FOREVERCOMBATMETER_HUB_LINK = {
+    text = "", button1 = OKAY or "OK", hasEditBox = 1, editBoxWidth = 350,
+    maxLetters = 0,   -- the edit box is shared; another dialog may leave its limit behind
+    OnShow = function(dialog)
+        local box = dialog.GetEditBox and dialog:GetEditBox()
+        if box then box:SetText(HUB_URL); box:HighlightText(); box:SetFocus() end
+    end,
+    EditBoxOnEnterPressed = function(box) box:GetParent():Hide() end,
+    EditBoxOnEscapePressed = function(box) box:GetParent():Hide() end,
+    timeout = 0, whileDead = true, hideOnEscape = true,
+}
+local function showHubLink()
+    StaticPopupDialogs.FOREVERCOMBATMETER_HUB_LINK.text = L.POPUP_HUB_LINK
+    StaticPopup_Show("FOREVERCOMBATMETER_HUB_LINK")
+end
 
 -- Greys the row out while cond() is false (value still shown).
 local function enabledIf(row, cond)
@@ -194,6 +214,10 @@ local function themeRows()
         visibleIf({ type = "buttons", buttons = {
             { label = "OPT_THEME_HUB_OPEN", width = 240, onClick = function() LibForeverThemes.Hub().OpenOptions() end },
         } }, followsHub),
+        visibleIf({ type = "text", label = "OPT_THEME_HUB_GET" }, noHub),
+        visibleIf({ type = "buttons", buttons = {
+            { label = "OPT_THEME_HUB_LINK", width = 240, onClick = showHubLink },
+        } }, noHub),
         visibleIf({ type = "buttons", buttons = {
             { label = "OPT_THEME_ALL", width = 240, onClick = function()
                 ns.Print(L.MSG_THEME_ALL, ns.Themes.ApplyToAll())

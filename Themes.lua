@@ -267,10 +267,20 @@ function Themes.IconAccent()
     return c and { c[1], c[2], c[3] }
 end
 
+-- The author's look in every theme on top of the specs' (new in 1.3.0):
+-- bars without a track, the breakdown's bars in one grey. Only for theme
+-- sets made from now on; CLASSIC keeps the defaults. Not counted in
+-- REVISION: sets made before stay as they are.
+local AUTHOR_LOOK = { barBgAlpha = 0, detailClassColor = false, detailBarColor = { 0.329, 0.322, 0.318 } }
+-- The colour a theme starts in the first time where the author's differs
+-- from the theme's first (Themes.Switch).
+local AUTHOR_COLORS = { COMIC = "BLACK" }
+
 -- A new theme's settings: the base set (CLASSIC) with the theme's look.
 local function seed(id, base)
     local spec, D = Themes.Spec(id), Settings.DEFAULTS
     local p = copy(base)
+    for key, value in pairs(AUTHOR_LOOK) do p[key] = copy(value) end
     for key, value in pairs(spec.look or {}) do p[key] = copy(value) end
     p.barTexture = spec.bar
     local latin = Lib.LatinClient()
@@ -317,6 +327,8 @@ function Themes.Switch(id)
         -- profile imported with a theme) the settings stay as they are.
         local base = sets[Themes.CLASSIC] or sets[current]
         nextSet = id == Themes.CLASSIC and copy(base) or seed(id, base)
+        local colors = chosen()
+        colors[id] = colors[id] or AUTHOR_COLORS[id]
     end
     nextSet.theme = id
     -- The live set is the profile: no stale copy stays behind.
