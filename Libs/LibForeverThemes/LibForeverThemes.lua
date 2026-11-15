@@ -20,7 +20,7 @@ Not to be confused with _G.ForeverThemes: that is the registry of the
 addons for the cross-addon theme menu (Lib.Register fills it).
 ---------------------------------------------------------------------------]]
 local FOLDER = ...
-local MINOR = 1
+local MINOR = 2
 
 local lib = _G.LibForeverThemes
 if lib and lib.MINOR >= MINOR then return end
@@ -426,3 +426,18 @@ function lib.ApplyToAll(folder, theme, color)
     end
     return switched
 end
+
+-- The optional addon Forever Themes (the hub): one theme and colour for
+-- every Forever addon, each addon following it or keeping its own (DESIGN.md
+-- §2.12). Lib.Hub() is nil without it, else
+--   Follows(folder)    true while the hub sets that addon's theme (its own
+--                      theme setting is then the hub's to change)
+--   Theme(), Color()   the central theme id and colour id (nil: none)
+--   OpenMenu(anchor)   the theme and colour menu at anchor
+--   OpenOptions()      the hub's options window
+-- While the hub is loaded it owns the theme font on Blizzard's texts and on
+-- Platynator's nameplates; an addon's own bridge for those stands down.
+-- Kept in a global of its own, not in this table: a newer copy loading
+-- after the hub empties this table.
+function lib.SetHub(api) _G.ForeverThemesHub = api end
+function lib.Hub() return _G.ForeverThemesHub end

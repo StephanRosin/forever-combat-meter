@@ -446,15 +446,15 @@ return function(ns, M, check, section)
     check("theme choice", first[3].key, "theme")
     first[3].set("PIXEL")
     check("options switch the theme", Themes.Current(), "PIXEL")
-    local copyItems = first[6].choices()
+    local copyItems = first[8].choices()
     check("copy list offers Classic", copyItems[1].value, "CLASSIC")
-    first[6].set("CLASSIC")
-    check("copy list offers undo", first[6].choices()[1].label, ns.L.OPT_THEME_UNDO)
-    first[6].set(first[6].choices()[1].value)
-    check("undo from the list", first[6].choices()[1].value, "CLASSIC")
-    check("reset only for a theme", first[7].visible(), true)
+    first[8].set("CLASSIC")
+    check("copy list offers undo", first[8].choices()[1].label, ns.L.OPT_THEME_UNDO)
+    first[8].set(first[8].choices()[1].value)
+    check("undo from the list", first[8].choices()[1].value, "CLASSIC")
+    check("reset only for a theme", first[9].visible(), true)
     first[3].set("CLASSIC")
-    check("no reset for Classic", first[7].visible(), false)
+    check("no reset for Classic", first[9].visible(), false)
     check("no colour under Classic", first[4].visible(), false)
     first[3].set("COMIC")
     check("colour under Comic", first[4].visible() and first[4].get(), "GREY")
@@ -508,8 +508,53 @@ return function(ns, M, check, section)
     check("apply all: says how many", (M.chat[1] or ""):find("1 other", 1, true) ~= nil, true)
     Themes.Switch("WOOD")
     check("apply all: unknown theme skipped", Themes.ApplyToAll() .. " " .. other.theme, "0 PIXEL")
-    _G.ForeverThemes.FakeOther = nil
     Themes.SetColor(Themes.Colors("PIXEL")[1], "PIXEL")
+    Themes.Switch("CLASSIC")
+    Settings.ResetProfile()
+
+    -- The hub "Forever Themes": while it is followed the pickers grey out,
+    -- a line and a button lead to it and "Apply to all" goes; with an own
+    -- theme or without the hub the section is as before.
+    section("Themes: Forever Themes hub")
+    local L = ns.L
+    local function shownText(text)
+        for i = #M.fontStrings, 1, -1 do
+            local fs = M.fontStrings[i]
+            if fs._text == text and fs:IsVisible() then return fs end
+        end
+    end
+    local function themePickerOn()
+        local label = shownText(L.OPT_THEME_PICK)
+        return label:GetParent().button:IsEnabled()
+    end
+    local follows, opened = true, 0
+    LibForeverThemes.SetHub {
+        Follows = function(folder) return folder == "ForeverCombatMeter" and follows end,
+        OpenOptions = function() opened = opened + 1 end,
+    }
+    ns.Window.Open("general")
+    check("hub follow: theme picker greyed", themePickerOn(), false)
+    check("hub follow: still shows the theme", shownText(L.THEME_CLASSIC) ~= nil, true)
+    check("hub follow: the line", shownText(L.OPT_THEME_HUB) ~= nil, true)
+    check("hub follow: no apply to all", shownText(L.OPT_THEME_ALL), nil)
+    shownText(L.OPT_THEME_HUB_OPEN):GetParent():GetScript("OnClick")()
+    check("hub follow: button opens the hub", opened, 1)
+    Themes.Switch("PIXEL")
+    check("hub follow: colour picker greyed", shownText(L.OPT_THEME_COLOR):GetParent().button:IsEnabled(), false)
+    follows = false
+    ns.Window.Refresh()
+    check("hub own theme: picker back", themePickerOn(), true)
+    check("hub own theme: colour back", shownText(L.OPT_THEME_COLOR):GetParent().button:IsEnabled(), true)
+    check("hub own theme: no line", shownText(L.OPT_THEME_HUB), nil)
+    check("hub own theme: apply to all", shownText(L.OPT_THEME_ALL) ~= nil, true)
+    LibForeverThemes.SetHub(nil)
+    follows = true
+    ns.Window.Refresh()
+    check("no hub: picker on", themePickerOn(), true)
+    check("no hub: no line, no button", (shownText(L.OPT_THEME_HUB) or shownText(L.OPT_THEME_HUB_OPEN)), nil)
+    check("no hub: apply to all", shownText(L.OPT_THEME_ALL) ~= nil, true)
+    ns.Window.Toggle()
+    _G.ForeverThemes.FakeOther = nil
     Themes.Switch("CLASSIC")
     Settings.ResetProfile()
 end
