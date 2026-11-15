@@ -29,7 +29,8 @@ local LATIN_CLIENTS = { enUS = true, enGB = true, deDE = true, frFR = true, esES
 -- values (nil: font too); fontSizeAdd: how much larger the theme's font
 -- must be to read like the others (not for a standard bodyFont). Text outline is the client's OUTLINE (never a hand-made soft
 -- one: with these fonts that showed black text in Forever Unit Frames); Frost's is
--- a soft drop shadow (SHADOW) without an outline.
+-- a soft drop shadow (SHADOW) without an outline. bodyOutline: the rows'
+-- flag instead (Runestone: OUTLINESHADOW, so white names read on a white bar).
 -- art (ThemeArt.lua, all of it inside the window's edge): back = backdrop
 -- file in Media/Themes,
 -- tint = its colour, ornament = corner piece, corners = which ones
@@ -53,33 +54,33 @@ Themes.SPECS = {
     WOOD = {
         font = "Cinzel", bodyFont = STANDARD, bar = "FCM Wood",
         look = { borderStyle = "GOLD", borderSize = 3, cornerRadius = 3, bgMode = "SOLID",
-            bgColor = { 0.1, 0.06, 0.02 }, bgAlpha = 85, shadowEnabled = true, shadowAlpha = 60, shadowSize = 6 },
-        art = { back = "WoodBack", ornament = "Rivet", corners = { 1, 2, 3, 4 }, ornamentSize = 8,
+            bgColor = { 0.1, 0.06, 0.02 }, bgAlpha = 0, shadowEnabled = true, shadowAlpha = 60, shadowSize = 6 },
+        art = { back = "WoodBack", tint = { 0.5, 0.5, 0.5, 1 }, ornament = "Rivet", corners = { 1, 2, 3, 4 }, ornamentSize = 8,
             ornamentInset = 0, line = { 0.85, 0.65, 0.3, 0.6 } },
     },
     -- Dark navy with a faint grid, a thin cyan line.
     TECH = {
         font = "Space Grotesk", bar = "FCM Tech",
         look = { borderStyle = "FLAT", borderSize = 1, borderColor = { 0.25, 0.88, 0.94, 0.9 }, cornerRadius = 0,
-            bgMode = "SOLID", bgColor = { 0.02, 0.05, 0.08 }, bgAlpha = 92, shadowEnabled = false },
+            bgMode = "SOLID", bgColor = { 0.02, 0.05, 0.08 }, bgAlpha = 0, shadowEnabled = false },
         art = { back = "TechBack", line = { 0.25, 0.88, 0.94, 0.6 } },
     },
     -- Parchment round the bars, a brown ink line, a wax seal.
     PARCHMENT = {
         font = "IM Fell English SC", bodyFont = STANDARD, bar = "FCM Parchment", fontSizeAdd = 1,
         look = { borderStyle = "FLAT", borderSize = 2, borderColor = { 0.29, 0.2, 0.12, 1 }, cornerRadius = 2,
-            bgMode = "SOLID", bgColor = { 0.22, 0.15, 0.07 }, bgAlpha = 72, shadowEnabled = true, shadowAlpha = 45,
+            bgMode = "SOLID", bgColor = { 0.22, 0.15, 0.07 }, bgAlpha = 0, shadowEnabled = true, shadowAlpha = 45,
             shadowSize = 5 },
-        art = { back = "ParchmentBack", ornament = "Seal", corners = { 3 }, ornamentSize = 12,
+        art = { back = "ParchmentBack", tint = { 0.45, 0.45, 0.45, 1 }, ornament = "Seal", corners = { 3 }, ornamentSize = 12,
             ornamentInset = 0, line = { 0.29, 0.2, 0.12, 0.8 } },
     },
     -- Grey granite, a dark chiselled edge, glowing runes.
     RUNESTONE = {
-        font = "Marcellus", bar = "FCM Stone", fontSizeAdd = 1,
+        font = "Marcellus", bar = "FCM Stone", fontSizeAdd = 1, bodyOutline = "OUTLINESHADOW",
         look = { borderStyle = "FLAT", borderSize = 2, borderColor = { 0.1, 0.1, 0.12, 1 }, cornerRadius = 0,
-            bgMode = "SOLID", bgColor = { 0.04, 0.05, 0.06 }, bgAlpha = 92, shadowEnabled = true, shadowAlpha = 70,
+            bgMode = "SOLID", bgColor = { 0.04, 0.05, 0.06 }, bgAlpha = 0, shadowEnabled = true, shadowAlpha = 70,
             shadowSize = 6 },
-        art = { back = "StoneBack", ornament = "Rune", corners = { 1, 2 }, ornamentSize = 9,
+        art = { back = "StoneBack", tint = { 0.55, 0.55, 0.55, 1 }, ornament = "Rune", corners = { 1, 2 }, ornamentSize = 9,
             ornamentInset = 1, ornamentColor = { 0.35, 0.95, 0.85, 1 }, line = { 0.35, 0.95, 0.85, 0.5 } },
     },
     -- A mosaic of coloured glass round the bars, dark lead, a dark title.
@@ -102,17 +103,17 @@ Themes.SPECS = {
     },
     -- Translucent ice, a pale rim, rounded.
     FROST = {
-        font = "Cinzel", bodyFont = STANDARD, bar = "FCM Frost", outline = "SHADOW",
+        font = "Julius Sans One", bodyFont = "Julius Sans One", bar = "FCM Frost", outline = "SHADOW",
         look = { borderStyle = "FLAT", borderSize = 1, borderColor = { 0.86, 0.96, 1, 0.8 }, cornerRadius = 6,
-            bgMode = "SOLID", bgColor = { 0.04, 0.12, 0.22 }, bgAlpha = 75, shadowEnabled = true, shadowAlpha = 55,
+            bgMode = "SOLID", bgColor = { 0.02, 0.07, 0.15 }, bgAlpha = 45, shadowEnabled = true, shadowAlpha = 55,
             shadowSize = 8 },
-        art = { back = "FrostBack", tint = { 1, 1, 1, 0.75 }, line = { 0.86, 0.96, 1, 0.5 } },
+        art = { back = "FrostBack", tint = { 0.55, 0.55, 0.55, 0.85 }, line = { 0.86, 0.96, 1, 0.5 } },
     },
     -- A light pixel frame, scan lines.
     PIXEL = {
         font = "VT323", bar = "FCM Pixel", fontSizeAdd = 4,
         look = { borderStyle = "FLAT", borderSize = 3, borderColor = { 1, 0.95, 0.91, 1 }, cornerRadius = 0,
-            bgMode = "SOLID", bgColor = { 0, 0, 0 }, bgAlpha = 100, shadowEnabled = false },
+            bgMode = "SOLID", bgColor = { 0, 0, 0 }, bgAlpha = 0, shadowEnabled = false },
         art = { back = "PixelBack", line = { 1, 0.95, 0.91, 0.6 } },
     },
     -- Swiss style: flat black, a white rule along the top, grey hairlines,
@@ -128,9 +129,9 @@ Themes.SPECS = {
     },
     -- A terminal: near black, a mint line, monospaced figures.
     CONSOLE = {
-        font = "IBM Plex Sans Condensed Bold", bodyFont = "IBM Plex Mono", bar = "FCM Swiss",
+        font = "IBM Plex Sans Condensed Bold", bodyFont = "IBM Plex Sans Condensed Bold", bar = "FCM Swiss",
         look = { borderStyle = "FLAT", borderSize = 1, borderColor = { 0.306, 0.929, 0.69, 1 }, cornerRadius = 0,
-            bgMode = "SOLID", bgColor = { 0.059, 0.059, 0.075 }, bgAlpha = 92, shadowEnabled = false,
+            bgMode = "SOLID", bgColor = { 0.059, 0.059, 0.075 }, bgAlpha = 0, shadowEnabled = false,
             headerColor = { 0.306, 0.929, 0.69 }, nameColor = { 0.902, 0.91, 0.933 },
             valueColor = { 0.902, 0.91, 0.933 } },
         art = { back = "ConsoleBack", line = { 0.545, 0.565, 0.627, 0.5 } },
@@ -150,7 +151,7 @@ Themes.SPECS = {
 -- Raised whenever SPECS change a look: theme sets made before are made
 -- anew from CLASSIC (Themes.Upgrade), so a changed theme shows as it is
 -- now. CLASSIC is never touched.
-Themes.REVISION = 9
+Themes.REVISION = 15
 
 local function copy(v)
     if type(v) ~= "table" then return v end
@@ -410,7 +411,7 @@ local function seed(id, base)
     for _, name in ipairs(Settings.TEXT_STYLES) do
         local font = DISPLAY[name] and spec.font or spec.bodyFont or spec.font
         if latin then p[name .. "Font"] = font end
-        p[name .. "Flag"] = spec.outline or "OUTLINE"
+        p[name .. "Flag"] = not DISPLAY[name] and spec.bodyOutline or spec.outline or "OUTLINE"
         local size = p[name .. "Size"] or D[name .. "Size"]
         local add = font == spec.font and spec.fontSizeAdd or 0
         p[name .. "Size"] = Settings.Clamp(name .. "Size", size + add)

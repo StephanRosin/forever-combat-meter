@@ -3,7 +3,9 @@ The theme fonts are licensed under the SIL Open Font License, Version 1.1 (OFL.t
 Bangers-Regular.ttf: Bangers Regular. Copyright 2010 The Bangers Project Authors (https://github.com/googlefonts/bangers)
 Cinzel-Bold.ttf: Cinzel Bold. Copyright 2020 The Cinzel Project Authors (https://github.com/NDISCOVER/Cinzel)
 IMFeENsc28P.ttf: IM FELL English SC. © 2007 Igino Marini (www.iginomarini.com) With Reserved Font Name IM FELL English SC
-Marcellus-Regular.ttf: Marcellus. Copyright (c) 2012 by Brian J. Bonislawsky DBA Astigmatic (AOETI) (astigma@astigmatic.com), with ReservedFont Name "Marcellus"
+JuliusSansOne-Regular.ttf: Julius Sans One Regular. Copyright (c) 2012, LatinoType (luciano@latinotype.com), with Reserved Font Names 'Julius'
+Marcellus-Regular.ttf: Marcellus. Copyright (c) 2012 by Brian J. Bonislawsky DBA Astigmatic (AOETI) (astigma@astigmatic.com), with Reserved
+Font Name "Marcellus"
 SpaceGrotesk-Bold.ttf: Space Grotesk Bold. Copyright 2020 The Space Grotesk Project Authors (https://github.com/floriankarsten/space-grotesk)
 VT323-Regular.ttf: VT323 Regular. Copyright 2011, The VT323 Project Authors (peter.hull@oikoi.com)
 IBMPlexMono-Regular.ttf: IBM Plex Mono Regular. Copyright 2017 IBM Corp. (https://github.com/IBM/plex), subset to Latin

@@ -55,7 +55,7 @@ Settings.DEFAULTS = {
     headerLine = true,
     fadeAlpha = 100,        -- percent, while the mouse is not over a window
 
-    -- Text styles. Flags: "" none, OUTLINE, THICKOUTLINE, SHADOW.
+    -- Text styles. Flags: "" none, OUTLINE, THICKOUTLINE, SHADOW, OUTLINESHADOW.
     headerFont = "Friz Quadrata",
     headerSize = 14,
     headerFlag = "SHADOW",

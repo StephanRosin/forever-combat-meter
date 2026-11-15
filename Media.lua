@@ -21,6 +21,7 @@ Media.BLIZZARD = {
         { name = "Bangers",            path = FONTS .. "Bangers-Regular.ttf" },
         { name = "Cinzel",             path = FONTS .. "Cinzel-Bold.ttf" },
         { name = "IM Fell English SC", path = FONTS .. "IMFeENsc28P.ttf" },
+        { name = "Julius Sans One",    path = FONTS .. "JuliusSansOne-Regular.ttf" },
         { name = "Marcellus",          path = FONTS .. "Marcellus-Regular.ttf" },
         { name = "Space Grotesk",      path = FONTS .. "SpaceGrotesk-Bold.ttf" },
         { name = "VT323",              path = FONTS .. "VT323-Regular.ttf" },
@@ -140,12 +141,12 @@ local function redrawLater(fs, path, size, flags, wanted)
 end
 
 -- A text style (Settings.TextStyle) on a font string. SHADOW is a drop
--- shadow, the other flags are outlines. A font the client refuses (a file
+-- shadow, OUTLINESHADOW an outline with it, the other flags are outlines. A font the client refuses (a file
 -- of ours on its first use) gives way to the standard font meanwhile and
 -- is tried again a few times.
 function Media.ApplyText(fs, style, tries)
     local flag = style.flag
-    local outline = (flag == "OUTLINE" or flag == "THICKOUTLINE") and flag or ""
+    local outline = (flag == "OUTLINE" or flag == "THICKOUTLINE") and flag or flag == "OUTLINESHADOW" and "OUTLINE" or ""
     local path = Media.FontPath(style.font)
     local wanted = path .. "|" .. style.size .. "|" .. outline
     fs.fontWanted = wanted
@@ -164,7 +165,7 @@ function Media.ApplyText(fs, style, tries)
             ns.Print("Font could not be loaded: %s", tostring(style.font))
         end
     end
-    if flag == "SHADOW" then
+    if flag == "SHADOW" or flag == "OUTLINESHADOW" then
         fs:SetShadowColor(0, 0, 0, 1)
         fs:SetShadowOffset(1, -1)
     else

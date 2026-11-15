@@ -102,6 +102,7 @@ local function textStyleRows(key, header)
                     { label = L.OUTLINE_SHADOW, value = "SHADOW" },
                     { label = L.OUTLINE_NORMAL, value = "OUTLINE" },
                     { label = L.OUTLINE_THICK, value = "THICKOUTLINE" },
+                    { label = L.OUTLINE_BOTH, value = "OUTLINESHADOW" },
                 }
             end,
             get = function() return S(key .. "Flag") end,

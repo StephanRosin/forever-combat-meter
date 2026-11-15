@@ -75,7 +75,7 @@ return function(ns, M, check, section)
     check("stale theme sets dropped", ns.DB().themeSets.TECH, nil)
     check("Classic kept", ns.DB().themeSets.CLASSIC ~= nil, true)
     check("revision stored", ns.DB().themeSets.revision, Themes.REVISION)
-    check("revision raised for Frost's Cinzel headings", Themes.REVISION, 9)
+    check("revision raised for Console's condensed rows again", Themes.REVISION, 15)
     Themes.Switch("CLASSIC")
     check("Classic after the upgrade as before", ns.Share.Export(), classic)
 
@@ -103,8 +103,8 @@ return function(ns, M, check, section)
     check("every theme listed", #Settings.THEMES, 12)
     -- Title in the theme's font; rows in a font that reads at row size.
     local BODY = { WOOD = "Friz Quadrata", TECH = "Space Grotesk", RUNESTONE = "Marcellus", PIXEL = "VT323",
-        PARCHMENT = "Friz Quadrata", FROST = "Friz Quadrata", GLASS = "Friz Quadrata", COMIC = "Friz Quadrata",
-        SWISS = "Inter Tight", CONSOLE = "IBM Plex Mono", PITWALL = "Titillium Web SemiBold" }
+        PARCHMENT = "Friz Quadrata", FROST = "Julius Sans One", GLASS = "Friz Quadrata", COMIC = "Friz Quadrata",
+        SWISS = "Inter Tight", CONSOLE = "IBM Plex Sans Condensed Bold", PITWALL = "Titillium Web SemiBold" }
     for id, body in pairs(BODY) do
         Themes.Switch(id)
         Themes.Reset()   -- FROST is stored from the koKR run above
@@ -122,6 +122,14 @@ return function(ns, M, check, section)
             ns.Media.ApplyText(fs, Settings.TextStyle("header"))
             check(id .. ": drawn with a 1 px shadow, no outline", select(3, fs:GetFont()) .. " "
                 .. table.concat({ fs:GetShadowOffset() }, ","), " 1,-1")
+        elseif id == "RUNESTONE" then
+            -- White names on a white (priest) bar: outline plus a dark drop shadow, the title outlined only.
+            check(id .. ": rows outlined and shadowed", S("headerFlag") .. " " .. S("nameFlag") .. " " .. S("valueFlag"),
+                "OUTLINE OUTLINESHADOW OUTLINESHADOW")
+            local fs = UIParent:CreateFontString()
+            ns.Media.ApplyText(fs, Settings.TextStyle("name"))
+            check(id .. ": drawn with outline and a 1 px shadow", select(3, fs:GetFont()) .. " "
+                .. table.concat({ fs:GetShadowOffset() }, ","), "OUTLINE 1,-1")
         else
             check(id .. ": outlined text", S("valueFlag") ~= "" and S("valueFlag") ~= "SHADOW", true)
         end
@@ -220,7 +228,7 @@ return function(ns, M, check, section)
     check("colour: picked for another theme", registry.SetColor("AURORA", "FROST"), true)
     Themes.Switch("WOOD")
     check("colour: comic kept away from comic", registry.Color("COMIC"), "YELLOW")
-    check("colour: wood as it is", back() .. " " .. vertex(), "WoodBack 1/1/1/1")
+    check("colour: wood as it is", back() .. " " .. vertex(), "WoodBack 0.5/0.5/0.5/1")
     check("colour: wood title as it is", title(), table.concat(S("headerColor"), "/", 1, 3))
     check("colour: cherry", registry.SetColor("CHERRY"), true)
     check("colour: cherry on the grey wood", back(), "WoodBackGrey")
@@ -230,11 +238,11 @@ return function(ns, M, check, section)
     Themes.Switch("FROST")
     check("colour: frost keeps its own", registry.Color(), "AURORA")
     check("colour: aurora on the grey ice, the theme's alpha", back() .. " " .. vertex(),
-        "FrostBackGrey " .. (0.10 / 0.796) .. "/" .. (0.27 / 0.796) .. "/" .. (0.24 / 0.796) .. "/0.75")
+        "FrostBackGrey " .. (0.10 / 0.796) .. "/" .. (0.27 / 0.796) .. "/" .. (0.24 / 0.796) .. "/0.85")
     check("colour: aurora title", title(), "0.55/1/0.8")
     registry.SetColor("ICE")
     check("colour: ice as frost was", back() .. " " .. vertex() .. " " .. title(),
-        "FrostBack 1/1/1/0.75 " .. table.concat(S("headerColor"), "/", 1, 3))
+        "FrostBack 0.55/0.55/0.55/0.85 " .. table.concat(S("headerColor"), "/", 1, 3))
     -- Every theme's first colour draws as before (art.tint, else white).
     for _, id in ipairs(Themes.IDS) do
         if id ~= "CLASSIC" then
@@ -344,7 +352,7 @@ return function(ns, M, check, section)
         "SwissBack 1/1/1/1 0.165/0.165/0.165")
     registry.SetColor("RED")
     Themes.Switch("CONSOLE")
-    check("console: fonts", S("headerFont") .. "/" .. S("valueFont"), "IBM Plex Sans Condensed Bold/IBM Plex Mono")
+    check("console: fonts", S("headerFont") .. "/" .. S("valueFont"), "IBM Plex Sans Condensed Bold/IBM Plex Sans Condensed Bold")
     check("console: mint ring", ring(), "0.306/0.929/0.69")
     check("console: solid bars", S("barTexture"), "FCM Swiss")
     check("console: no band", box.band:IsShown(), false)
