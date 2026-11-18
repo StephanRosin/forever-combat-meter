@@ -20,7 +20,7 @@ Not to be confused with _G.ForeverThemes: that is the registry of the
 addons for the cross-addon theme menu (Lib.Register fills it).
 ---------------------------------------------------------------------------]]
 local FOLDER = ...
-local MINOR = 5
+local MINOR = 6
 
 local shared = _G.LibForeverThemes
 -- `or 0`: a copy before MINOR 3 could throw half way and leave no MINOR.
