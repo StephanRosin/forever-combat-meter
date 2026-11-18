@@ -20,7 +20,7 @@ Not to be confused with _G.ForeverThemes: that is the registry of the
 addons for the cross-addon theme menu (Lib.Register fills it).
 ---------------------------------------------------------------------------]]
 local FOLDER = ...
-local MINOR = 6
+local MINOR = 7
 
 local shared = _G.LibForeverThemes
 -- `or 0`: a copy before MINOR 3 could throw half way and leave no MINOR.
@@ -362,7 +362,6 @@ lib.COLORS = {
     TECH_HD = {
         hdColour("TECH", "CARBON"),
         hdColour("TECH", "STEEL", { 0.45, 0.65, 1 }),
-        hdColour("TECH", "CIRCUIT", { 0.3, 0.95, 0.45 }),
     },
     PARCHMENT_HD = {
         hdColour("PARCHMENT", "CLASSIC"),
