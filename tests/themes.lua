@@ -348,10 +348,10 @@ return function(ns, M, check, section)
         end
     end
     Themes.Switch("WOOD_HD")
-    registry.SetColor("EBONY")
-    check("HD colour: its own backdrop, untinted", back() .. " " .. table.concat(box.back._vertex, "/", 1, 3),
-        "WoodHDEbony 1/1/1")
     registry.SetColor("OAK")
+    check("HD colour: its own backdrop, untinted", back() .. " " .. table.concat(box.back._vertex, "/", 1, 3),
+        "WoodHDOak 1/1/1")
+    registry.SetColor("EBONY")
     Themes.Switch("CLASSIC")
 
     section("Themes: Swiss, Console, Pitwall, Handheld")

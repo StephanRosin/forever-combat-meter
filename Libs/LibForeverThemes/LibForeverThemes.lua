@@ -20,7 +20,7 @@ Not to be confused with _G.ForeverThemes: that is the registry of the
 addons for the cross-addon theme menu (Lib.Register fills it).
 ---------------------------------------------------------------------------]]
 local FOLDER = ...
-local MINOR = 7
+local MINOR = 8
 
 local shared = _G.LibForeverThemes
 -- `or 0`: a copy before MINOR 3 could throw half way and leave no MINOR.
@@ -169,12 +169,12 @@ local function hd(base, back)
     t.base, t.back, t.tint, t.tile = base, back, { 1, 1, 1, t.tint and t.tint[4] or 1 }, lib.TILE_HD
     return t
 end
-lib.THEMES.WOOD_HD = hd("WOOD", "WoodHDOak")
+lib.THEMES.WOOD_HD = hd("WOOD", "WoodHDEbony")
 lib.THEMES.TECH_HD = hd("TECH", "TechHDCarbon")
-lib.THEMES.PARCHMENT_HD = hd("PARCHMENT", "ParchmentHDClassic")
-lib.THEMES.RUNESTONE_HD = hd("RUNESTONE", "RunestoneHDGranite")
-lib.THEMES.GLASS_HD = hd("GLASS", "GlassHDCathedral")
-lib.THEMES.COMIC_HD = hd("COMIC", "ComicHDNewsprint")
+lib.THEMES.PARCHMENT_HD = hd("PARCHMENT", "ParchmentHDAsh")
+lib.THEMES.RUNESTONE_HD = hd("RUNESTONE", "RunestoneHDSlate")
+lib.THEMES.GLASS_HD = hd("GLASS", "GlassHDRuby")
+lib.THEMES.COMIC_HD = hd("COMIC", "ComicHDNoir")
 lib.THEMES.FROST_HD = hd("FROST", "FrostHDIce")
 
 -- The theme an id stands on: an HD theme's base, else the id itself (for
@@ -354,9 +354,9 @@ lib.COLORS = {
     },
     -- HD: every colour its own finished backdrop (texture), no grey.
     WOOD_HD = {
+        hdColour("WOOD", "EBONY"),
         hdColour("WOOD", "OAK"),
         hdColour("WOOD", "WALNUT"),
-        hdColour("WOOD", "EBONY"),
         hdColour("WOOD", "DRIFTWOOD"),
     },
     TECH_HD = {
@@ -364,27 +364,27 @@ lib.COLORS = {
         hdColour("TECH", "STEEL", { 0.45, 0.65, 1 }),
     },
     PARCHMENT_HD = {
+        hdColour("PARCHMENT", "ASH"),
         hdColour("PARCHMENT", "CLASSIC"),
         hdColour("PARCHMENT", "AGED"),
-        hdColour("PARCHMENT", "ASH"),
     },
     RUNESTONE_HD = {
-        hdColour("RUNESTONE", "GRANITE"),
         hdColour("RUNESTONE", "SLATE", { 0.55, 0.75, 1 }),
+        hdColour("RUNESTONE", "GRANITE"),
         hdColour("RUNESTONE", "SANDSTONE", { 1, 0.8, 0.35 }),
         hdColour("RUNESTONE", "OBSIDIAN", { 0.75, 0.5, 1 }),
     },
     GLASS_HD = {
+        hdColour("GLASS", "RUBY"),
         hdColour("GLASS", "CATHEDRAL"),
         hdColour("GLASS", "SAPPHIRE"),
         hdColour("GLASS", "EMERALD"),
-        hdColour("GLASS", "RUBY"),
     },
     COMIC_HD = {
+        hdColour("COMIC", "NOIR", COMIC_YELLOW, true),
         hdColour("COMIC", "NEWSPRINT"),
         hdColour("COMIC", "PULP", COMIC_BLUE),
         hdColour("COMIC", "POP", COMIC_YELLOW),
-        hdColour("COMIC", "NOIR", COMIC_YELLOW, true),
     },
     FROST_HD = {
         hdColour("FROST", "ICE"),
@@ -429,9 +429,11 @@ function lib.ValidColor(themeId, colorId)
 end
 
 -- The colour entry in use when it is not the theme's own look, else nil.
+-- An HD colour is never the theme's own look: the first (the default) wears
+-- its backdrop, accent and paper like the others.
 function lib.Paint(themeId, colorId)
     local c = lib.Colour(themeId, colorId)
-    return c and c ~= lib.COLORS[themeId][1] and c or nil
+    return c and (c.texture or c ~= lib.COLORS[themeId][1]) and c or nil
 end
 
 -- A copy of colour c: what the helpers return is the caller's to change,
