@@ -135,7 +135,9 @@ Themes.SPECS = Lib.Specs({
             nameColor = { 0.949, 0.953, 0.961 }, valueColor = { 0.949, 0.953, 0.961 } },
         art = { line = { 0, 0, 0, 1 } },
     },
-})
+}, true) -- the HD themes too, each from its base theme's part here
+-- Glass HD is there to show its glass: the dark fill over it at 60 % (Glass: 90 %).
+Themes.SPECS.GLASS_HD.look.bgAlpha = 60
 
 -- Raised whenever SPECS change a look: theme sets made before are made
 -- anew from CLASSIC (Themes.Upgrade), so a changed theme shows as it is

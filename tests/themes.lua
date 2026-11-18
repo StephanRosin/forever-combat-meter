@@ -92,7 +92,7 @@ return function(ns, M, check, section)
             check(id .. ": font shipped", ns.Media.FontPath(spec.font) ~= ns.Media.DEFAULT.font, true)
             check(id .. ": bar texture known", ns.Media.Path("statusbar", spec.bar) ~= ns.Media.DEFAULT.statusbar, true)
             local flag = spec.outline or "OUTLINE"
-            if id == "FROST" then
+            if LibForeverThemes.BaseTheme(id) == "FROST" then
                 check(id .. ": a drop shadow, no outline", flag, "SHADOW")
             else
                 check(id .. ": client outline", flag == "OUTLINE" or flag == "THICKOUTLINE", true)
@@ -100,7 +100,24 @@ return function(ns, M, check, section)
             check(id .. ": named in the list", ns.L["THEME_" .. id] ~= "THEME_" .. id, true)
         end
     end
-    check("every theme listed", #LibForeverThemes.SpecIds(Themes.SPECS), 12)
+    check("every theme listed", #LibForeverThemes.SpecIds(Themes.SPECS), 19)
+    -- HD: each theme on its base's part, its own backdrop, named in every language.
+    for _, id in ipairs(LibForeverThemes.SpecIds(Themes.SPECS)) do
+        local base = LibForeverThemes.BaseTheme(id)
+        if base ~= id then
+            local spec, own = Themes.SPECS[id], Themes.SPECS[base]
+            check(id .. ": its base's bar", spec.bar, own.bar)
+            check(id .. ": its base's ring", spec.look.borderStyle .. spec.look.borderSize, own.look.borderStyle .. own.look.borderSize)
+            check(id .. ": its own backdrop", spec.art.back, LibForeverThemes.THEMES[id].back)
+            for code, strings in pairs(ns.Locales) do
+                check(code .. ": " .. id .. " named", strings["THEME_" .. id], strings["THEME_" .. base] .. " HD")
+                for _, colour in ipairs(LibForeverThemes.Colors(id)) do
+                    check(code .. ": " .. id .. " " .. colour .. " named",
+                        strings["THEME_COLOR_" .. id .. "_" .. colour] ~= nil, true)
+                end
+            end
+        end
+    end
     -- Title in the theme's font; rows in a font that reads at row size.
     local BODY = { WOOD = "Friz Quadrata", TECH = "Space Grotesk", RUNESTONE = "Marcellus", PIXEL = "VT323",
         PARCHMENT = "Friz Quadrata", FROST = "Julius Sans One", GLASS = "Friz Quadrata", COMIC = "Friz Quadrata",
@@ -324,11 +341,17 @@ return function(ns, M, check, section)
             local before = registry.Color()
             for _, colour in ipairs(registry.Colors()) do
                 registry.SetColor(colour)
-                check(id .. " " .. colour .. ": ring", drawnRing(), (RING_OVERRIDES[id] or {})[colour] or RINGS[id])
+                local base = LibForeverThemes.BaseTheme(id)
+                check(id .. " " .. colour .. ": ring", drawnRing(), (RING_OVERRIDES[id] or {})[colour] or RINGS[base])
             end
             registry.SetColor(before)
         end
     end
+    Themes.Switch("WOOD_HD")
+    registry.SetColor("EBONY")
+    check("HD colour: its own backdrop, untinted", back() .. " " .. table.concat(box.back._vertex, "/", 1, 3),
+        "WoodHDEbony 1/1/1")
+    registry.SetColor("OAK")
     Themes.Switch("CLASSIC")
 
     section("Themes: Swiss, Console, Pitwall, Handheld")
@@ -337,7 +360,11 @@ return function(ns, M, check, section)
     local function wedgeColor() return table.concat(wedge._vertex, "/", 1, 3) end
     local listed = {}
     for _, c in ipairs(ns.Window.PAGES[1].rows()[3].choices()) do listed[#listed + 1] = c.value end
-    check("new: in the options' list, appended", table.concat(listed, " ", 10), "SWISS CONSOLE PITWALL")
+    check("new: in the options' list, appended", table.concat(listed, " ", 10, 12), "SWISS CONSOLE PITWALL")
+    check("HD: in the options' list, after them", table.concat(listed, " ", 13),
+        "WOOD_HD TECH_HD PARCHMENT_HD RUNESTONE_HD GLASS_HD COMIC_HD FROST_HD")
+    check("glass HD: lighter fill to show the glass", Themes.SPECS.GLASS_HD.look.bgAlpha .. "/"
+        .. Themes.SPECS.GLASS.look.bgAlpha, "60/90")
     Themes.Switch("SWISS")
     check("swiss: display face for the title only", S("headerFont") .. "/" .. S("nameFont") .. "/" .. S("valueFont"),
         "Inter Tight Bold/Inter Tight/Inter Tight")

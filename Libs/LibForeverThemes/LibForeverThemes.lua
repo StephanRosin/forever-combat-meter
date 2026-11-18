@@ -20,7 +20,7 @@ Not to be confused with _G.ForeverThemes: that is the registry of the
 addons for the cross-addon theme menu (Lib.Register fills it).
 ---------------------------------------------------------------------------]]
 local FOLDER = ...
-local MINOR = 4
+local MINOR = 5
 
 local shared = _G.LibForeverThemes
 -- `or 0`: a copy before MINOR 3 could throw half way and leave no MINOR.
@@ -58,7 +58,7 @@ end
 lib.CLASSIC = "CLASSIC"
 -- In the options' order; new themes go at the end.
 lib.IDS = { "CLASSIC", "WOOD", "TECH", "PARCHMENT", "RUNESTONE", "GLASS", "COMIC", "FROST", "PIXEL", "SWISS",
-    "CONSOLE", "PITWALL" }
+    "CONSOLE", "PITWALL", "WOOD_HD", "TECH_HD", "PARCHMENT_HD", "RUNESTONE_HD", "GLASS_HD", "COMIC_HD", "FROST_HD" }
 
 -- The theme fonts have Latin letters only: on a client whose names are
 -- written otherwise a text keeps its font.
@@ -158,6 +158,32 @@ lib.THEMES = {
         rim = { 0.043, 0.047, 0.055, 1 }, font = "Titillium Web Bold Italic", bodyFont = "Titillium Web SemiBold" },
 }
 
+-- The HD themes: each is its base theme (fonts, ornaments, ring) over a
+-- finer backdrop of its own in every colour (Media/Themes/<Base>HD<Colour>,
+-- TILE_HD texels square, made by tools/hd). Drawn as it is: no grey file,
+-- no tint but the base's alpha. base: the theme an HD theme stands on.
+lib.TILE_HD = 256
+local function hd(base, back)
+    local t = {}
+    for k, v in pairs(lib.THEMES[base]) do t[k] = v end
+    t.base, t.back, t.tint, t.tile = base, back, { 1, 1, 1, t.tint and t.tint[4] or 1 }, lib.TILE_HD
+    return t
+end
+lib.THEMES.WOOD_HD = hd("WOOD", "WoodHDOak")
+lib.THEMES.TECH_HD = hd("TECH", "TechHDCarbon")
+lib.THEMES.PARCHMENT_HD = hd("PARCHMENT", "ParchmentHDClassic")
+lib.THEMES.RUNESTONE_HD = hd("RUNESTONE", "RunestoneHDGranite")
+lib.THEMES.GLASS_HD = hd("GLASS", "GlassHDCathedral")
+lib.THEMES.COMIC_HD = hd("COMIC", "ComicHDNewsprint")
+lib.THEMES.FROST_HD = hd("FROST", "FrostHDIce")
+
+-- The theme an id stands on: an HD theme's base, else the id itself (for
+-- an addon's own rules about one theme, e.g. Comic's ink).
+function lib.BaseTheme(id)
+    local t = lib.THEMES[id]
+    return t and t.base or id
+end
+
 -- One spec: the addon's part over theme id's identity.
 local function withIdentity(spec, id)
     if id ~= lib.CLASSIC then
@@ -176,10 +202,28 @@ end
 -- pairs() over a spec or its art lists the addon's own fields only.
 -- Only CLASSIC and the themes in own: a theme added to the library after
 -- the addon was written has no look there, so the addon must not offer it.
-function lib.Specs(own)
+-- withHd: also each HD theme whose base is in own, from a copy of the
+-- base's part (its backdrop file the HD one). Only an addon that names the
+-- HD themes in its texts asks for them.
+local function deepCopy(v)
+    if type(v) ~= "table" then return v end
+    local t = {}
+    for k, x in pairs(v) do t[k] = deepCopy(x) end
+    return t
+end
+
+local function hdPart(own, id)
+    local base = lib.THEMES[id].base
+    if not (base and own[base]) then return nil end
+    local part = deepCopy(own[base])
+    if part.art and part.art.back then part.art.back = nil end
+    return part
+end
+
+function lib.Specs(own, withHd)
     local specs = {}
     for _, id in ipairs(lib.IDS) do
-        local spec = own[id] or (id == lib.CLASSIC and {} or nil)
+        local spec = own[id] or (id == lib.CLASSIC and {}) or (withHd and hdPart(own, id)) or nil
         if spec then specs[id] = withIdentity(spec, id) end
     end
     return specs
@@ -213,6 +257,11 @@ local function colour(id, back, accent, rim, wedge)
 end
 local function paper(id, tint, accent, dark)
     return { id = id, paper = tint, accent = accent, dark = dark }
+end
+-- An HD colour: its backdrop file <Base>HD<Colour> (Wood, OAK -> WoodHDOak).
+local function hdColour(base, id, accent, dark)
+    local name = base:sub(1, 1) .. base:sub(2):lower() .. "HD" .. id:sub(1, 1) .. id:sub(2):lower()
+    return { id = id, texture = name, accent = accent, dark = dark }
 end
 local PICO_YELLOW = { 1, 0.93, 0.15 }
 local HANDHELD = { 0.784, 0.941, 0.439 }
@@ -303,6 +352,46 @@ lib.COLORS = {
         colour("PHOSPHOR", nil, { 0.224, 1, 0.078 }, { 0.224, 1, 0.078, 1 }),
         colour("VIOLET", nil, { 0.627, 0.471, 1 }, { 0.627, 0.471, 1, 1 }),
     },
+    -- HD: every colour its own finished backdrop (texture), no grey.
+    WOOD_HD = {
+        hdColour("WOOD", "OAK"),
+        hdColour("WOOD", "WALNUT"),
+        hdColour("WOOD", "EBONY"),
+        hdColour("WOOD", "DRIFTWOOD"),
+    },
+    TECH_HD = {
+        hdColour("TECH", "CARBON"),
+        hdColour("TECH", "STEEL", { 0.45, 0.65, 1 }),
+        hdColour("TECH", "CIRCUIT", { 0.3, 0.95, 0.45 }),
+    },
+    PARCHMENT_HD = {
+        hdColour("PARCHMENT", "CLASSIC"),
+        hdColour("PARCHMENT", "AGED"),
+        hdColour("PARCHMENT", "ASH"),
+    },
+    RUNESTONE_HD = {
+        hdColour("RUNESTONE", "GRANITE"),
+        hdColour("RUNESTONE", "SLATE", { 0.55, 0.75, 1 }),
+        hdColour("RUNESTONE", "SANDSTONE", { 1, 0.8, 0.35 }),
+        hdColour("RUNESTONE", "OBSIDIAN", { 0.75, 0.5, 1 }),
+    },
+    GLASS_HD = {
+        hdColour("GLASS", "CATHEDRAL"),
+        hdColour("GLASS", "SAPPHIRE"),
+        hdColour("GLASS", "EMERALD"),
+        hdColour("GLASS", "RUBY"),
+    },
+    COMIC_HD = {
+        hdColour("COMIC", "NEWSPRINT"),
+        hdColour("COMIC", "PULP", COMIC_BLUE),
+        hdColour("COMIC", "POP", COMIC_YELLOW),
+        hdColour("COMIC", "NOIR", COMIC_YELLOW, true),
+    },
+    FROST_HD = {
+        hdColour("FROST", "ICE"),
+        hdColour("FROST", "DEEP", { 0.6, 0.85, 1 }),
+        hdColour("FROST", "AURORA", { 0.55, 1, 0.8 }),
+    },
     -- The wedge's colour.
     PITWALL = {
         colour("RED"),
@@ -369,6 +458,8 @@ end
 -- The backdrop's texture name (art: the spec's; nil or false: none): the
 -- grey one under a colour that tints it.
 function lib.Back(art, themeId, colorId)
+    local c = art.back and lib.Paint(themeId, colorId)
+    if c and c.texture then return c.texture end
     return greyBack(art, themeId, colorId) and art.back .. "Grey" or art.back
 end
 
@@ -409,7 +500,7 @@ end
 
 -- Whether the comic's paper in use is dark (light ink on it).
 function lib.DarkPaper(themeId, colorId)
-    local c = themeId == "COMIC" and lib.Paint(themeId, colorId)
+    local c = lib.BaseTheme(themeId) == "COMIC" and lib.Paint(themeId, colorId)
     return c and c.dark == true or false
 end
 
