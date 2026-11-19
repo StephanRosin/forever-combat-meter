@@ -299,12 +299,16 @@ return function(ns, M, check, section)
             Themes.Reset()
             local extent = ns.Border.Extent({ style = S("borderStyle"), size = S("borderSize") })
             local p = f.themeBox._points
-            check(id .. ": ring's outer edge on the window's edge", p.TOPLEFT[3] .. "," .. p.BOTTOMRIGHT[4],
-                extent .. "," .. extent)
+            -- A framed theme's frame (Azeroth, Goblin) lies inside the edge, the ring inside it.
+            local fw = Themes.Spec(id).art.frame and ns.Border.Snap(Themes.Spec(id).art.frameSize, 1) or 0
+            check(id .. ": ring's outer edge on the window's edge (or the frame's inner one)",
+                p.TOPLEFT[3] .. "," .. p.BOTTOMRIGHT[4], (extent + fw) .. "," .. (extent + fw))
             local piece = ns.Border.Pieces(f)[1]
             check(id .. ": ring as thick as its inset", piece:IsShown() and piece._h or 0, extent)
             check(id .. ": same width as Classic", f:GetWidth(), classicW)
-            check(id .. ": same height as Classic", f:GetHeight(), classicH)
+            -- A frame inside the edge takes its width above and below: as tall
+            -- on screen as when it lay outside.
+            check(id .. ": same height as Classic (and its frame)", f:GetHeight(), classicH + 2 * fw)
             -- A framed theme's frame (Azeroth, Goblin) runs round the outside,
             -- its ornaments on its corners: nothing else goes out.
             local frame = Themes.Spec(id).art.frame and ns.Border.Snap(Themes.Spec(id).art.frameSize, 1) or 0
@@ -477,9 +481,9 @@ return function(ns, M, check, section)
     end
     check("azeroth: walnut frame on four sides", framed, 4)
     local top = box.frame[1]._points.TOPLEFT
-    check("azeroth: frame outside the window, 7 wide", top[1] == f and top[4] == 7 and top[3] == -7, true)
-    check("azeroth: no frame over the window", box.frame[1]._points.BOTTOMRIGHT[4], 0)
-    local inset = ns.Border.Extent({ style = S("borderStyle"), size = S("borderSize") })
+    check("azeroth: frame inside the window's edge, 7 wide", top[1] == f and top[3] == 0 and top[4] == 0
+        and box.frame[1]._points.BOTTOMRIGHT[4] == -7, true)
+    local inset = ns.Border.Extent({ style = S("borderStyle"), size = S("borderSize") }) + ns.ThemeArt.FrameWidth()
     local bannerH = f.header:GetHeight() - inset
     local endW = math.floor(bannerH / 2 + 0.5)
     check("azeroth: banner as high as the header inside the ring", box.banner:IsShown() and file(box.banner) .. " "

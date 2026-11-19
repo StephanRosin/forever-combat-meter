@@ -169,13 +169,14 @@ end
 local function heightFor(rows)
     local lk = Windows.Look()
     local barH, spacing = S("barHeight"), S("barSpacing")
-    return lk.header + 2 * S("padding") + rows * barH + (rows - 1) * spacing
+    return lk.header + 2 * S("padding") + ns.ThemeArt.FrameWidth() + rows * barH + (rows - 1) * spacing
 end
 
 local function rowsFor(height)
     local lk = Windows.Look()
     local barH, spacing = S("barHeight"), S("barSpacing")
-    return math.floor((height - lk.header - 2 * S("padding") + spacing) / (barH + spacing) + 1e-6)
+    return math.floor((height - lk.header - 2 * S("padding") - ns.ThemeArt.FrameWidth() + spacing)
+        / (barH + spacing) + 1e-6)
 end
 
 local function stopMoving(f)
@@ -210,7 +211,8 @@ end
 
 local function layoutRows(f, lk, count, width)
     local barH, spacing, pad = S("barHeight"), S("barSpacing"), S("padding")
-    local inner = width - 2 * pad
+    local side = pad + ns.ThemeArt.FrameWidth()   -- inside a material frame
+    local inner = width - 2 * side
     local barWidth = inner - barH - ICON_GAP
     local texture = Media.Path("statusbar", S("barTexture"))
     local nameStyle, valueStyle = Settings.TextStyle("name"), Settings.TextStyle("value")
@@ -219,7 +221,7 @@ local function layoutRows(f, lk, count, width)
         local row = f.rows[k] or newRow(f, k)
         row:SetSize(barWidth, barH)
         row:ClearAllPoints()
-        row:SetPoint("TOPLEFT", f.body, "TOPLEFT", pad + barH + ICON_GAP, -(pad + (k - 1) * (barH + spacing)))
+        row:SetPoint("TOPLEFT", f.body, "TOPLEFT", side + barH + ICON_GAP, -(pad + (k - 1) * (barH + spacing)))
         row:SetStatusBarTexture(texture)
         row.icon:SetSize(barH, barH)
         row.icon:ClearAllPoints()

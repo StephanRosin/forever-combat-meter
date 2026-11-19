@@ -101,15 +101,23 @@ end
 -- corners, repeating at its own size. The one theme part beyond the window's
 -- edge: the library's frames run round the ring, which here is the edge.
 -- Returns how wide it is (0 without one).
+-- The material frame's width (Azeroth, Goblin), 0 without one. It lies
+-- inside the window's edge, the ring inside it: windows stacked edge to edge
+-- stay flush with each other as under every other theme.
+function ThemeArt.FrameWidth()
+    local art = ns.Themes.Spec(ns.Settings.Get("theme")).art
+    return art and art.frame and ns.Border.Snap(art.frameSize, 1) or 0
+end
+
 local function placeFrame(f, box, art)
     for _, s in ipairs(box.frame) do s:SetShown(art.frame ~= nil) end
     if not art.frame then return 0 end
     local w = ns.Border.Snap(art.frameSize, 1)
     local spots = {
-        { "TOPLEFT", -w, w, "TOPRIGHT", w, 0 },
-        { "BOTTOMLEFT", -w, 0, "BOTTOMRIGHT", w, -w },
-        { "TOPLEFT", -w, 0, "BOTTOMLEFT", 0, 0 },
-        { "TOPRIGHT", 0, 0, "BOTTOMRIGHT", w, 0 },
+        { "TOPLEFT", 0, 0, "TOPRIGHT", 0, -w },
+        { "BOTTOMLEFT", 0, w, "BOTTOMRIGHT", 0, 0 },
+        { "TOPLEFT", 0, -w, "BOTTOMLEFT", w, w },
+        { "TOPRIGHT", -w, -w, "BOTTOMRIGHT", 0, w },
     }
     for i, s in ipairs(box.frame) do
         local p = spots[i]
@@ -140,6 +148,7 @@ function ThemeArt.BannerEnd(header)
     local art = ns.Themes.Spec(ns.Settings.Get("theme")).art
     if not (art and art.banner and art.bannerEnd) then return 0 end
     local inset = ns.Border.Extent({ style = ns.Settings.Get("borderStyle"), size = ns.Settings.Get("borderSize") })
+        + ThemeArt.FrameWidth()
     return inset + math.floor(bannerHeight(art, header, inset) * BANNER_END + 0.5)
 end
 
@@ -250,9 +259,10 @@ function ThemeArt.Style(f, spec, radius, extent, padding)
         return f
     end
     local box = f.themeBox or build(f)
+    local inset = extent + ThemeArt.FrameWidth()
     box:ClearAllPoints()
-    box:SetPoint("TOPLEFT", f, "TOPLEFT", extent, -extent)
-    box:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -extent, extent)
+    box:SetPoint("TOPLEFT", f, "TOPLEFT", inset, -inset)
+    box:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -inset, inset)
     box:Show()
     box.over:Show()
     -- The background colour behind the bars only: the padding shows the
@@ -261,8 +271,9 @@ function ThemeArt.Style(f, spec, radius, extent, padding)
     f.bg:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -padding, padding)
     paintBack(box.back, art)
     ns.Corners.Fit(box.clip, box, radius, { box.back })
-    placeOrnaments(f, box, art, placeFrame(f, box, art))
-    placeBanner(f, box, art, extent)
+    placeFrame(f, box, art)
+    placeOrnaments(f, box, art, 0)
+    placeBanner(f, box, art, inset)
     placeBand(box, art)
     placeWedge(f, box, art, extent)
     if f.header then styleHeader(f.header, art) end

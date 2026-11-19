@@ -67,8 +67,10 @@ local function look()
     local lk = LOOKS[S("style")] or LOOKS.FOREVER
     local art = ns.Themes.Spec(S("theme")).art
     if not (art and art.banner) then return lk end
-    local stripe = art.bannerHeight or 0
-    return setmetatable({ header = math.max(lk.header, BANNER_HEADER), titleDelta = 0, titleDrop = stripe / 2 },
+    -- A material frame inside the window's edge: the header taller by its width.
+    local stripe, frame = art.bannerHeight or 0, ns.ThemeArt.FrameWidth()
+    return setmetatable({ header = math.max(lk.header, BANNER_HEADER) + frame, titleDelta = 0,
+        titleDrop = (stripe + frame) / 2 },
         { __index = lk })
 end
 
@@ -330,7 +332,9 @@ end
 local function layoutBars(f, lk)
     local cfg = f.cfg
     local barH, spacing = S("barHeight"), S("barSpacing")
-    local inner = cfg.width - 2 * S("padding")
+    -- Inside a material frame the bars stand its width further in.
+    local pad = S("padding") + ns.ThemeArt.FrameWidth()
+    local inner = cfg.width - 2 * pad
     local texture = Media.Path("statusbar", S("barTexture"))
     local nameStyle, valueStyle = Settings.TextStyle("name"), Settings.TextStyle("value")
     local showIcon = S("showIcon")
@@ -338,7 +342,7 @@ local function layoutBars(f, lk)
         local bar = f.bars[k] or Windows.NewBar(f, k)
         bar:SetSize(inner, barH)
         bar:ClearAllPoints()
-        bar:SetPoint("TOPLEFT", f.body, "TOPLEFT", S("padding"), -(S("padding") + (k - 1) * (barH + spacing)))
+        bar:SetPoint("TOPLEFT", f.body, "TOPLEFT", pad, -(S("padding") + (k - 1) * (barH + spacing)))
         bar:SetStatusBarTexture(texture)
         local iconSize = math.max(4, barH - 2)
         bar.icon:SetSize(iconSize, iconSize)
@@ -374,7 +378,7 @@ local function layout(i)
     local barH, spacing = S("barHeight"), S("barSpacing")
     f:SetScale(cfg.scale / 100)
     f:SetWidth(cfg.width)
-    f:SetHeight(lk.header + 2 * S("padding") + cfg.rows * barH + (cfg.rows - 1) * spacing)
+    f:SetHeight(lk.header + 2 * S("padding") + ns.ThemeArt.FrameWidth() + cfg.rows * barH + (cfg.rows - 1) * spacing)
     if not f.moving then place(f) end
     layoutHeader(f, lk)
     layoutBars(f, lk)
@@ -757,14 +761,16 @@ end
 local function rowsFor(height)
     local lk = look()
     local barH, spacing = S("barHeight"), S("barSpacing")
-    local rows = math.floor((height - lk.header - 2 * S("padding") + spacing) / (barH + spacing) + 1e-6)
+    local rows = math.floor((height - lk.header - 2 * S("padding") - ns.ThemeArt.FrameWidth() + spacing)
+        / (barH + spacing) + 1e-6)
     return math.max(ROWS_RANGE[1], math.min(ROWS_RANGE[2], rows))
 end
 
 local function heightFor(rows)
     local lk = look()
     local barH, spacing = S("barHeight"), S("barSpacing")
-    return lk.header + 2 * S("padding") + rows * barH + (rows - 1) * spacing
+    -- The bottom of a material frame below the bars (its top is in the header).
+    return lk.header + 2 * S("padding") + ns.ThemeArt.FrameWidth() + rows * barH + (rows - 1) * spacing
 end
 
 -- The corner arrows (Resize.lua): live size in layout(), one write on the drop.
