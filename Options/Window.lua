@@ -155,14 +155,19 @@ local function themeColorRow()
     return {
         type = "select", label = "OPT_THEME_COLOR",
         choices = function()
-            local list, theme = {}, ns.Themes.Current()
-            for _, id in ipairs(ns.Themes.Colors()) do
-                list[#list + 1] = { label = L["THEME_COLOR_" .. theme .. "_" .. id], value = id }
+            local Lib, list = LibForeverThemes, {}
+            for _, e in ipairs(Lib.MenuColors(ns.Themes.SPECS, ns.Themes.Current())) do
+                local label = L["THEME_COLOR_" .. e.theme .. "_" .. e.color]
+                list[#list + 1] = { label = e.hd and "HD " .. label or label, value = Lib.MenuValue(e.theme, e.color) }
             end
             return list
         end,
-        get = function() return ns.Themes.Color() end,
-        set = function(v) refused(ns.Themes.SetColor(v)) end,
+        get = function() return LibForeverThemes.MenuValue(ns.Themes.Current(), ns.Themes.Color()) end,
+        -- An HD colour switches to the HD theme (same settings), a plain one back.
+        set = function(v)
+            local theme, color = LibForeverThemes.ParseMenuValue(v)
+            if refused(ns.Themes.Switch(theme)) then refused(ns.Themes.SetColor(color, theme)) end
+        end,
     }
 end
 
@@ -182,8 +187,14 @@ end
 
 -- The theme first: it swaps every other setting (Themes.lua).
 local function themeRows()
-    local theme = choice("theme", "OPT_THEME_PICK", LibForeverThemes.SpecIds(ns.Themes.SPECS), "THEME_")
-    theme.set = function(v) refused(ns.Themes.Switch(v)) end
+    -- HD themes are colours of their base (colour row below).
+    local theme = choice("theme", "OPT_THEME_PICK", LibForeverThemes.MenuIds(LibForeverThemes.SpecIds(ns.Themes.SPECS)), "THEME_")
+    theme.get = function() return LibForeverThemes.BaseTheme(ns.Themes.Current()) end
+    theme.set = function(v)
+        -- The base already shown (its HD theme in use): HD stays.
+        if v == LibForeverThemes.BaseTheme(ns.Themes.Current()) then return end
+        refused(ns.Themes.Switch(v))
+    end
     return {
         { type = "header", label = "OPT_THEME" },
         { type = "text", label = "OPT_THEME_HINT", height = 88 },

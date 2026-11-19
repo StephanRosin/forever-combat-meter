@@ -361,8 +361,7 @@ return function(ns, M, check, section)
     local listed = {}
     for _, c in ipairs(ns.Window.PAGES[1].rows()[3].choices()) do listed[#listed + 1] = c.value end
     check("new: in the options' list, appended", table.concat(listed, " ", 10, 12), "SWISS CONSOLE PITWALL")
-    check("HD: in the options' list, after them", table.concat(listed, " ", 13),
-        "WOOD_HD TECH_HD PARCHMENT_HD RUNESTONE_HD GLASS_HD COMIC_HD FROST_HD")
+    check("HD: not in the options' list (colours of their base)", listed[13], nil)
     check("glass HD: lighter fill to show the glass", Themes.SPECS.GLASS_HD.look.bgAlpha .. "/"
         .. Themes.SPECS.GLASS.look.bgAlpha, "60/90")
     Themes.Switch("SWISS")
@@ -486,13 +485,73 @@ return function(ns, M, check, section)
     check("no reset for Classic", first[11].visible(), false)
     check("no colour under Classic", first[4].visible(), false)
     first[3].set("COMIC")
-    check("colour under Comic", first[4].visible() and first[4].get(), "GREY")
+    check("colour under Comic", first[4].visible() and first[4].get(), "COMIC:GREY")
     first[3].set("PIXEL")
     check("colour: pixel's nine", #first[4].choices() .. " " .. first[4].choices()[9].label, "9 Handheld")
-    first[4].set("TEAL")
+    first[4].set("PIXEL:TEAL")
     check("colour: set from the options", Themes.Color(), "TEAL")
-    first[4].set("NAVY")
+    first[4].set("PIXEL:NAVY")
     first[3].set("CLASSIC")
+
+    section("Themes: HD as colours of their base")
+    local function sets() return ns.DB().themeSets end
+    local function clone(t)
+        if type(t) ~= "table" then return t end
+        local c = {}
+        for k, v in pairs(t) do if k ~= "themeSets" then c[k] = clone(v) end end
+        return c
+    end
+    first[3].set("WOOD")
+    local woodColors = #LibForeverThemes.Colors("WOOD")
+    check("hd: wood's colours, then HD", #first[4].choices() .. " " .. first[4].choices()[woodColors + 1].label,
+        woodColors + #LibForeverThemes.Colors("WOOD_HD") .. " HD " .. ns.L.THEME_COLOR_WOOD_HD_EBONY)
+    Settings.Set("barHeight", 22)
+    first[4].set("WOOD_HD:EBONY")
+    check("wood -> wood hd: settings kept", S("barHeight"), 22)
+    check("wood -> wood hd: theme and colour", Themes.Current() .. " " .. Themes.Color(), "WOOD_HD EBONY")
+    check("wood hd: menus show base and HD colour", first[3].get() .. " " .. first[4].get(), "WOOD WOOD_HD:EBONY")
+    check("wood hd: no own set stored", sets().WOOD_HD, nil)
+    first[3].set("WOOD")
+    check("wood hd: choosing wood in the theme menu keeps HD", Themes.Current(), "WOOD_HD")
+    Themes.Switch("PIXEL")
+    check("wood hd: stored under wood", sets().WOOD.barHeight, 22)
+    local stored = table.concat(Themes.Stored(), " ")
+    check("copy from: wood listed, no HD", stored:find("_HD") == nil and stored:find("WOOD") ~= nil, true)
+    Themes.Switch("WOOD")
+    check("pixel -> wood: the shared set", S("barHeight"), 22)
+    -- Sets kept apart before LibForeverThemes 9, merged once: a customised HD set wins.
+    Themes.Switch("WOOD_HD")
+    Themes.Reset()
+    local plainHD = clone(ns.DB())
+    Themes.Switch("PIXEL")
+    sets().WOOD_HD = clone(plainHD)
+    sets().WOOD.barHeight, sets().WOOD.theme = 21, "WOOD"
+    sets().hdMerged = nil
+    Themes.Upgrade()
+    check("merge: plain HD set, wood's stays", sets().WOOD.barHeight, 21)
+    check("merge: HD set gone", sets().WOOD_HD, nil)
+    sets().WOOD_HD = clone(plainHD)
+    sets().WOOD_HD.barHeight = 33
+    sets().hdMerged = nil
+    Themes.Upgrade()
+    check("merge: customised HD set wins", sets().WOOD.barHeight .. " " .. sets().WOOD.theme, "33 WOOD")
+    -- On the HD theme itself: its live settings win when customised, else wood's.
+    local function onHD(barHeight)
+        Themes.Switch("WOOD")
+        local db = ns.DB()
+        for k in pairs(db) do if k ~= "themeSets" then db[k] = nil end end
+        for k, v in pairs(clone(plainHD)) do db[k] = v end
+        db.theme, db.barHeight = "WOOD_HD", barHeight
+        sets().WOOD = clone(plainHD)
+        sets().WOOD.barHeight, sets().WOOD.theme = 19, "WOOD"
+        sets().hdMerged = nil
+        Themes.Upgrade()
+        return S("barHeight") .. " " .. Themes.Current() .. " " .. tostring(sets().WOOD)
+    end
+    check("merge: on customised HD, it stays live", onHD(24), "24 WOOD_HD nil")
+    check("merge: on plain HD, wood's set goes live", onHD(plainHD.barHeight), "19 WOOD_HD nil")
+    Themes.Switch("CLASSIC")
+    sets().WOOD = nil
 
     section("Themes: picker registry")
     local entry = ForeverThemes and ForeverThemes.ForeverCombatMeter

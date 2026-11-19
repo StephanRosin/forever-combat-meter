@@ -20,7 +20,7 @@ Not to be confused with _G.ForeverThemes: that is the registry of the
 addons for the cross-addon theme menu (Lib.Register fills it).
 ---------------------------------------------------------------------------]]
 local FOLDER = ...
-local MINOR = 8
+local MINOR = 9
 
 local shared = _G.LibForeverThemes
 -- `or 0`: a copy before MINOR 3 could throw half way and leave no MINOR.
@@ -236,6 +236,87 @@ function lib.SpecIds(specs)
         if specs[id] then ids[#ids + 1] = id end
     end
     return ids
+end
+
+-- HD in the menus (MINOR 9): an HD theme is no entry of the theme menu but
+-- a group of colours of its base ("Technology > HD Carbon"). Ids, stored
+-- settings and the registry stay as they were: TECH_HD with CARBON is still
+-- what is saved, so a choice made before shows at its new place, and
+-- addons with an older copy keep working. A base and its HD theme share one
+-- set of settings (SetKey): changing between their colours moves nothing.
+
+-- Where a theme's settings are kept: the base's place for an HD theme.
+function lib.SetKey(id)
+    return lib.BaseTheme(id)
+end
+
+-- The theme menu's ids: ids (an addon's SpecIds) without the HD themes.
+function lib.MenuIds(ids)
+    local list = {}
+    for _, id in ipairs(ids) do
+        if lib.BaseTheme(id) == id then list[#list + 1] = id end
+    end
+    return list
+end
+
+-- The colour menu under theme id (base or HD) for an addon with specs:
+-- { theme, color, hd } in order, the base's colours first, then its HD
+-- theme's where specs has it. Choosing an entry is Switch(theme), then
+-- SetColor(color, theme).
+function lib.MenuColors(specs, id)
+    local base, list = lib.BaseTheme(id), {}
+    for _, themeId in ipairs(lib.IDS) do
+        if specs[themeId] and lib.BaseTheme(themeId) == base then
+            local hd = themeId ~= base
+            for _, color in ipairs(lib.Colors(themeId)) do
+                list[#list + 1] = { theme = themeId, color = color, hd = hd }
+            end
+        end
+    end
+    return list
+end
+
+-- One value for a menu entry and back: "TECH_HD:CARBON".
+function lib.MenuValue(themeId, colorId) return themeId .. ":" .. tostring(colorId) end
+function lib.ParseMenuValue(value)
+    local themeId, colorId = tostring(value):match("^([^:]+):(.+)$")
+    return themeId, colorId
+end
+
+-- Base and HD settings made one, once per profile (sets.hdMerged), for an
+-- addon whose sets were kept per theme before. sets: the stored sets by id
+-- (not the live one); current: the live theme; live: a copy of the live
+-- settings; customised(hdId, set): whether set differs from what choosing
+-- hdId afresh would make. The HD set wins when it was customised or the
+-- base has none, else the base's stays. Returns the settings to make live
+-- (theme field set) when they change, else nil; sets is changed in place.
+function lib.MergeHD(sets, current, live, customised)
+    if sets.hdMerged then return nil end
+    sets.hdMerged = true
+    local newLive
+    for _, hdId in ipairs(lib.IDS) do
+        local base = lib.BaseTheme(hdId)
+        if base ~= hdId then
+            local hdSet = current == hdId and live or sets[hdId]
+            local baseSet = current == base and live or sets[base]
+            if hdSet then
+                local hdWins = not baseSet or customised(hdId, hdSet)
+                local winner = hdWins and hdSet or baseSet
+                if current == hdId or current == base then
+                    if winner ~= live then
+                        newLive = deepCopy(winner)
+                        newLive.theme = current
+                    end
+                else
+                    sets[base] = deepCopy(winner)
+                    sets[base].theme = base
+                end
+                sets[hdId] = nil
+                if current == hdId or current == base then sets[base] = nil end
+            end
+        end
+    end
+    return newLive
 end
 
 
