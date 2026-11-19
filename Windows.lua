@@ -59,7 +59,18 @@ local hiddenAll = false   -- /fcm toggle; for this session only
 local tickWait, burstLeft = 0, 0
 local fontKey
 
-local function look() return LOOKS[S("style")] or LOOKS.FOREVER end
+-- A banner (Azeroth's, Goblin's stripes) needs the full header: in the
+-- compact one the title stood taller than the banner or ran into the stripes;
+-- below a stripe (art.bannerHeight) the title moves down into the room under it.
+local BANNER_HEADER = 24
+local function look()
+    local lk = LOOKS[S("style")] or LOOKS.FOREVER
+    local art = ns.Themes.Spec(S("theme")).art
+    if not (art and art.banner) then return lk end
+    local stripe = art.bannerHeight or 0
+    return setmetatable({ header = math.max(lk.header, BANNER_HEADER), titleDelta = 0, titleDrop = stripe / 2 },
+        { __index = lk })
+end
 
 local function clamp(v, range)
     return math.max(range[1], math.min(range[2], math.floor(v + 0.5)))
@@ -295,7 +306,7 @@ local function layoutHeader(f, lk)
         if k == 1 then
             -- Clear of a banner's right end (Azeroth).
             local edge = ns.ThemeArt.BannerEnd(lk.header)
-            button:SetPoint("RIGHT", h, "RIGHT", edge > 0 and -edge or lk.glow and -4 or -2, 0)
+            button:SetPoint("RIGHT", h, "RIGHT", edge > 0 and -edge or lk.glow and -4 or -2, -(lk.titleDrop or 0))
         else
             button:SetPoint("RIGHT", order[k - 1], "LEFT", -1, 0)
         end
@@ -309,9 +320,10 @@ local function layoutHeader(f, lk)
     -- Past a theme's wedge the grip (or, locked, the title) comes first.
     local indent = ns.ThemeArt.TitleIndent(lk.header)
     local gripX = indent > 0 and indent or 8
-    h.grip:SetPoint("LEFT", gripX, 0)
+    local drop = -(lk.titleDrop or 0)
+    h.grip:SetPoint("LEFT", gripX, drop)
     h.title:SetPoint("LEFT", h, "LEFT", indent > 0 and (h.grip:IsShown() and gripX + 16 or indent)
-        or (lk.glow and (unlocked and 24 or 8) or 4), 0)
+        or (lk.glow and (unlocked and 24 or 8) or 4), drop)
     h.title:SetPoint("RIGHT", order[#order], "LEFT", -4, 0)
 end
 
