@@ -78,6 +78,8 @@ end
 -- The profile's look, then the hub's theme again where the addon follows
 -- it (the profile brought its own).
 local function applyLook()
+    -- Its theme sets may still be apart from before (HD merge), as at login.
+    if ns.Themes then ns.Themes.Upgrade() end
     if ns.Settings then ns.Settings.Changed(nil) end
     LibForeverThemes.HubSync()
 end
