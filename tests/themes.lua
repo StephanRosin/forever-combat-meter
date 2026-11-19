@@ -100,7 +100,7 @@ return function(ns, M, check, section)
             check(id .. ": named in the list", ns.L["THEME_" .. id] ~= "THEME_" .. id, true)
         end
     end
-    check("every theme listed", #LibForeverThemes.SpecIds(Themes.SPECS), 19)
+    check("every theme listed", #LibForeverThemes.SpecIds(Themes.SPECS), 21)
     -- HD: each theme on its base's part, its own backdrop, named in every language.
     for _, id in ipairs(LibForeverThemes.SpecIds(Themes.SPECS)) do
         local base = LibForeverThemes.BaseTheme(id)
@@ -121,7 +121,8 @@ return function(ns, M, check, section)
     -- Title in the theme's font; rows in a font that reads at row size.
     local BODY = { WOOD = "Friz Quadrata", TECH = "Space Grotesk", RUNESTONE = "Marcellus", PIXEL = "VT323",
         PARCHMENT = "Friz Quadrata", FROST = "Julius Sans One", GLASS = "Friz Quadrata", COMIC = "Friz Quadrata",
-        SWISS = "Inter Tight", CONSOLE = "IBM Plex Sans Condensed Bold", PITWALL = "Titillium Web SemiBold" }
+        SWISS = "Inter Tight", CONSOLE = "IBM Plex Sans Condensed Bold", PITWALL = "Titillium Web SemiBold",
+        AZEROTH = "Alegreya", GOBLIN = "Rubik Medium" }
     for id, body in pairs(BODY) do
         Themes.Switch(id)
         Themes.Reset()   -- FROST is stored from the koKR run above
@@ -304,11 +305,15 @@ return function(ns, M, check, section)
             check(id .. ": ring as thick as its inset", piece:IsShown() and piece._h or 0, extent)
             check(id .. ": same width as Classic", f:GetWidth(), classicW)
             check(id .. ": same height as Classic", f:GetHeight(), classicH)
+            -- A framed theme's frame (Azeroth, Goblin) runs round the outside,
+            -- its ornaments on its corners: nothing else goes out.
+            local frame = Themes.Spec(id).art.frame and ns.Border.Snap(Themes.Spec(id).art.frameSize, 1) or 0
             for i, o in ipairs(f.themeBox.ornaments) do
                 if o:IsShown() then
                     local point, rel, _, dx, dy = o:GetPoint()
-                    check(id .. ": ornament " .. i .. " inside the corner",
-                        rel == f and dx * ((i == 1 or i == 3) and 1 or -1) >= 0 and dy * (i <= 2 and -1 or 1) >= 0, true)
+                    check(id .. ": ornament " .. i .. " inside the corner (a frame's outer corner)",
+                        rel == f and dx * ((i == 1 or i == 3) and 1 or -1) >= -frame
+                        and dy * (i <= 2 and -1 or 1) >= -frame, true)
                 end
             end
             check(id .. ": no solid shadow", f.themeBox.shadow, nil)
@@ -327,6 +332,7 @@ return function(ns, M, check, section)
         WOOD = "GOLD", TECH = "0.25/0.88/0.94/0.9", PARCHMENT = "0.29/0.2/0.12/1", RUNESTONE = "0.1/0.1/0.12/1",
         GLASS = "0.07/0.06/0.05/1", COMIC = "0.07/0.07/0.07/1", FROST = "0.86/0.96/1/0.8", PIXEL = "1/0.95/0.91/1",
         SWISS = "0.165/0.165/0.165/1", CONSOLE = "0.306/0.929/0.69/1", PITWALL = "0.043/0.047/0.055/1",
+        AZEROTH = "0.79/0.635/0.29/1", GOBLIN = "0.23/0.11/0.05/1",
     }
     local RING_OVERRIDES = { CONSOLE = { AMBER = "1/0.69/0/1", PHOSPHOR = "0.224/1/0.078/1",
         VIOLET = "0.627/0.471/1/1" }, PIXEL = { HANDHELD = "0.784/0.941/0.439/1" } }
@@ -361,7 +367,8 @@ return function(ns, M, check, section)
     local listed = {}
     for _, c in ipairs(ns.Window.PAGES[1].rows()[3].choices()) do listed[#listed + 1] = c.value end
     check("new: in the options' list, appended", table.concat(listed, " ", 10, 12), "SWISS CONSOLE PITWALL")
-    check("HD: not in the options' list (colours of their base)", listed[13], nil)
+    check("framed: in the options' list, appended", table.concat(listed, " ", 13, 14), "AZEROTH GOBLIN")
+    check("HD: not in the options' list (colours of their base)", listed[15], nil)
     check("glass HD: lighter fill to show the glass", Themes.SPECS.GLASS_HD.look.bgAlpha .. "/"
         .. Themes.SPECS.GLASS.look.bgAlpha, "60/90")
     Themes.Switch("SWISS")
@@ -456,6 +463,59 @@ return function(ns, M, check, section)
     check("Classic: no band, plain dark strip", box.band:IsShown() and "band" or table.concat(f.header.dark._texColor, "/"),
         "0/0/0/0.35")
     check("Classic after the new themes", ns.Share.Export(), classic)
+
+    -- The framed themes (LibForeverThemes 10): a material frame round the
+    -- window, a textured title band, on the breakdown panel too.
+    section("Themes: Azeroth and Goblin")
+    local function file(tex) return tex._texture and tex._texture:match("[^\\]+$") end
+    Themes.Switch("AZEROTH")
+    check("azeroth: fonts", S("headerFont") .. "/" .. S("nameFont"), "Cinzel/Alegreya")
+    check("azeroth: light parchment from its own file", back(), "AzerothParchment")
+    local framed = 0
+    for _, strip in ipairs(box.frame) do
+        if strip:IsShown() and file(strip) == "WoodHDWalnut" then framed = framed + 1 end
+    end
+    check("azeroth: walnut frame on four sides", framed, 4)
+    local top = box.frame[1]._points.TOPLEFT
+    check("azeroth: frame outside the window, 7 wide", top[1] == f and top[4] == 7 and top[3] == -7, true)
+    check("azeroth: no frame over the window", box.frame[1]._points.BOTTOMRIGHT[4], 0)
+    local inset = ns.Border.Extent({ style = S("borderStyle"), size = S("borderSize") })
+    local bannerH = f.header:GetHeight() - inset
+    local endW = math.floor(bannerH / 2 + 0.5)
+    check("azeroth: banner as high as the header inside the ring", box.banner:IsShown() and file(box.banner) .. " "
+        .. box.banner._h, "AzerothBanner " .. bannerH)
+    check("azeroth: banner between its ends", box.banner._points.TOPLEFT[3] .. "/" .. box.banner._points.TOPRIGHT[3],
+        endW .. "/" .. -endW)
+    check("azeroth: banner ends, the right one mirrored", box.ends[1]:IsShown() and box.ends[2]:IsShown()
+        and box.ends[1]._texCoord[1] .. "/" .. box.ends[2]._texCoord[1], "0/1")
+    check("azeroth: grip past the banner's end", f.header.grip._points.LEFT[3], inset + endW)
+    check("azeroth: icons clear of the right end", f.header.buttons.menu._points.RIGHT[3], -(inset + endW))
+    check("azeroth: gold title on the banner", title(), "1/0.82/0")
+    check("azeroth: gold icons", table.concat(gear.icon._vertex, "/", 1, 3), "1/0.82/0")
+    check("azeroth: rows keep light outlined text (on their bars)", S("nameFlag") .. " " .. S("valueFlag"),
+        "OUTLINE OUTLINE")
+    check("azeroth: a track behind every row, so its text stands on a bar", S("barBgAlpha"), 40)
+    check("azeroth: the empty note in ink", select(1, f.empty:GetTextColor()), 0.2)
+    check("azeroth: gold corners on the frame", box.ornaments[1]:IsShown() and file(box.ornaments[1]) .. " "
+        .. box.ornaments[1]._points.TOPLEFT[3], "Bracket -7")
+    ns.Detail.Open(1, { name = "Testfigur", class = "MAGE", isLocalPlayer = true })
+    local panel = ns.Detail.Frame()
+    check("azeroth: the breakdown on the banner too", panel.themeBox.banner:IsShown()
+        and panel.themeBox.ends[1]:IsShown() and panel.themeBox.frame[1]:IsShown(), true)
+    panel:Hide()
+    Themes.Switch("GOBLIN")
+    check("goblin: fonts", S("headerFont") .. "/" .. S("nameFont"), "Bungee/Rubik Medium")
+    check("goblin: a point smaller title", S("headerSize"), Settings.DEFAULTS.headerSize - 1)
+    check("goblin: copper frame", box.frame[1]:IsShown() and file(box.frame[1]), "GoblinCopper")
+    check("goblin: hazard strip 5 high, no text on it", file(box.banner) .. " " .. box.banner._h, "GoblinHazard 5")
+    check("goblin: the stripes repeat at their size", box.banner:GetHorizTile(), true)
+    check("goblin: no banner ends", box.ends[1]:IsShown(), false)
+    check("goblin: title where it was", f.header.grip._points.LEFT[3], 8)
+    Themes.Switch("SWISS")
+    check("swiss after them: no frame, no banner", box.frame[1]:IsShown() or box.banner:IsShown()
+        or box.ends[1]:IsShown(), false)
+    check("swiss after them: the empty note grey again", select(1, f.empty:GetTextColor()), 0.6)
+    Themes.Switch("CLASSIC")
 
     section("Themes: combat, profile, export")
     M.state.combat = true

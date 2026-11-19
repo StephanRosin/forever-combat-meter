@@ -20,7 +20,7 @@ Not to be confused with _G.ForeverThemes: that is the registry of the
 addons for the cross-addon theme menu (Lib.Register fills it).
 ---------------------------------------------------------------------------]]
 local FOLDER = ...
-local MINOR = 9
+local MINOR = 10
 
 local shared = _G.LibForeverThemes
 -- `or 0`: a copy before MINOR 3 could throw half way and leave no MINOR.
@@ -58,7 +58,8 @@ end
 lib.CLASSIC = "CLASSIC"
 -- In the options' order; new themes go at the end.
 lib.IDS = { "CLASSIC", "WOOD", "TECH", "PARCHMENT", "RUNESTONE", "GLASS", "COMIC", "FROST", "PIXEL", "SWISS",
-    "CONSOLE", "PITWALL", "WOOD_HD", "TECH_HD", "PARCHMENT_HD", "RUNESTONE_HD", "GLASS_HD", "COMIC_HD", "FROST_HD" }
+    "CONSOLE", "PITWALL", "WOOD_HD", "TECH_HD", "PARCHMENT_HD", "RUNESTONE_HD", "GLASS_HD", "COMIC_HD", "FROST_HD",
+    "AZEROTH", "GOBLIN" }
 
 -- The theme fonts have Latin letters only: on a client whose names are
 -- written otherwise a text keeps its font.
@@ -69,7 +70,9 @@ function lib.LatinClient() return LATIN_CLIENTS[GetLocale()] == true end
 -- Fonts (SIL Open Font License, Media/Fonts/OFL.txt and FONTS.txt), by the
 -- name settings store. Names stay forever: saved variables hold them.
 local FONT_FILES = {
+    { "Alegreya", "Alegreya-Regular.ttf" },
     { "Bangers", "Bangers-Regular.ttf" },
+    { "Bungee", "Bungee-Regular.ttf" },
     { "Cinzel", "Cinzel-Bold.ttf" },
     { "IBM Plex Mono", "IBMPlexMono-Regular.ttf" },
     { "IBM Plex Sans Condensed Bold", "IBMPlexSansCondensed-Bold.ttf" },
@@ -79,6 +82,7 @@ local FONT_FILES = {
     { "Inter Tight Light", "InterTight-Light.ttf" },
     { "Julius Sans One", "JuliusSansOne-Regular.ttf" },
     { "Marcellus", "Marcellus-Regular.ttf" },
+    { "Rubik Medium", "Rubik-Medium.ttf" },
     { "Space Grotesk", "SpaceGrotesk-Bold.ttf" },
     { "Titillium Web Bold Italic", "TitilliumWeb-BoldItalic.ttf" },
     { "Titillium Web SemiBold", "TitilliumWeb-SemiBold.ttf" },
@@ -176,6 +180,22 @@ lib.THEMES.RUNESTONE_HD = hd("RUNESTONE", "RunestoneHDSlate")
 lib.THEMES.GLASS_HD = hd("GLASS", "GlassHDRuby")
 lib.THEMES.COMIC_HD = hd("COMIC", "ComicHDNoir")
 lib.THEMES.FROST_HD = hd("FROST", "FrostHDIce")
+
+-- Two themes of a framed window, like the game's own (MINOR 10). Their
+-- backdrops are TILE_HD tiles drawn as they are (tile, a colour's texture).
+-- frame: a band of that material frameSize wide around the outside of the
+-- ring (the ring then lies between frame and backdrop). banner: the title
+-- band's texture instead of a colour; bannerEnd: its left end, half as
+-- wide as high, mirrored for the right; bannerTile: the banner repeats at
+-- its own size (stripes) instead of stretching.
+lib.THEMES.AZEROTH = { back = "AzerothParchment", tint = { 1, 1, 1, 1 }, tile = lib.TILE_HD,
+    frame = "WoodHDWalnut", frameSize = 7, banner = "AzerothBanner", bannerEnd = "AzerothBannerEnd",
+    ornament = "Bracket", corners = { 1, 2, 3, 4 }, ornamentColor = { 0.91, 0.76, 0.35, 1 },
+    rim = { 0.79, 0.635, 0.29, 1 }, font = "Cinzel", bodyFont = "Alegreya" }
+lib.THEMES.GOBLIN = { back = "GoblinSoot", tint = { 1, 1, 1, 1 }, tile = lib.TILE_HD,
+    frame = "GoblinCopper", frameSize = 7, banner = "GoblinHazard", bannerTile = true,
+    ornament = "Rivet", corners = { 1, 2, 3, 4 }, rim = { 0.23, 0.11, 0.05, 1 }, font = "Bungee",
+    bodyFont = "Rubik Medium" }
 
 -- The theme an id stands on: an HD theme's base, else the id itself (for
 -- an addon's own rules about one theme, e.g. Comic's ink).
@@ -479,6 +499,9 @@ lib.COLORS = {
         colour("TEAL", nil, nil, nil, { 0, 0.631, 0.612, 1 }),
         colour("SILVER", nil, nil, nil, { 0.788, 0.808, 0.839, 1 }),
     },
+    -- One colour each so far: the backdrop file (drawn as it is).
+    AZEROTH = { { id = "PARCHMENT", texture = "AzerothParchment" } },
+    GOBLIN = { { id = "SOOT", texture = "GoblinSoot" } },
 }
 
 -- The mean grey of each <back>Grey.tga: a colour's back is drawn as vertex

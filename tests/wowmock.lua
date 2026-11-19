@@ -104,6 +104,8 @@ local function newWidget(name, kind)
     function w:GetTexture() return self._texture end
     function w:SetAtlas(a) self._atlas = a end
     function w:SetTexCoord(...) self._texCoord = { ... } end
+    function w:SetHorizTile(v) self._horizTile = v == true end
+    function w:GetHorizTile() return self._horizTile == true end
     function w:AddMaskTexture(m) self._masks = (self._masks or 0) + 1 end
     function w:RemoveMaskTexture(m) self._masks = (self._masks or 1) - 1 end
     function w:CreateMaskTexture() return newWidget(nil, "MaskTexture") end

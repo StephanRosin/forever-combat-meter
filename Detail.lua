@@ -252,7 +252,8 @@ local function layout(f, listCount)
     Media.ApplyText(h.title, style)
     f.close:SetSize(lk.button, lk.button)
     f.close:ClearAllPoints()
-    f.close:SetPoint("RIGHT", h, "RIGHT", lk.glow and -4 or -2, 0)
+    local edge = ns.ThemeArt.BannerEnd(lk.header)   -- clear of a banner's right end
+    f.close:SetPoint("RIGHT", h, "RIGHT", edge > 0 and -edge or lk.glow and -4 or -2, 0)
     f.lock:SetSize(lk.button, lk.button)
     f.lock.icon:SetSize(lk.icon, lk.icon)
     f.lock:ClearAllPoints()
@@ -491,6 +492,8 @@ function Detail.Open(windowIndex, row)
     current = { window = windowIndex, mode = Windows.Mode(windowIndex), view = Windows.View(windowIndex), row = row,
                 unknown = unidentified(row) }
     local frame = panel or create()
+    -- Laid out anew: a theme may have changed while it was closed.
+    frame.laidRows = nil
     frame:Show()
     elapsedTick = 0
     offset = 0

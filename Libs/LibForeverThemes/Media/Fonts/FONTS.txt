@@ -11,3 +11,6 @@ IBMPlexMono-Regular.ttf: IBM Plex Mono Regular. Copyright 2017 IBM Corp. (https:
 IBMPlexSansCondensed-Bold.ttf: IBM Plex Sans Condensed Bold. Copyright 2019 IBM Corp. (https://github.com/IBM/plex), subset to Latin
 InterTight-Bold.ttf, InterTight-Regular.ttf, InterTight-Light.ttf: Inter Tight Bold / Regular / Light, static instances (wght 700/400/300) of the variable font, subset to Latin. Copyright 2022 The Inter Project Authors (https://github.com/rsms/inter-tight)
 TitilliumWeb-BoldItalic.ttf, TitilliumWeb-SemiBold.ttf: Titillium Web Bold Italic / SemiBold, subset to Latin. Copyright (c) 2009-2011 by Accademia di Belle Arti di Urbino and students of MA course of Visual design
+Alegreya-Regular.ttf: Alegreya Regular, static instance (wght 400) of the variable font, subset to Latin. Copyright 2011 The Alegreya Project Authors (https://github.com/huertatipografica/Alegreya)
+Bungee-Regular.ttf: Bungee Regular, subset to Latin. Copyright 2023 The Bungee Project Authors (https://github.com/djrrb/Bungee)
+Rubik-Medium.ttf: Rubik Medium, static instance (wght 500) of the variable font, subset to Latin. Copyright 2015 The Rubik Project Authors (https://github.com/googlefonts/rubik)

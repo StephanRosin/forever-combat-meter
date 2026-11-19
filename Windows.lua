@@ -46,6 +46,8 @@ local ACCENT = { 0.31, 0.76, 0.97 }
 local IDLE = { 0.73, 0.64, 0.48 }
 local HOVER = { 1, 0.88, 0.54 }
 local GREY = { 0.6, 0.6, 0.6 }
+-- The empty list's note on a light page (a theme's `ink`: Azeroth's parchment).
+local INK = { 0.2, 0.13, 0.06 }
 -- Per second of counts keeps a decimal even when secret.
 local PRECISE = { interrupts = true, dispels = true }
 local POINTS = { CENTER = true, TOP = true, BOTTOM = true, LEFT = true, RIGHT = true,
@@ -260,6 +262,10 @@ local function applyLook(f, lk)
         style = S("borderStyle"), size = S("borderSize"), color = ns.Themes.Rim(S("borderColor")), radius = radius,
         shadow = S("shadowEnabled"), shadowSize = S("shadowSize"), shadowAlpha = S("shadowAlpha") / 100,
     })
+    if f.empty then
+        local c = ns.Themes.Spec(S("theme")).ink and INK or GREY
+        f.empty:SetTextColor(c[1], c[2], c[3])
+    end
 end
 
 -- The breakdown panel (Detail.lua) wears the windows' look.
@@ -287,7 +293,9 @@ local function layoutHeader(f, lk)
         button.icon:SetSize(lk.icon, lk.icon)
         button:ClearAllPoints()
         if k == 1 then
-            button:SetPoint("RIGHT", h, "RIGHT", lk.glow and -4 or -2, 0)
+            -- Clear of a banner's right end (Azeroth).
+            local edge = ns.ThemeArt.BannerEnd(lk.header)
+            button:SetPoint("RIGHT", h, "RIGHT", edge > 0 and -edge or lk.glow and -4 or -2, 0)
         else
             button:SetPoint("RIGHT", order[k - 1], "LEFT", -1, 0)
         end
