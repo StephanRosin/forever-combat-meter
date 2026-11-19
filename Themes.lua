@@ -29,8 +29,7 @@ local SETS = "themeSets"
 -- hand-made soft one: with these fonts that showed black text in Forever
 -- Unit Frames); Frost's is a soft drop shadow (SHADOW) without an outline.
 -- bodyOutline: the rows' flag instead (Runestone: OUTLINESHADOW, so white
--- names read on a white bar). ink: the page is light (Azeroth), notes
--- written straight on it in dark ink.
+-- names read on a white bar).
 -- art (ThemeArt.lua, all of it inside the window's edge but the library's
 -- frame round it), the library's back, tint, ornament, corners,
 -- ornamentColor, rule, strip, wedge, frame and banner with:
@@ -137,16 +136,6 @@ Themes.SPECS = Lib.Specs({
             bgMode = "SOLID", bgColor = { 0.039, 0.039, 0.039 }, bgAlpha = 100, shadowEnabled = false, headerColor = { 0.949, 0.953, 0.961 },
             nameColor = { 0.949, 0.953, 0.961 }, valueColor = { 0.949, 0.953, 0.961 } },
         art = { line = { 0, 0, 0, 1 } },
-    },
-    -- A window of the game's own world: light parchment in a walnut frame,
-    -- a gold ring and corners, the title in gold on a red banner. The rows
-    -- keep their light outlined text: it stands on the bars.
-    AZEROTH = {
-        bar = "FCM Parchment", ink = true,
-        look = { borderStyle = "FLAT", borderSize = 2, borderColor = Lib.THEMES.AZEROTH.rim, cornerRadius = 0,
-            bgMode = "SOLID", bgColor = { 0, 0, 0 }, bgAlpha = 0, shadowEnabled = true, shadowAlpha = 60,
-            shadowSize = 8, headerColor = { 1, 0.82, 0 }, headerLine = false, barBgAlpha = 40 },
-        art = { ornamentSize = 14, ornamentInset = 0 },
     },
     -- A goblin workshop: sooty sheet metal in a copper frame with rivets, a
     -- thin strip of warning stripes along the top (no text on it).
@@ -465,6 +454,15 @@ end
 -- revision is made anew from CLASSIC, quietly (nothing listens yet).
 function Themes.Upgrade()
     local sets = ns.DB()[SETS]
+    -- A theme no longer offered (Azeroth, LibForeverThemes 13): back to the
+    -- stored CLASSIC set, without one CLASSIC on the settings as they are.
+    local gone = ns.DB().theme
+    if gone ~= nil and not Themes.SPECS[gone] then
+        local classic = type(sets) == "table" and sets[Themes.CLASSIC]
+        if type(sets) == "table" then sets[gone], sets[Themes.CLASSIC] = nil, nil end
+        if classic then write(classic) end
+        ns.DB().theme = nil
+    end
     -- Before LibForeverThemes 9 a base and its HD theme had a set each:
     -- made one; a customised HD set wins.
     if type(sets) == "table" then

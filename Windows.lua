@@ -46,8 +46,6 @@ local ACCENT = { 0.31, 0.76, 0.97 }
 local IDLE = { 0.73, 0.64, 0.48 }
 local HOVER = { 1, 0.88, 0.54 }
 local GREY = { 0.6, 0.6, 0.6 }
--- The empty list's note on a light page (a theme's `ink`: Azeroth's parchment).
-local INK = { 0.2, 0.13, 0.06 }
 -- Per second of counts keeps a decimal even when secret.
 local PRECISE = { interrupts = true, dispels = true }
 local POINTS = { CENTER = true, TOP = true, BOTTOM = true, LEFT = true, RIGHT = true,
@@ -59,7 +57,7 @@ local hiddenAll = false   -- /fcm toggle; for this session only
 local tickWait, burstLeft = 0, 0
 local fontKey
 
--- A banner (Azeroth's, Goblin's stripes) needs the full header: in the
+-- A banner (Goblin's stripes) needs the full header: in the
 -- compact one the title stood taller than the banner or ran into the stripes;
 -- below a stripe (art.bannerHeight) the title moves down into the room under it.
 local BANNER_HEADER = 24
@@ -276,8 +274,7 @@ local function applyLook(f, lk)
         shadow = S("shadowEnabled"), shadowSize = S("shadowSize"), shadowAlpha = S("shadowAlpha") / 100,
     })
     if f.empty then
-        local c = ns.Themes.Spec(S("theme")).ink and INK or GREY
-        f.empty:SetTextColor(c[1], c[2], c[3])
+        f.empty:SetTextColor(GREY[1], GREY[2], GREY[3])
     end
 end
 
@@ -306,7 +303,7 @@ local function layoutHeader(f, lk)
         button.icon:SetSize(lk.icon, lk.icon)
         button:ClearAllPoints()
         if k == 1 then
-            -- Clear of a banner's right end (Azeroth).
+            -- Clear of a banner's right end.
             local edge = ns.ThemeArt.BannerEnd(lk.header)
             button:SetPoint("RIGHT", h, "RIGHT", edge > 0 and -edge or lk.glow and -4 or -2, -(lk.titleDrop or 0))
         else

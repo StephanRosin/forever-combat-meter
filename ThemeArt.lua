@@ -96,12 +96,12 @@ local function placeBand(box, art)
     box.band:SetColorTexture(rule[1], rule[2], rule[3], rule[4])
 end
 
--- The frame (Azeroth's walnut, the goblins' copper): four strips of its
+-- The frame (the goblins' copper): four strips of its
 -- material round the window's outside, the top and bottom ones across the
 -- corners, repeating at its own size. The one theme part beyond the window's
 -- edge: the library's frames run round the ring, which here is the edge.
 -- Returns how wide it is (0 without one).
--- The material frame's width (Azeroth, Goblin), 0 without one. It lies
+-- The material frame's width (Goblin), 0 without one. It lies
 -- inside the window's edge, the ring inside it: windows stacked edge to edge
 -- stay flush with each other as under every other theme.
 function ThemeArt.FrameWidth()

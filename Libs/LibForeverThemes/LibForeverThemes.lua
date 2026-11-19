@@ -20,7 +20,7 @@ Not to be confused with _G.ForeverThemes: that is the registry of the
 addons for the cross-addon theme menu (Lib.Register fills it).
 ---------------------------------------------------------------------------]]
 local FOLDER = ...
-local MINOR = 12
+local MINOR = 13
 
 local shared = _G.LibForeverThemes
 -- `or 0`: a copy before MINOR 3 could throw half way and leave no MINOR.
@@ -59,7 +59,7 @@ lib.CLASSIC = "CLASSIC"
 -- In the options' order; new themes go at the end.
 lib.IDS = { "CLASSIC", "WOOD", "TECH", "PARCHMENT", "RUNESTONE", "GLASS", "COMIC", "FROST", "PIXEL", "SWISS",
     "CONSOLE", "PITWALL", "WOOD_HD", "TECH_HD", "PARCHMENT_HD", "RUNESTONE_HD", "GLASS_HD", "COMIC_HD", "FROST_HD",
-    "AZEROTH", "GOBLIN" }
+    "GOBLIN" }
 
 -- The theme fonts have Latin letters only: on a client whose names are
 -- written otherwise a text keeps its font.
@@ -181,16 +181,13 @@ lib.THEMES.GLASS_HD = hd("GLASS", "GlassHDRuby")
 lib.THEMES.COMIC_HD = hd("COMIC", "ComicHDNoir")
 lib.THEMES.FROST_HD = hd("FROST", "FrostHDIce")
 
--- Two themes of a framed window, like the game's own (MINOR 10). Their
+-- A theme of a framed window, like the game's own (MINOR 10). Its
 -- backdrops are TILE_HD tiles drawn as they are (tile, a colour's texture).
 -- frame: a band of that material frameSize wide around the outside of the
 -- ring (the ring then lies between frame and backdrop). banner: the title
 -- band's texture instead of a colour; bannerEnd: its left end, half as
 -- wide as high, mirrored for the right; bannerTile: the banner repeats at
 -- its own size (stripes) instead of stretching.
-lib.THEMES.AZEROTH = { back = "AzerothParchment", tint = { 1, 1, 1, 1 }, tile = lib.TILE_HD,
-    frame = "WoodHDWalnut", frameSize = 7, banner = "AzerothBanner", bannerEnd = "AzerothBannerEnd",
-    rim = { 0.79, 0.635, 0.29, 1 }, font = "Cinzel", bodyFont = "Alegreya" }   -- no corner pieces (Stephan)
 lib.THEMES.GOBLIN = { back = "GoblinSoot", tint = { 1, 1, 1, 1 }, tile = lib.TILE_HD,
     frame = "GoblinCopper", frameSize = 7, banner = "GoblinHazard", bannerTile = true,
     ornament = "Rivet", corners = { 1, 2, 3, 4 }, rim = { 0.23, 0.11, 0.05, 1 }, font = "Bungee",
@@ -499,7 +496,6 @@ lib.COLORS = {
         colour("SILVER", nil, nil, nil, { 0.788, 0.808, 0.839, 1 }),
     },
     -- One colour each so far: the backdrop file (drawn as it is).
-    AZEROTH = { { id = "PARCHMENT", texture = "AzerothParchment", accent = { 1, 0.82, 0 } } },   -- gold on the red banner
     GOBLIN = { { id = "SOOT", texture = "GoblinSoot", accent = { 0.95, 0.76, 0.19 } } },
 }
 
