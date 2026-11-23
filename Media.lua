@@ -97,13 +97,100 @@ end
 function Media.FontNames() return Media.Names("font") end
 function Media.FontPath(name) return Media.Path("font", name) end
 
+-- A font file draws only its own letters: Friz Quadrata and most others
+-- have no Cyrillic, Hangul or Hanzi, so such names became squares. Blizzard's
+-- own fonts are families, one file per alphabet (Fonts.xml); Media.Family
+-- makes one around the chosen file, the rest from the client's files.
+-- The _CYR files draw Latin a little differently, so not for Latin. nil
+-- where the client cannot make families. As in ForeverUnitFrames.
+local CYRILLIC = {
+    ["fonts\\frizqt__.ttf"] = "Fonts\\FRIZQT___CYR.TTF",
+    ["fonts\\morpheus.ttf"] = "Fonts\\MORPHEUS_CYR.TTF",
+    ["fonts\\skurri.ttf"] = "Fonts\\SKURRI_CYR.TTF",
+}
+local HAS_CYRILLIC = { ["fonts\\arialn.ttf"] = true, ["fonts\\frizqt___cyr.ttf"] = true,
+    ["fonts\\morpheus_cyr.ttf"] = true, ["fonts\\skurri_cyr.ttf"] = true }
+local OTHER_ALPHABETS = {
+    { alphabet = "korean", file = "Fonts\\2002.TTF" },
+    { alphabet = "simplifiedchinese", file = "Fonts\\ARKai_T.ttf" },
+    { alphabet = "traditionalchinese", file = "Fonts\\blei00d.TTF" },
+}
+local families, familyCount = {}, 0
+local function plain(p) return (p:lower():gsub("/", "\\")) end
+
+local function cyrillicFor(file)
+    local p = plain(file)
+    if HAS_CYRILLIC[p] then return file end
+    return CYRILLIC[p] or "Fonts\\FRIZQT___CYR.TTF"
+end
+
+-- Whether path is one of the files a family around file draws with (the
+-- client reports the file of the text's alphabet).
+local function inFamily(file, path)
+    if not next(families) then return false end
+    path = plain(path)
+    if path == plain(cyrillicFor(file)) then return true end
+    for _, other in ipairs(OTHER_ALPHABETS) do
+        if path == plain(other.file) then return true end
+    end
+    return false
+end
+
+local function forgetFamily(file, size, flags)
+    local key = file .. "|" .. size .. "|" .. flags
+    families[key .. "|"], families[key .. "|shadow"] = nil, nil
+end
+
+-- A font object hands its texts its own shadow, and CreateFontFamily takes
+-- none: the family carries the text's.
+local function shade(font, shadow)
+    pcall(font.SetShadowOffset, font, shadow and 1 or 0, shadow and -1 or 0)
+    pcall(font.SetShadowColor, font, 0, 0, 0, 1)
+end
+
+function Media.Family(file, size, flags, shadow)
+    if type(CreateFontFamily) ~= "function" or type(file) ~= "string" then return nil end
+    local key = file .. "|" .. size .. "|" .. flags .. "|" .. (shadow and "shadow" or "")
+    local family = families[key]
+    if family == nil then
+        local members = {
+            { alphabet = "roman", file = file, height = size, flags = flags },
+            { alphabet = "russian", file = cyrillicFor(file), height = size, flags = flags },
+        }
+        for _, other in ipairs(OTHER_ALPHABETS) do
+            members[#members + 1] = { alphabet = other.alphabet, file = other.file, height = size, flags = flags }
+        end
+        familyCount = familyCount + 1
+        local ok, made = pcall(CreateFontFamily, ADDON .. "Font" .. familyCount, members)
+        family = ok and made or false
+        if family then
+            shade(family, shadow)
+            for _, member in ipairs(members) do
+                local got, font = pcall(family.GetFontObjectForAlphabet, family, member.alphabet)
+                if got and font then shade(font, shadow) end
+            end
+        end
+        families[key] = family
+    end
+    return family or nil
+end
+
+-- A file onto a text, inside its family. Only the family: a file once set
+-- with SetFont wins over any font object for good (seen in game). The
+-- file alone where the client makes no families.
+function Media.SetFont(fs, path, size, flags, shadow)
+    local family = Media.Family(path, size, flags, shadow)
+    if family and pcall(fs.SetFontObject, fs, family) then return true end
+    local ok, took = pcall(fs.SetFont, fs, path, size, flags)
+    return ok and took
+end
+
 -- Whether a text took the font file asked for (a refused one leaves the
 -- old font, or none).
 local function hasFont(fs, path)
     local got = fs:GetFont()
     if type(got) ~= "string" then return false end
-    local function plain(p) return (p:lower():gsub("/", "\\")) end
-    return plain(got) == plain(path)
+    return plain(got) == plain(path) or inFamily(path, got)
 end
 -- How often, and how far apart, a refused font is tried again.
 local FONT_TRIES, FONT_RETRY_DELAY = 40, 0.25
@@ -111,19 +198,25 @@ local FONT_TRIES, FONT_RETRY_DELAY = 40, 0.25
 -- (theme switch); report each file only once.
 local refusedFonts = {}
 
+local function setShadow(fs, shadow)
+    fs:SetShadowColor(0, 0, 0, 1)
+    fs:SetShadowOffset(shadow and 1 or 0, shadow and -1 or 0)
+end
+
 -- A font file used for the first time can leave a text blank although
 -- GetFont reports it (seen in game: empty texts until the theme was
 -- chosen a second time). Setting it again a little later, through another
 -- font, as that second choice did, draws them. Once per text and font.
 local REDRAW_DELAYS = { 0.5, 2 }
-local function redrawLater(fs, path, size, flags, wanted)
+local function redrawLater(fs, path, size, flags, shadow, wanted)
     if fs.fontDrawn == wanted then return end
     fs.fontDrawn = wanted
     for _, delay in ipairs(REDRAW_DELAYS) do
         C_Timer.After(delay, function()
             if fs.fontWanted ~= wanted then return end
-            fs:SetFont("Fonts\\FRIZQT__.TTF", size, flags)
-            fs:SetFont(path, size, flags)
+            Media.SetFont(fs, "Fonts\\FRIZQT__.TTF", size, flags, shadow)
+            Media.SetFont(fs, path, size, flags, shadow)
+            setShadow(fs, shadow)
             local text = fs:GetText()
             if text then fs:SetText(""); fs:SetText(text) end
         end)
@@ -137,13 +230,16 @@ end
 function Media.ApplyText(fs, style, tries)
     local flag = style.flag
     local outline = (flag == "OUTLINE" or flag == "THICKOUTLINE") and flag or flag == "OUTLINESHADOW" and "OUTLINE" or ""
+    local shadow = flag == "SHADOW" or flag == "OUTLINESHADOW"
     local path = Media.FontPath(style.font)
-    local wanted = path .. "|" .. style.size .. "|" .. outline
+    local wanted = path .. "|" .. style.size .. "|" .. outline .. "|" .. tostring(shadow)
     fs.fontWanted = wanted
-    if fs:SetFont(path, style.size, outline) and hasFont(fs, path) then
-        redrawLater(fs, path, style.size, outline, wanted)
+    if Media.SetFont(fs, path, style.size, outline, shadow) and hasFont(fs, path) then
+        redrawLater(fs, path, style.size, outline, shadow, wanted)
     else
-        fs:SetFont(Media.DEFAULT.font, style.size, outline)
+        Media.SetFont(fs, Media.DEFAULT.font, style.size, outline, shadow)
+        -- The next try makes a new family: this one may hold the refusal.
+        forgetFamily(path, style.size, outline)
         tries = tries or FONT_TRIES
         if tries > 0 then
             C_Timer.After(FONT_RETRY_DELAY, function()
@@ -155,12 +251,7 @@ function Media.ApplyText(fs, style, tries)
             ns.Print("Font could not be loaded: %s", tostring(style.font))
         end
     end
-    if flag == "SHADOW" or flag == "OUTLINESHADOW" then
-        fs:SetShadowColor(0, 0, 0, 1)
-        fs:SetShadowOffset(1, -1)
-    else
-        fs:SetShadowOffset(0, 0)
-    end
+    setShadow(fs, shadow)
     local c = style.color
     fs:SetTextColor(c[1], c[2], c[3], c[4] or 1)
 end

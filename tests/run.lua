@@ -2824,6 +2824,33 @@ check("bar textures from the library", ns.Media.Path("statusbar", "FCM Stone"),
 check("an old font name finds its file", ns.Media.Path("font", "IBM Plex Sans Condensed"),
     LibForeverThemes.FontPath("IBM Plex Sans Condensed Bold"))
 
+section("Font families: names in Cyrillic, Hangul and Hanzi")
+do
+    local made = {}
+    _G.CreateFontFamily = function(name, members)
+        local family = { name = name, members = members }
+        function family:SetShadowOffset(x, y) self._shadow = { x, y } end
+        made[#made + 1] = family
+        return family
+    end
+    local fs = UIParent:CreateFontString()
+    function fs:SetFontObject(o) self._fontObject = o; local m = o.members[1]; self._font = { m.file, m.height, m.flags } end
+    local filed = 0
+    local raw = fs.SetFont
+    fs.SetFont = function(self, ...) filed = filed + 1; return raw(self, ...) end
+    ns.Media.ApplyText(fs, { font = "Friz Quadrata", size = 12, flag = "SHADOW", color = { 1, 1, 1 } })
+    M.RunTimers()
+    local family = fs._fontObject
+    check("a bar text gets a family", family ~= nil and family.members ~= nil, true)
+    check("no file set on the text", filed, 0)
+    local russian
+    for _, m in ipairs(family.members) do if m.alphabet == "russian" then russian = m.file end end
+    check("Cyrillic from the _CYR twin", russian, "Fonts\\FRIZQT___CYR.TTF")
+    check("the family carries the shadow", family._shadow and family._shadow[1], 1)
+    check("the text keeps its shadow", (fs:GetShadowOffset()), 1)
+    _G.CreateFontFamily = nil
+end
+
 section("No accidental globals")
 local allowed = { SLASH_FOREVERCOMBATMETER1 = true, SLASH_FOREVERCOMBATMETER2 = true, ForeverCombatMeterProfiles = true,
     ForeverCombatMeterChar = true, ForeverCombatMeter_OnAddonCompartmentClick = true,

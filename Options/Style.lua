@@ -45,7 +45,7 @@ end
 
 function Style.Text(parent, size, colorKey, layer)
     local fs = parent:CreateFontString(nil, layer or "OVERLAY")
-    fs:SetFont(ns.Media.FontPath("Friz Quadrata"), size, "")
+    ns.Media.SetFont(fs, ns.Media.FontPath("Friz Quadrata"), size, "", true)   -- a family: Cyrillic names
     local c = Style.COLORS[colorKey or "text"]
     fs:SetTextColor(c[1], c[2], c[3], c[4])
     fs:SetShadowOffset(1, -1)
