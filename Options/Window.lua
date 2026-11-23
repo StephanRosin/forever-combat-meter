@@ -715,6 +715,70 @@ local function onWheel(scroll, delta)
     updateScrollbar()
 end
 
+-- Besides the wheel the thumb can be dragged, and a click on the track above
+-- or below it turns a page (reported: with a broken wheel the lower options
+-- were out of reach). The thumb is a button as wide as the track, its bar
+-- 2 px at the right edge, 4 px while hovered or dragged.
+local function setScroll(v)
+    local scroll = frame.scroll
+    scroll:SetVerticalScroll(math.max(0, math.min(scroll:GetVerticalScrollRange() or 0, v)))
+    updateScrollbar()
+end
+
+local function cursorY(region)
+    return select(2, GetCursorPosition()) / region:GetEffectiveScale()
+end
+
+local function followDrag(thumb)
+    local scroll = frame.scroll
+    local free = (scroll:GetHeight() or 0) - thumb:GetHeight()
+    if free > 0 then
+        setScroll(thumb.startScroll + (thumb.startY - cursorY(thumb)) * (scroll:GetVerticalScrollRange() or 0) / free)
+    end
+end
+
+local function createThumb(body)
+    local thumb = CreateFrame("Button", nil, body)
+    thumb:SetWidth(SCROLLBAR_W - 3)
+    thumb:SetFrameLevel(body:GetFrameLevel() + 5)
+    local bar = thumb:CreateTexture(nil, "ARTWORK")
+    bar:SetColorTexture(unpack(Style.COLORS.accent))
+    bar:SetPoint("TOPRIGHT"); bar:SetPoint("BOTTOMRIGHT")
+    bar:SetWidth(2)
+    local function wide(on) bar:SetWidth((on or thumb.startY) and 4 or 2) end
+    thumb:SetScript("OnEnter", function() wide(true) end)
+    thumb:SetScript("OnLeave", function() wide(false) end)
+    thumb:SetScript("OnMouseDown", function(self, button)
+        if button ~= "LeftButton" then return end
+        self.startY, self.startScroll = cursorY(self), frame.scroll:GetVerticalScroll() or 0
+        self:SetScript("OnUpdate", followDrag)
+    end)
+    thumb:SetScript("OnMouseUp", function(self)
+        self.startY = nil
+        self:SetScript("OnUpdate", nil)
+        wide(self:IsMouseOver())
+    end)
+    thumb:EnableMouseWheel(true)
+    thumb:SetScript("OnMouseWheel", function(_, delta) onWheel(frame.scroll, delta) end)
+    thumb:Hide()
+    return thumb
+end
+
+local function createTrack(body, scroll)
+    local track = CreateFrame("Frame", nil, body)
+    track:SetPoint("TOPLEFT", scroll, "TOPRIGHT", 0, 0)
+    track:SetPoint("BOTTOMRIGHT", scroll, "BOTTOMRIGHT", SCROLLBAR_W, 0)
+    track:EnableMouse(true)
+    track:EnableMouseWheel(true)
+    track:SetScript("OnMouseWheel", function(_, delta) onWheel(scroll, delta) end)
+    track:SetScript("OnMouseDown", function(self, button)
+        local thumb = frame.scrollThumb
+        if button ~= "LeftButton" or not thumb:IsShown() then return end
+        local step = (scroll:GetHeight() or 0) - WHEEL_STEP
+        setScroll((scroll:GetVerticalScroll() or 0) + (cursorY(self) < thumb:GetBottom() and step or -step))
+    end)
+end
+
 local function createScroll(body)
     local scroll = CreateFrame("ScrollFrame", "ForeverCombatMeterOptionsScroll", body)
     scroll:SetPoint("TOPLEFT", body, "TOPLEFT", 0, 0)
@@ -725,10 +789,8 @@ local function createScroll(body)
     local child = CreateFrame("Frame", nil, scroll)
     child:SetSize(CONTENT_W, 1)
     scroll:SetScrollChild(child)
-    local thumb = body:CreateTexture(nil, "ARTWORK")
-    thumb:SetColorTexture(unpack(Style.COLORS.accent))
-    thumb:SetWidth(2)
-    thumb:Hide()
+    createTrack(body, scroll)
+    local thumb = createThumb(body)
     frame.scroll, frame.scrollChild, frame.scrollThumb = scroll, child, thumb
 end
 

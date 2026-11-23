@@ -220,7 +220,7 @@ end
 check("interface options page", M.registered[1], "Forever Combat Meter")
 
 section("Minimap button, compartment and slash command")
-local mb = M.byName["ForeverCombatMeterMinimapButton"]
+local mb = M.byName["Forever Combat Meter"]
 check("minimap button", mb ~= nil, true)
 mb:GetScript("OnClick")(mb, "RightButton")
 check("right-click locks", S("locked"), true)
